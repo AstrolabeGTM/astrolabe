@@ -163,7 +163,7 @@ A **monitor** produces signals. Monitors are either scheduled (polling) or event
 | `github_repo` | Scheduled | Stars, forks and issues on your repos or a competitor's | Dev tools |
 | `community` | Scheduled, hourly | HN, Reddit, Lobsters, Stack Overflow, RSS keyword matches | All |
 | `product_events` | Webhook | signup, activated, stalled, limit hit, invited teammate | All (your apps send these) |
-| `site` | Webhook or PostHog | Pricing or docs visits by a known person | All |
+| `site` | Product events + tracked links | Pricing or docs visits by a known person: send them as product events (e.g. `type: pricing_visit`); clicks on tracked links arrive as `link.click`. No PostHog integration yet | All |
 | `stripe` | Webhook | Trial, upgrade, failed payment, churn | All paid products |
 | `inbox` | Webhook | Replies, bounces, unsubscribes | All |
 | `manual` | Chat or CSV | "Add these 30 people", a forwarded email | All |
