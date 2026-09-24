@@ -1,0 +1,92 @@
+#!/bin/bash
+# Runs on every boot; each step is idempotent.
+set -euo pipefail
+
+if ! command -v caddy >/dev/null; then
+  apt-get update
+  apt-get install -y postgresql debian-keyring debian-archive-keyring apt-transport-https curl gnupg
+  curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/gpg.key' | gpg --dearmor -o /usr/share/keyrings/caddy-stable-archive-keyring.gpg
+  curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/debian.deb.txt' > /etc/apt/sources.list.d/caddy-stable.list
+  apt-get update
+  apt-get install -y caddy
+fi
+
+id astrolabe >/dev/null 2>&1 || useradd --system --create-home --home-dir /var/lib/astrolabe astrolabe
+mkdir -p /opt/astrolabe /etc/astrolabe
+chown astrolabe:astrolabe /opt/astrolabe
+
+# Local Postgres with a peer-authenticated role for the service user.
+sudo -u postgres psql -tc "SELECT 1 FROM pg_roles WHERE rolname = 'astrolabe'" | grep -q 1 || sudo -u postgres createuser astrolabe
+sudo -u postgres psql -tc "SELECT 1 FROM pg_database WHERE datname = 'astrolabe'" | grep -q 1 || sudo -u postgres createdb -O astrolabe astrolabe
+
+cat > /etc/caddy/Caddyfile <<CADDY
+${domain} {
+  reverse_proxy 127.0.0.1:8080
+  request_body {
+    max_size 2MB
+  }
+}
+CADDY
+systemctl reload caddy || systemctl restart caddy
+
+# Fetch the env file from Secret Manager before each start.
+cat > /opt/astrolabe/fetch-env.sh <<'FETCH'
+#!/bin/bash
+set -euo pipefail
+gcloud secrets versions access latest --secret=${secret} > /etc/astrolabe/env.tmp
+echo "ASTROLABE_DATABASE_URL=postgres:///astrolabe?host=/var/run/postgresql" >> /etc/astrolabe/env.tmp
+echo "ASTROLABE_ADDR=127.0.0.1:8080" >> /etc/astrolabe/env.tmp
+echo "ASTROLABE_PRODUCTS=/opt/astrolabe/products" >> /etc/astrolabe/env.tmp
+echo "ASTROLABE_SECRETS_DIR=/var/lib/astrolabe/secrets" >> /etc/astrolabe/env.tmp
+# The digest runs Mondays 08:00 local; set TZ (e.g. TZ=Asia/Kolkata) in the secret, default UTC.
+grep -q '^TZ=' /etc/astrolabe/env.tmp || echo "TZ=UTC" >> /etc/astrolabe/env.tmp
+install -m 0600 -o astrolabe /etc/astrolabe/env.tmp /etc/astrolabe/env
+rm /etc/astrolabe/env.tmp
+FETCH
+chmod 0755 /opt/astrolabe/fetch-env.sh
+
+# A root oneshot writes the env file before the service loads it (systemd
+# reads EnvironmentFile before any ExecStartPre of the same unit runs).
+cat > /etc/systemd/system/astrolabe-env.service <<'UNIT'
+[Unit]
+Description=Fetch Astrolabe environment from Secret Manager
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/opt/astrolabe/fetch-env.sh
+UNIT
+
+cat > /etc/systemd/system/astrolabe.service <<'UNIT'
+[Unit]
+Description=Astrolabe
+Requires=astrolabe-env.service
+After=astrolabe-env.service network-online.target postgresql.service
+Wants=network-online.target
+
+[Service]
+User=astrolabe
+EnvironmentFile=-/etc/astrolabe/env
+ExecStartPre=/opt/astrolabe/astrolabe migrate
+ExecStart=/opt/astrolabe/astrolabe serve
+Restart=always
+RestartSec=5
+# Give an in-flight send time to record its result.
+TimeoutStopSec=40
+NoNewPrivileges=true
+ProtectSystem=strict
+ReadWritePaths=/var/lib/astrolabe
+
+[Install]
+WantedBy=multi-user.target
+UNIT
+
+# Daily compressed dump to the versioned bucket at 03:15.
+cat > /etc/cron.d/astrolabe-backup <<CRON
+15 3 * * * postgres pg_dump -Fc astrolabe | gcloud storage cp - gs://${bucket}/astrolabe-\$(date +\%F).dump
+CRON
+
+systemctl daemon-reload
+systemctl enable astrolabe
+if [ -x /opt/astrolabe/astrolabe ]; then systemctl restart astrolabe; fi

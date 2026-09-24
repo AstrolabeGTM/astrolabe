@@ -1,0 +1,60 @@
+{{define "head"}}<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>{{.Title}} · Astrolabe</title>
+<style>
+:root{--bg:#fbfbfa;--fg:#1d1d1b;--mut:#6b6b66;--line:#e4e3df;--card:#fff;--acc:#2f5bd3;--ok:#1f7a4d;--warn:#a15c00;--bad:#b3261e}
+@media (prefers-color-scheme:dark){:root{--bg:#161615;--fg:#ecebe8;--mut:#9d9c97;--line:#2e2e2b;--card:#1e1e1c;--acc:#7d9cf0;--ok:#5cc08b;--warn:#e0a24a;--bad:#f07167}}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.5 system-ui,-apple-system,sans-serif}
+nav{display:flex;gap:4px;align-items:center;padding:10px 16px;border-bottom:1px solid var(--line);flex-wrap:wrap}
+nav a{color:var(--mut);text-decoration:none;padding:4px 10px;border-radius:6px}nav a.on{color:var(--fg);background:var(--line)}
+nav .brand{font-weight:600;color:var(--fg);margin-right:12px}nav form{margin-left:auto}
+main{max-width:980px;margin:0 auto;padding:16px}
+h2{font-size:13px;text-transform:uppercase;letter-spacing:.06em;color:var(--mut);margin:28px 0 8px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:12px 14px;margin:8px 0}
+.meta{color:var(--mut);font-size:13px}.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+input,textarea,select,button{font:inherit;color:inherit}
+input[type=text],input[type=email],input[type=date],input[type=number],input[type=password],textarea,select{background:var(--bg);border:1px solid var(--line);border-radius:6px;padding:6px 8px}
+textarea{width:100%;min-height:140px;resize:vertical}input.wide{width:100%}
+button{background:var(--card);border:1px solid var(--line);border-radius:6px;padding:5px 12px;cursor:pointer}
+button.primary{background:var(--acc);border-color:var(--acc);color:#fff}button.danger{color:var(--bad)}
+.flash{padding:8px 12px;border-radius:8px;margin:8px 0;background:color-mix(in srgb,var(--ok) 14%,transparent)}
+.flash.err{background:color-mix(in srgb,var(--bad) 14%,transparent)}
+.tag{display:inline-block;font-size:12px;padding:1px 8px;border-radius:99px;border:1px solid var(--line);color:var(--mut)}
+.tag.warn{color:var(--warn);border-color:var(--warn)}.tag.bad{color:var(--bad);border-color:var(--bad)}.tag.ok{color:var(--ok);border-color:var(--ok)}
+table{width:100%;border-collapse:collapse}td,th{text-align:left;padding:6px 8px;border-bottom:1px solid var(--line);vertical-align:top}th{font-size:13px;color:var(--mut);font-weight:500}
+pre{white-space:pre-wrap;margin:6px 0;font:inherit}.bar{height:22px;background:var(--acc);border-radius:4px;opacity:.8}
+.empty{color:var(--mut);font-style:italic}.inline{display:inline}
+.paused{background:color-mix(in srgb,var(--warn) 16%,transparent);padding:8px 12px;border-radius:8px}
+</style></head><body>
+{{if sandbox}}<div style="background:#f6c343;color:#1d1d1b;padding:6px 16px;font-size:14px"><strong>Sandbox mode:</strong> nothing leaves this machine. Messages go to the <a href="/outbox" style="color:inherit">Outbox</a>, where you can simulate replies.</div>{{end}}
+<nav><span class="brand">Astrolabe</span>
+<a href="/" class="{{if eq .Active "inbox"}}on{{end}}">Inbox</a>
+<a href="/signals" class="{{if eq .Active "signals"}}on{{end}}">Signals</a>
+<a href="/automations" class="{{if eq .Active "automations"}}on{{end}}">Automations</a>
+<a href="/people" class="{{if eq .Active "people"}}on{{end}}">People</a>
+<a href="/funnel" class="{{if eq .Active "funnel"}}on{{end}}">Funnel</a>
+{{if sandbox}}<a href="/outbox" class="{{if eq .Active "outbox"}}on{{end}}">Outbox</a>{{end}}
+<a href="/content" class="{{if eq .Active "content"}}on{{end}}">Content</a>
+<a href="/digest" class="{{if eq .Active "digest"}}on{{end}}">Digest</a>
+<a href="/settings" class="{{if eq .Active "settings"}}on{{end}}">Settings</a>
+<form method="post" action="/logout"><button>Log out</button></form></nav>
+<main>
+{{if .Flash}}<div class="flash">{{.Flash}}</div>{{end}}
+{{if .Error}}<div class="flash err">{{.Error}}</div>{{end}}
+{{end}}
+
+{{define "foot"}}</main>
+<script>
+// Cmd/Ctrl+Enter in a draft saves and approves it.
+document.addEventListener('keydown', e => {
+  if ((e.metaKey || e.ctrlKey) && e.key === 'Enter' && e.target.form && e.target.form.dataset.draft) {
+    e.preventDefault(); const f = e.target.form; f.querySelector('[name=then]').value = 'approve'; f.submit();
+  }
+});
+</script></body></html>{{end}}
+
+{{define "login"}}<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Astrolabe</title>
+<style>body{font:15px system-ui;display:grid;place-items:center;height:100vh;margin:0;background:#fbfbfa}@media (prefers-color-scheme:dark){body{background:#161615;color:#ecebe8}}input,button{font:inherit;padding:8px 10px}</style></head>
+<body><form method="post" action="/login"><h1 style="font-size:20px">Astrolabe</h1>
+{{if .Failed}}<p style="color:#b3261e">Wrong password.</p>{{end}}
+<input type="password" name="password" placeholder="Password" autofocus required> <button>Sign in</button></form></body></html>{{end}}

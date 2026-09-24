@@ -1,0 +1,5 @@
+kind: users
+steps:
+  - {channel: email, after: 0d, goal: "offer a 15-minute setup call or the one step most people miss"}
+  - {channel: email, after: 3d, goal: "short tip that leads to the first success"}
+stop_on: [replied, unsubscribed, activated]

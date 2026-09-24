@@ -1,0 +1,5 @@
+kind: users
+steps:
+  - {channel: push, after: 0d, goal: "one-tap nudge to the first success", subject: "Your first [[.Name]] result"}
+  - {channel: email, after: 2d, goal: "short guide to the first success"}
+stop_on: [replied, unsubscribed, activated]

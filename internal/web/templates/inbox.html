@@ -1,0 +1,82 @@
+{{define "inbox"}}{{template "head" (dict "Title" "Inbox" "Active" .Active "Flash" .Flash "Error" .Error)}}
+{{if .Pauses}}<p class="paused">Paused: {{range $i, $p := .Pauses}}{{if $i}}, {{end}}{{$p}}{{end}} · <a href="/settings">settings</a></p>{{end}}
+
+{{if .Attention}}<h2>Needs a decision</h2>
+{{range .Attention}}<div class="card">
+  <div class="row"><span class="tag {{if eq .Status "unknown"}}warn{{else}}bad{{end}}">{{.Status}}</span>
+  <strong>{{.PersonName}}</strong><span class="meta">{{.Company}} · {{.ProductID}}/{{.SequenceID}} step {{inc .Step}} · #{{.ID}}</span></div>
+  <p class="meta">{{.Error}}</p>
+  {{if .Subject}}<div><strong>{{.Subject}}</strong> → {{.Recipient}}</div>{{end}}
+  <div class="row">
+  {{if eq .Status "unknown"}}
+    <form method="post" action="/actions/{{.ID}}/check" class="inline"><button class="primary">Check Sent mail</button></form>
+    <form method="post" action="/actions/{{.ID}}/resolve" class="inline"><input type="hidden" name="sent" value="yes"><button>It was sent</button></form>
+    <form method="post" action="/actions/{{.ID}}/resolve" class="inline"><input type="hidden" name="sent" value="no"><button>It was not sent → drafts</button></form>
+  {{else if eq .Status "failed"}}
+    <form method="post" action="/actions/{{.ID}}/resolve" class="inline"><input type="hidden" name="sent" value="no"><button>Back to drafts</button></form>
+    <form method="post" action="/actions/{{.ID}}/skip" class="inline"><button>Skip step</button></form>
+  {{else}}
+    <form method="post" action="/actions/{{.ID}}/skip" class="inline"><button>Skip step</button></form>
+  {{end}}</div>
+</div>{{end}}{{end}}
+
+<h2>Replies to sort ({{len .Replies}})</h2>
+{{range .Replies}}<div class="card">
+  <div class="row"><strong>{{if .PersonID}}<a href="/people/{{deref .PersonID}}">{{if .PersonName}}{{.PersonName}}{{else}}{{.From}}{{end}}</a>{{else}}{{.From}}{{end}}</strong>
+  {{if .Suggested}}<span class="tag warn" title="Claude's guess">looks like: {{replace .Suggested "_" " "}}</span>{{end}}
+  <span class="meta">{{.From}} · {{if .ProductID}}{{.ProductID}}{{else}}not from outreach{{end}} · {{ago .ReceivedAt}}</span></div>
+  <div><strong>{{.Subject}}</strong></div>
+  <details><summary class="meta">{{.Snippet}}</summary><pre>{{.Body}}</pre></details>
+  <form method="post" action="/replies/{{.ID}}/classify" class="row">
+    {{$sug := .Suggested}}{{range $.Classes}}<button name="class" value="{{.}}" {{if eq . $sug}}class="primary"{{end}}>{{replace . "_" " "}}</button>{{end}}
+    <span class="meta">remind on</span><input type="date" name="remind" title="for not now">
+  </form>
+  {{if .ActionID}}<details><summary class="meta">Answer by email</summary>
+  <form method="post" action="/replies/{{.ID}}/answer"><textarea name="body" placeholder="Your answer (goes to drafts for approval)"></textarea><button>Save answer as draft</button></form></details>{{end}}
+</div>{{else}}<p class="empty">No new replies.</p>{{end}}
+
+<h2>Tasks ({{len .Tasks}})</h2>
+{{range .Tasks}}<div class="card">
+  <div class="row">{{if lt .DueAt.Unix $.Now.Unix}}<span class="tag warn">due</span>{{else}}<span class="tag">{{ago .DueAt}}</span>{{end}}
+  <strong>{{.NextAction}}</strong></div>
+  <div class="meta">{{.ProductID}}{{if .PersonName}} · <a href="/people/{{deref .PersonID}}">{{.PersonName}}</a>{{end}} · due {{date .DueAt}}{{if .PlayID}} · automation {{.PlayID}}{{end}}{{if .Evidence}} · <a href="{{.Evidence}}" target="_blank" rel="noopener">source</a>{{end}}{{if .AnswerID}} · answer draft #{{deref .AnswerID}} below{{end}}</div>
+  {{if .Draft}}<details><summary class="meta">Suggested text</summary><pre>{{.Draft}}</pre></details>{{end}}
+  <form method="post" action="/tasks/{{.ID}}/close" class="row">
+    <select name="outcome" required><option value="">outcome…</option>{{range $.Outcomes}}<option>{{.}}</option>{{end}}</select>
+    <input type="text" name="note" placeholder="what happened">
+    <input type="number" name="minutes" placeholder="min" style="width:70px">
+    <button>Close</button>
+  </form>
+</div>{{else}}<p class="empty">Nothing due.</p>{{end}}
+<details class="card"><summary>Add a task</summary>
+<form method="post" action="/tasks" class="row" style="margin-top:8px">
+  <select name="product">{{range .Products}}<option>{{.ID}}</option>{{end}}</select>
+  <input type="text" name="next_action" placeholder="next action" required style="flex:1">
+  <input type="text" name="person_id" placeholder="person id" style="width:90px">
+  <input type="date" name="due"><button>Add</button>
+</form></details>
+
+<h2>Drafts to approve ({{len .Drafts}})</h2>
+{{range .Drafts}}<div class="card">
+  <div class="row"><strong><a href="/people/{{.PersonID}}">{{.PersonName}}</a></strong><span class="meta">{{.Company}} · {{.ProductID}}/{{.SequenceID}}{{if eq .Kind "step"}} step {{inc .Step}}{{end}} · {{.Channel}} · #{{.ID}}</span></div>
+  <div class="meta">{{if eq .Kind "reply"}}<span class="tag ok">answer to their reply</span> {{end}}Goal: {{.Goal}}{{if .Error}} · {{.Error}}{{end}}
+  {{if eq .AIState "pending"}} · <span class="tag warn">Claude is drafting…</span>{{end}}{{if eq .AIState "failed"}} · <span class="tag bad">AI draft failed</span>{{end}}</div>
+  {{range .Flags}}<div class="flash err" style="margin:4px 0">Check: {{.}}</div>{{end}}
+  <form method="post" action="/actions/{{.ID}}/save" data-draft="1">
+    <input type="hidden" name="then" value="">
+    {{if eq .Channel "email"}}<div class="meta">{{.Sender}} → {{.Recipient}}</div>
+    <input type="text" name="subject" value="{{.Subject}}" placeholder="Subject" class="wide" style="margin:6px 0">{{else}}
+    <div class="meta">Do by hand for {{.Recipient}}, then approve to mark done.</div><input type="hidden" name="subject" value="{{.Subject}}">{{end}}
+    <textarea name="body" placeholder="Write the message (or ask Claude to draft it via MCP)">{{.Body}}</textarea>
+    <div class="row"><button>Save</button>
+    <button class="primary" onclick="this.form.then.value='approve'">{{if eq .Channel "email"}}Save &amp; approve{{else}}Done{{end}}</button>
+    <button formaction="/actions/{{.ID}}/skip" class="danger">Skip</button>
+    <button formaction="/actions/{{.ID}}/ai" title="Ask Claude to write it">AI draft</button>
+    <span class="meta">⌘↵ approves</span></div>
+  </form>
+</div>{{else}}<p class="empty">No drafts. Start a sequence from People, or let an automation start one.</p>{{end}}
+
+{{if .Queued}}<h2>Queued to send ({{len .Queued}})</h2>
+<table>{{range .Queued}}<tr><td>#{{.ID}}</td><td>{{.PersonName}}</td><td>{{.Subject}}</td><td><span class="tag">{{.Status}}</span> {{.Error}}</td>
+<td><form method="post" action="/actions/{{.ID}}/skip"><button class="danger">Cancel</button></form></td></tr>{{end}}</table>{{end}}
+{{template "foot"}}{{end}}

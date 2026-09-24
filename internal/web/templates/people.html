@@ -1,0 +1,39 @@
+{{define "people"}}{{template "head" (dict "Title" "People" "Active" .Active "Flash" .Flash "Error" .Error)}}
+{{if not .Product}}<p class="empty">No valid products loaded. Check Settings.</p>{{else}}
+<form class="row" method="get" action="/people">
+  <select name="product" onchange="this.form.submit()">{{range .Products}}<option {{if eq .ID $.Product.ID}}selected{{end}}>{{.ID}}</option>{{end}}</select>
+  <input type="text" name="q" value="{{.Q}}" placeholder="search name, email, domain"><button>Search</button>
+</form>
+
+<details class="card"><summary>Import people (CSV)</summary>
+<form method="post" action="/people/import" enctype="multipart/form-data" style="margin-top:8px">
+  <input type="hidden" name="product" value="{{.Product.ID}}">
+  <p class="meta">Columns: email, github, name, first_name, title, company, company_domain, notes, facts (e.g. dep:bullmq;team:5-50). Email or github is required. Existing people are matched by email or GitHub and only blank fields are filled.</p>
+  <input type="file" name="file" accept=".csv,text/csv"> <span class="meta">or paste:</span>
+  <textarea name="csv" placeholder="email,name,company&#10;ana@acmepay.com,Ana Ruiz,AcmePay" style="min-height:80px"></textarea>
+  <button class="primary">Import</button>
+</form></details>
+
+<p class="meta">Priority A–D ranks who to contact: A (70+) now, B soon, C/D watch. Hover a score for the breakdown (fit = matches your target, intent = recent activity, why now = time-sensitive events).</p>
+<form method="post" action="/people/start">
+<input type="hidden" name="product" value="{{.Product.ID}}">
+<div class="row" style="margin:12px 0">
+  <span>Start sequence for selected:</span>
+  <select name="sequence">{{range .Sequences}}<option>{{.}}</option>{{end}}</select>
+  <button class="primary">Start</button>
+</div>
+<table><tr><th></th><th>Score</th><th>Name</th><th>Company</th><th>Email / GitHub</th><th>Sequences</th><th></th></tr>
+{{range .People}}<tr>
+  <td>{{if not .Suppressed}}<input type="checkbox" name="person" value="{{.ID}}">{{end}}</td>
+  <td>{{with index $.Scores .ID}}<span class="tag {{if eq .Tier "A"}}ok{{else if eq .Tier "B"}}warn{{else if not .Eligible}}bad{{end}}" title="{{.Summary}}">{{.Tier}} {{.Priority}}</span>{{end}}</td>
+  <td><a href="/people/{{.ID}}">{{if .Name}}{{.Name}}{{else}}#{{.ID}}{{end}}</a><div class="meta">#{{.ID}} {{.Title}}</div>{{with index $.Scores .ID}}<div class="meta">{{.Summary}}</div>{{end}}</td>
+  <td>{{.Company}}<div class="meta">{{.Domain}}</div></td>
+  <td>{{.Email}}{{if .GitHub}}<div class="meta">github.com/{{.GitHub}}</div>{{end}}</td>
+  <td class="meta">{{index $.Enrolled .ID}}</td>
+  <td>{{if .Suppressed}}<span class="tag bad" title="do not contact">no contact: {{.Suppressed}}</span>
+    <button formaction="/people/{{.ID}}/allow-contact" name="back" value="/people?product={{$.Product.ID}}">undo</button>
+  {{else}}<button formaction="/people/{{.ID}}/do-not-contact" name="back" value="/people?product={{$.Product.ID}}" class="danger" title="No product will message them again">do not contact</button>{{end}}</td>
+</tr>{{else}}<tr><td colspan="7" class="empty">No people yet. Import a CSV above.</td></tr>{{end}}
+</table></form>
+{{end}}
+{{template "foot"}}{{end}}

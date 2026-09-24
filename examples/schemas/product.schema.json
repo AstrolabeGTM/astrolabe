@@ -1,0 +1,380 @@
+{
+  "$id": "https://raw.githubusercontent.com/astrolabe-gtm/astrolabe/main/schemas/product.schema.json",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "additionalProperties": false,
+  "properties": {
+    "activation": {
+      "description": "The stage where a user first gets real value (the 'aha' moment). Must be one of the funnel stages.",
+      "type": "string"
+    },
+    "audience": {
+      "description": "b2b (companies and the people in them) or b2c (individual users).",
+      "enum": [
+        "b2b",
+        "b2c"
+      ],
+      "type": "string"
+    },
+    "auto_approve": {
+      "additionalProperties": false,
+      "description": "Which AI drafts go out without your click (sales term: autonomy). Flagged drafts always wait.",
+      "properties": {
+        "cold": {
+          "description": "none | follow_ups | all (sales: manual | first_step | auto).",
+          "enum": [
+            "none",
+            "follow_ups",
+            "all",
+            "manual",
+            "first_step",
+            "auto"
+          ],
+          "type": "string"
+        },
+        "content": {
+          "description": "Same as cold. none | follow_ups | all (sales: manual | first_step | auto).",
+          "enum": [
+            "none",
+            "follow_ups",
+            "all",
+            "manual",
+            "first_step",
+            "auto"
+          ],
+          "type": "string"
+        },
+        "lifecycle": {
+          "description": "Same as users. none | follow_ups | all (sales: manual | first_step | auto).",
+          "enum": [
+            "none",
+            "follow_ups",
+            "all",
+            "manual",
+            "first_step",
+            "auto"
+          ],
+          "type": "string"
+        },
+        "outbound": {
+          "description": "Same as cold. none | follow_ups | all (sales: manual | first_step | auto).",
+          "enum": [
+            "none",
+            "follow_ups",
+            "all",
+            "manual",
+            "first_step",
+            "auto"
+          ],
+          "type": "string"
+        },
+        "users": {
+          "description": "none | follow_ups | all (sales: manual | first_step | auto).",
+          "enum": [
+            "none",
+            "follow_ups",
+            "all",
+            "manual",
+            "first_step",
+            "auto"
+          ],
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "autonomy": {
+      "additionalProperties": false,
+      "description": "Same as auto_approve. Which AI drafts go out without your click (sales term: autonomy). Flagged drafts always wait.",
+      "properties": {
+        "cold": {
+          "description": "none | follow_ups | all (sales: manual | first_step | auto).",
+          "enum": [
+            "none",
+            "follow_ups",
+            "all",
+            "manual",
+            "first_step",
+            "auto"
+          ],
+          "type": "string"
+        },
+        "content": {
+          "description": "Same as cold. none | follow_ups | all (sales: manual | first_step | auto).",
+          "enum": [
+            "none",
+            "follow_ups",
+            "all",
+            "manual",
+            "first_step",
+            "auto"
+          ],
+          "type": "string"
+        },
+        "lifecycle": {
+          "description": "Same as users. none | follow_ups | all (sales: manual | first_step | auto).",
+          "enum": [
+            "none",
+            "follow_ups",
+            "all",
+            "manual",
+            "first_step",
+            "auto"
+          ],
+          "type": "string"
+        },
+        "outbound": {
+          "description": "Same as cold. none | follow_ups | all (sales: manual | first_step | auto).",
+          "enum": [
+            "none",
+            "follow_ups",
+            "all",
+            "manual",
+            "first_step",
+            "auto"
+          ],
+          "type": "string"
+        },
+        "users": {
+          "description": "none | follow_ups | all (sales: manual | first_step | auto).",
+          "enum": [
+            "none",
+            "follow_ups",
+            "all",
+            "manual",
+            "first_step",
+            "auto"
+          ],
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "claims": {
+      "additionalProperties": false,
+      "description": "What drafts may say about the product.",
+      "properties": {
+        "allowed": {
+          "description": "Markdown file listing true claims with proof links; drafts may only use these.",
+          "type": "string"
+        },
+        "never": {
+          "description": "Phrases a draft may never contain.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "type": "object"
+    },
+    "demo": {
+      "description": "Demo data: only loads in sandbox mode.",
+      "type": "boolean"
+    },
+    "fit": {
+      "description": "Scoring rules: each adds its weight if the person or company has any of the facts (e.g. dep:bullmq, lang:typescript).",
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "any": {
+            "description": "Facts as kind:value, e.g. dep:bullmq, lang:go, team:5-50.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "exclude": {
+            "description": "Matching people are never targeted by cold automations.",
+            "type": "boolean"
+          },
+          "label": {
+            "description": "Shown in the score breakdown.",
+            "type": "string"
+          },
+          "weight": {
+            "description": "Points added when any fact matches (1-100).",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "type": "array"
+    },
+    "funnel": {
+      "description": "Ordered stage names, your product's pipeline (e.g. reached, replied, signup, activated, paid). Product events with a matching type record the stage.",
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "icp": {
+      "additionalProperties": false,
+      "description": "Same as target. Who it's for, in plain sentences (sales term: ICP). Used in prompts; fit rules make it machine-checkable.",
+      "properties": {
+        "exclude": {
+          "description": "Who it's not for.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "include": {
+          "description": "Who it's for, one sentence each.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "type": "object"
+    },
+    "id": {
+      "description": "Folder name; lowercase letters, digits and dashes.",
+      "pattern": "^[a-z0-9][a-z0-9-]*$",
+      "type": "string"
+    },
+    "limits": {
+      "additionalProperties": false,
+      "description": "Sending limits.",
+      "properties": {
+        "cold_per_day": {
+          "description": "Most cold messages per day for this product (sales: outbound_per_day).",
+          "type": "integer"
+        },
+        "outbound_per_day": {
+          "description": "Same as cold_per_day. Most cold messages per day for this product (sales: outbound_per_day).",
+          "type": "integer"
+        },
+        "touches_per_person_per_week": {
+          "description": "Most messages one person gets per week, across products.",
+          "type": "integer"
+        }
+      },
+      "type": "object"
+    },
+    "name": {
+      "description": "Display name.",
+      "type": "string"
+    },
+    "notify": {
+      "additionalProperties": false,
+      "description": "Your product's endpoint that delivers push/in-app messages (signed requests).",
+      "properties": {
+        "url": {
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "offer": {
+      "additionalProperties": false,
+      "description": "The one concrete thing every message asks for.",
+      "properties": {
+        "cta": {
+          "description": "The call to action every message ends with.",
+          "type": "string"
+        },
+        "destination": {
+          "description": "https URL of the next step (tracked links point here).",
+          "type": "string"
+        },
+        "promise": {
+          "description": "What you promise to help with.",
+          "type": "string"
+        },
+        "success_event": {
+          "description": "Funnel stage that counts as success for this offer.",
+          "type": "string"
+        },
+        "window": {
+          "description": "How long to wait for success before judging, e.g. 14d.",
+          "pattern": "^\\d+[dhm]$",
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "one_liner": {
+      "description": "What it does, in one sentence.",
+      "type": "string"
+    },
+    "sender": {
+      "additionalProperties": false,
+      "description": "Mailboxes messages come from.",
+      "properties": {
+        "cold": {
+          "description": "Mailbox for cold email (sales: outbound), ideally on a separate domain.",
+          "type": "string"
+        },
+        "lifecycle": {
+          "description": "Same as users. Mailbox for email to existing users (sales: lifecycle).",
+          "type": "string"
+        },
+        "outbound": {
+          "description": "Same as cold. Mailbox for cold email (sales: outbound), ideally on a separate domain.",
+          "type": "string"
+        },
+        "users": {
+          "description": "Mailbox for email to existing users (sales: lifecycle).",
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "target": {
+      "additionalProperties": false,
+      "description": "Who it's for, in plain sentences (sales term: ICP). Used in prompts; fit rules make it machine-checkable.",
+      "properties": {
+        "exclude": {
+          "description": "Who it's not for.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "include": {
+          "description": "Who it's for, one sentence each.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "type": "object"
+    },
+    "url": {
+      "description": "Product website.",
+      "type": "string"
+    },
+    "voice": {
+      "description": "Markdown file with tone notes and example messages.",
+      "type": "string"
+    },
+    "whatsapp": {
+      "additionalProperties": false,
+      "description": "WhatsApp Cloud API sender, for kind: users sequences.",
+      "properties": {
+        "phone_number_id": {
+          "type": "string"
+        }
+      },
+      "type": "object"
+    }
+  },
+  "required": [
+    "id",
+    "name",
+    "url",
+    "one_liner",
+    "audience",
+    "funnel",
+    "activation",
+    "offer",
+    "claims",
+    "voice",
+    "sender",
+    "limits"
+  ],
+  "title": "Astrolabe product.yaml",
+  "type": "object"
+}

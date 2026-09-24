@@ -1,0 +1,11 @@
+- id: trial-not-activated
+  trigger: {stage_stuck: {stage: trial, for: 3d}}
+  action: {sequence: trial-help}
+
+- id: trial-ending
+  trigger: {signal: stripe.trial_will_end}
+  action: {task: "Personal note before the trial ends", draft: true}
+
+- id: winback
+  trigger: {stage_stuck: {stage: paid, for: 30d}}
+  action: {sequence: whats-new}

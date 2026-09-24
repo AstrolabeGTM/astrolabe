@@ -1,0 +1,6 @@
+kind: cold
+steps:
+  - {channel: email, after: 0d, brief: true, goal: "one specific observation and an offer to help"}
+  - {channel: email, after: 4d, goal: "one concrete example"}
+  - {channel: email, after: 10d, goal: "polite close-the-loop"}
+stop_on: [replied, unsubscribed, bounced, trial]

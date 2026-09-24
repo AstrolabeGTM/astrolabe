@@ -1,0 +1,7 @@
+- id: signed-up-not-activated
+  trigger: {stage_stuck: {stage: signed_up, for: 2d}}
+  action: {sequence: first-success}
+
+- id: winback
+  trigger: {stage_stuck: {stage: active, for: 21d}}
+  action: {sequence: whats-new}

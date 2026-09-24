@@ -1,0 +1,12 @@
+.DS_Store
+/astrolabe
+/bin/
+.env
+*.local.yaml
+secrets/
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfvars
+astrolabe.env
+/products/

@@ -1,0 +1,9 @@
+# Try it: Signals → "Add a signal by hand" with type "referral" for a demo person.
+# This automation then starts the intro sequence for them.
+- id: referral-intro
+  trigger: {signal: manual.referral}
+  action: {sequence: intro}
+
+- id: stuck-after-signup
+  trigger: {stage_stuck: {stage: signed_up, for: 2d}}
+  action: {sequence: activation-help}

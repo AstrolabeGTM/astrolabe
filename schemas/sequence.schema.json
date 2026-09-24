@@ -1,0 +1,118 @@
+{
+  "$id": "https://raw.githubusercontent.com/astrolabe-gtm/astrolabe/main/schemas/sequence.schema.json",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "additionalProperties": false,
+  "properties": {
+    "experiment_unit": {
+      "description": "A/B assignment unit: person or company.",
+      "enum": [
+        "person",
+        "company"
+      ],
+      "type": "string"
+    },
+    "kind": {
+      "description": "cold: people who don't know you yet (sales: outbound). users: existing users (sales: lifecycle).",
+      "enum": [
+        "cold",
+        "users",
+        "outbound",
+        "lifecycle"
+      ],
+      "type": "string"
+    },
+    "steps": {
+      "description": "Timed message steps (sales: cadence).",
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "after": {
+            "description": "Delay from the sequence start, e.g. 0d, 3d, 12h.",
+            "pattern": "^\\d+[dhm]$",
+            "type": "string"
+          },
+          "body": {
+            "description": "Optional body template; empty means you or Claude write it.",
+            "type": "string"
+          },
+          "brief": {
+            "description": "Research the person with Claude before drafting.",
+            "type": "boolean"
+          },
+          "channel": {
+            "description": "email, linkedin_task, x_task (you send by hand); whatsapp, push, in_app, webhook for kind: users.",
+            "enum": [
+              "email",
+              "linkedin_task",
+              "x_task",
+              "whatsapp",
+              "push",
+              "in_app",
+              "webhook"
+            ],
+            "type": "string"
+          },
+          "goal": {
+            "description": "What this message should achieve; guides the AI draft.",
+            "type": "string"
+          },
+          "language": {
+            "type": "string"
+          },
+          "params": {
+            "description": "WhatsApp template body parameters (templates allowed).",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "subject": {
+            "description": "Optional subject template ({{.FirstName}}, {{.Company}}, {{.Link}}...). Follow-ups keep the thread subject.",
+            "type": "string"
+          },
+          "template": {
+            "description": "Approved WhatsApp template name.",
+            "type": "string"
+          },
+          "variants": {
+            "description": "A/B variants of this step; each overrides subject, body or goal.",
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "body": {
+                  "type": "string"
+                },
+                "goal": {
+                  "type": "string"
+                },
+                "id": {
+                  "type": "string"
+                },
+                "subject": {
+                  "type": "string"
+                }
+              },
+              "type": "object"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
+      "type": "array"
+    },
+    "stop_on": {
+      "description": "Stop the sequence on replied, unsubscribed, bounced or any funnel stage.",
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    }
+  },
+  "required": [
+    "steps",
+    "stop_on"
+  ],
+  "title": "Astrolabe sequences/*.yaml",
+  "type": "object"
+}

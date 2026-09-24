@@ -1,0 +1,34 @@
+# Try Astrolabe from source in sandbox mode (nothing is really sent):
+#   docker compose up --build
+# then open http://localhost:8080; the password is printed in the logs
+# (docker compose logs astrolabe). For your own workspace use `astrolabe init`,
+# whose compose file runs the published image.
+services:
+  postgres:
+    image: postgres:17
+    environment:
+      POSTGRES_USER: astrolabe
+      POSTGRES_PASSWORD: astrolabe
+      POSTGRES_DB: astrolabe
+    volumes: [pgdata:/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "astrolabe"]
+      interval: 2s
+      retries: 30
+
+  astrolabe:
+    build: .
+    image: ghcr.io/astrolabe-gtm/astrolabe:dev
+    environment:
+      ASTROLABE_DATABASE_URL: postgres://astrolabe:astrolabe@postgres:5432/astrolabe?sslmode=disable
+      ASTROLABE_MODE: sandbox
+    ports: ["8080:8080"]
+    volumes:
+      - ./examples/products:/data/products
+      - secrets:/data/secrets
+    depends_on:
+      postgres: {condition: service_healthy}
+
+volumes:
+  pgdata:
+  secrets:

@@ -1,0 +1,45 @@
+id: [[.ID]]
+name: [[.Name]]
+url: [[.URL]]
+one_liner: "[[.OneLiner]]"
+audience: b2b
+
+target:                           # who it's for, in plain sentences (sales: ICP)
+  include:
+    - "Engineering teams who hit the problem [[.Name]] solves (edit me)"
+  exclude:
+    - "Teams without that problem (edit me)"
+
+funnel:                           # your pipeline; product events with these types record the stage
+  - reached
+  - replied
+  - site_visit
+  - signed_up
+  - activated                     # first real success; rename to what that means for you
+  - paid
+
+activation: activated
+
+offer:                            # the one thing every message asks for
+  promise: "Help you try [[.Name]] on one real case"
+  cta: "Reply with one case you'd like to try"
+  destination: [[.URL]]/start
+  success_event: activated
+  window: 14d
+
+claims:
+  allowed: claims.md
+  never: ["guaranteed", "100%"]
+
+voice: voice.md
+sender:
+  cold: [[.SenderCold]]            # cold email; a separate domain protects your main one
+  users: [[.SenderUsers]]          # email to existing users
+
+auto_approve: {cold: none, users: none}   # none | follow_ups | all
+limits: {cold_per_day: 20, touches_per_person_per_week: 2}
+
+fit:                              # facts come from GitHub enrichment, CSV import or chat
+  - {any: [lang:typescript, lang:javascript], weight: 20, label: JS/TS}
+  - {any: [lang:go, lang:python, lang:rust], weight: 20, label: backend language}
+  - {any: [dep:example-dependency], weight: 40, label: uses the stack you target (edit me)}

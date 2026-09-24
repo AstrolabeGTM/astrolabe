@@ -1,0 +1,76 @@
+{
+  "$id": "https://raw.githubusercontent.com/astrolabe-gtm/astrolabe/main/schemas/monitors.schema.json",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "items": {
+    "additionalProperties": false,
+    "properties": {
+      "events": {
+        "items": {
+          "type": "string"
+        },
+        "type": "array"
+      },
+      "every": {
+        "description": "How often to run, e.g. 1h (at least 15m).",
+        "pattern": "^\\d+[dhm]$",
+        "type": "string"
+      },
+      "feeds": {
+        "description": "RSS/Atom feed URLs.",
+        "items": {
+          "type": "string"
+        },
+        "type": "array"
+      },
+      "id": {
+        "type": "string"
+      },
+      "keywords": {
+        "description": "Phrases to look for.",
+        "items": {
+          "type": "string"
+        },
+        "type": "array"
+      },
+      "query": {
+        "description": "GitHub issue search syntax; one phrase works best.",
+        "type": "string"
+      },
+      "repo": {
+        "description": "owner/name of a repo to watch.",
+        "type": "string"
+      },
+      "signal": {
+        "description": "Signal type it produces, e.g. github.issue_pain.",
+        "type": "string"
+      },
+      "sources": {
+        "description": "hn, stackoverflow, rss.",
+        "items": {
+          "type": "string"
+        },
+        "type": "array"
+      },
+      "strength": {
+        "description": "How strong each signal is (1-100); 25 is a strong buying signal.",
+        "type": "integer"
+      },
+      "type": {
+        "description": "github_search, github_repo or community.",
+        "enum": [
+          "github_search",
+          "github_repo",
+          "community"
+        ],
+        "type": "string"
+      },
+      "why_now": {
+        "description": "Time-sensitive (counts toward why_now).",
+        "type": "boolean"
+      }
+    },
+    "type": "object"
+  },
+  "title": "Astrolabe monitors.yaml",
+  "type": "array"
+}

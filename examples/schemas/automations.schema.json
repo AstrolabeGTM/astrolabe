@@ -1,0 +1,122 @@
+{
+  "$id": "https://raw.githubusercontent.com/astrolabe-gtm/astrolabe/main/schemas/automations.schema.json",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "items": {
+    "additionalProperties": false,
+    "properties": {
+      "action": {
+        "additionalProperties": false,
+        "description": "Start a sequence, or create a to-do.",
+        "properties": {
+          "draft": {
+            "type": "boolean"
+          },
+          "sequence": {
+            "type": "string"
+          },
+          "task": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "delay": {
+        "description": "Wait before the first step; conditions are rechecked.",
+        "pattern": "^\\d+[dhm]$",
+        "type": "string"
+      },
+      "id": {
+        "description": "Automation name (sales term: play).",
+        "type": "string"
+      },
+      "limit_per_day": {
+        "description": "Most runs per day.",
+        "type": "integer"
+      },
+      "notes": {
+        "description": "Audience, offer and effort budget, written before starting.",
+        "type": "string"
+      },
+      "paused": {
+        "type": "boolean"
+      },
+      "success": {
+        "additionalProperties": false,
+        "description": "Stage that counts as success (default: the offer's).",
+        "properties": {
+          "event": {
+            "type": "string"
+          },
+          "within": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "trigger": {
+        "additionalProperties": false,
+        "description": "When it runs: a signal type, entering a stage, or being stuck at a stage.",
+        "properties": {
+          "signal": {
+            "type": "string"
+          },
+          "stage": {
+            "type": "string"
+          },
+          "stage_stuck": {
+            "additionalProperties": false,
+            "properties": {
+              "for": {
+                "type": "string"
+              },
+              "stage": {
+                "type": "string"
+              }
+            },
+            "type": "object"
+          }
+        },
+        "type": "object"
+      },
+      "when": {
+        "additionalProperties": false,
+        "description": "Filters: who it applies to.",
+        "properties": {
+          "include_excluded": {
+            "type": "boolean"
+          },
+          "min_fit": {
+            "description": "Only people with at least this fit score.",
+            "type": "integer"
+          },
+          "min_priority": {
+            "type": "integer"
+          },
+          "min_tier": {
+            "description": "Only priority A, B, C or better.",
+            "enum": [
+              "A",
+              "B",
+              "C",
+              "D"
+            ],
+            "type": "string"
+          },
+          "not_contacted_within": {
+            "description": "Skip people messaged within this long, e.g. 30d.",
+            "pattern": "^\\d+[dhm]$",
+            "type": "string"
+          },
+          "not_stage": {
+            "description": "Skip people who reached this stage.",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      }
+    },
+    "type": "object"
+  },
+  "title": "Astrolabe automations.yaml",
+  "type": "array"
+}

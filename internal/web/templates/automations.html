@@ -1,0 +1,14 @@
+{{define "automations"}}{{template "head" (dict "Title" "Automations" "Active" .Active "Flash" .Flash "Error" .Error)}}
+<h2>Automations</h2>
+<p class="meta">Rules in <code>products/&lt;id&gt;/automations.yaml</code>: <em>trigger → when → action</em>, like a CI workflow. Each trigger runs an automation once; skipped runs say why below.</p>
+<table><tr><th>Automation</th><th>Trigger</th><th>Action</th><th>Sequences started</th><th>Tasks</th><th>Skipped</th></tr>
+{{range .Plays}}<tr><td>{{.Product}}/<strong>{{.ID}}</strong>{{if .Paused}} <span class="tag warn">paused</span>{{end}}</td><td class="meta">{{.Trigger}}</td><td class="meta">{{.Action}}</td>
+<td>{{.Enrolled}}</td><td>{{.Tasks}}</td><td>{{.Skipped}}</td></tr>
+{{else}}<tr><td colspan="6" class="empty">No automations yet. Add <code>products/&lt;id&gt;/automations.yaml</code> and reload in Settings.</td></tr>{{end}}</table>
+
+<h2>Recent runs</h2>
+<table>{{range .Runs}}<tr><td class="meta" style="white-space:nowrap">{{ago .At}}</td><td>{{.Product}}/{{.Play}}</td>
+<td>{{if .PersonID}}<a href="/people/{{deref .PersonID}}">{{if .Person}}{{.Person}}{{else}}#{{deref .PersonID}}{{end}}</a>{{end}}</td>
+<td><span class="tag {{if eq .Outcome "skipped"}}{{else}}ok{{end}}">{{.Outcome}}</span> <span class="meta">{{.Detail}}</span></td></tr>
+{{else}}<tr><td class="empty">No runs yet.</td></tr>{{end}}</table>
+{{template "foot"}}{{end}}

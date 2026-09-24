@@ -1,0 +1,15 @@
+{{define "outbox"}}{{template "head" (dict "Title" "Outbox" "Active" .Active "Flash" .Flash "Error" .Error)}}
+<h2>Sandbox outbox</h2>
+<p class="meta">Everything Astrolabe "sent" in sandbox mode. Play the other side: reply, bounce, or record a stage (People → person, or Funnel → record a stage) to see sequences stop and the funnel move.</p>
+{{range .Messages}}<div class="card">
+  <div class="row"><span class="tag">{{.Channel}}</span><strong>{{if .Subject}}{{.Subject}}{{else}}(no subject){{end}}</strong>
+  <span class="meta">{{.From}} → {{.To}} · {{ago .SentAt}}{{if .PersonID}} · <a href="/people/{{deref .PersonID}}">person</a>{{end}}</span></div>
+  <pre>{{.Body}}</pre>
+  {{if or (eq .Channel "email") (eq .Channel "whatsapp")}}
+  <form method="post" action="/outbox/{{.ID}}/reply" class="row">
+    <input type="text" name="body" placeholder="Their reply (default: interested)" style="flex:1">
+    <button class="primary">Simulate reply</button>
+    {{if eq .Channel "email"}}<button formaction="/outbox/{{.ID}}/bounce" class="danger">Simulate bounce</button>{{end}}
+  </form>{{end}}
+</div>{{else}}<p class="empty">Nothing sent yet. Approve a draft in the Inbox.</p>{{end}}
+{{template "foot"}}{{end}}

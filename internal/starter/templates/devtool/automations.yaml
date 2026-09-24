@@ -1,0 +1,16 @@
+# trigger -> when -> action (sales: plays). Each trigger runs once; skips say why.
+- id: pain-issue-outreach
+  notes: "People who opened an issue about the problem. Max 10/day; answer every reply yourself."
+  trigger: {signal: github.issue_pain}
+  when: {min_fit: 40, not_contacted_within: 30d}
+  action: {sequence: intro}
+  limit_per_day: 10
+
+- id: community-thread
+  trigger: {signal: community.thread}
+  action: {task: "Reply if you can genuinely help", draft: true}
+  limit_per_day: 5
+
+- id: stuck-after-signup
+  trigger: {stage_stuck: {stage: signed_up, for: 3d}}
+  action: {sequence: activation-help}

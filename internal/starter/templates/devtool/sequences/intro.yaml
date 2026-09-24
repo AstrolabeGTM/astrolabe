@@ -1,0 +1,7 @@
+kind: cold                        # people who don't know you yet
+steps:
+  - {channel: email, after: 0d, brief: true, goal: "point at their specific issue and offer to help with one case"}
+  - {channel: email, after: 4d, goal: "share one concrete example or result"}
+  - {channel: linkedin_task, after: 6d, goal: "connect with a one-line note"}
+  - {channel: email, after: 10d, goal: "polite close-the-loop"}
+stop_on: [replied, unsubscribed, bounced, signed_up]

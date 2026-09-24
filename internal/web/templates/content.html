@@ -1,0 +1,21 @@
+{{define "content"}}{{template "head" (dict "Title" "Content" "Active" .Active "Flash" .Flash "Error" .Error)}}
+<h2>Turn something into posts</h2>
+{{if .AI}}<form method="post" action="/content" class="card">
+<div class="row"><select name="product">{{range .Products}}<option>{{.ID}}</option>{{end}}</select>
+<input type="text" name="batch" placeholder="what it is, e.g. v0.4 release" required style="flex:1"></div>
+<textarea name="source" placeholder="Paste release notes, a blog post or a changelog" required></textarea>
+<div class="row">{{range .Platforms}}<label class="meta"><input type="checkbox" name="platform" value="{{.}}"> {{.}}</label>{{end}}</div>
+<div class="row"><label><input type="checkbox" name="launch"> Launch: make a task per platform (all launch targets if none ticked: {{range $i, $x := .Launch}}{{if $i}}, {{end}}{{$x}}{{end}})</label></div>
+<button class="primary">Draft posts</button></form>
+{{else}}<p class="empty">Content drafting needs ASTROLABE_ANTHROPIC_API_KEY.</p>{{end}}
+
+<h2>Posts</h2>
+{{range .Items}}<div class="card">
+<div class="row"><span class="tag {{if eq .Status "posted"}}ok{{end}}">{{.Status}}</span> <strong>{{.Platform}}</strong>
+<span class="meta">{{.Product}} · {{.Batch}} · #{{.ID}}{{if .Link}} · {{.Clicks}} clicks{{end}}{{if .PostedURL}} · <a href="{{.PostedURL}}" target="_blank" rel="noopener">posted</a>{{end}}</span></div>
+<pre>{{.Body}}</pre>
+{{if eq .Status "draft"}}<form method="post" action="/content/{{.ID}}/mark" class="row">
+<input type="text" name="url" placeholder="URL once posted" style="flex:1">
+<button name="status" value="posted" class="primary">Posted</button><button name="status" value="skipped">Skip</button></form>{{end}}
+</div>{{else}}<p class="empty">No posts yet.</p>{{end}}
+{{template "foot"}}{{end}}

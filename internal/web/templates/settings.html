@@ -1,0 +1,43 @@
+{{define "settings"}}{{template "head" (dict "Title" "Settings" "Active" .Active "Flash" .Flash "Error" .Error)}}
+<h2>Pause switches</h2>
+<p class="meta">Paused sends wait and go out after you resume; nothing is dropped.</p>
+<div class="card">
+{{$pauses := .Pauses}}
+<table>
+<tr><td>Everything</td><td>{{template "pausebtn" (dict "Scope" "global" "Pauses" $pauses)}}</td></tr>
+{{range .Products}}{{$p := .}}
+<tr><td><strong>{{.Name}}</strong></td><td>{{template "pausebtn" (dict "Scope" (print "product:" .ID) "Pauses" $pauses)}}</td></tr>
+{{range $id, $s := .Sequences}}<tr><td class="meta">&nbsp;&nbsp;{{$p.ID}}/{{$id}}</td><td>{{template "pausebtn" (dict "Scope" (print "sequence:" $p.ID "/" $id) "Pauses" $pauses)}}</td></tr>{{end}}
+{{end}}</table></div>
+
+<h2>Mailboxes</h2>
+<p class="meta">The addresses your products send from (<code>sender:</code> in product.yaml). Connect each with an app password below, or with Gmail OAuth (<code>astrolabe gmail auth</code>).</p>
+<table>{{range .Mailboxes}}<tr><td>{{.Address}}</td><td class="meta">{{.Product}}</td><td>{{if eq (slice .Status 0 5) "ready"}}<span class="tag ok">{{.Status}}</span>{{else}}<span class="meta">{{.Status}}</span>{{end}}</td>
+<td>{{if eq (slice .Status 0 5) "ready"}}<form method="post" action="/mailboxes/remove" class="inline"><input type="hidden" name="address" value="{{.Address}}"><button class="danger">Remove</button></form>{{end}}</td></tr>{{end}}</table>
+<details class="card"><summary>Connect a mailbox (SMTP + IMAP, app password)</summary>
+<form method="post" action="/mailboxes" style="margin-top:8px">
+<div class="row"><input type="email" name="address" placeholder="you@yourdomain.com" required style="flex:1">
+<select name="provider">{{range .Presets}}<option value="{{.ID}}" title="{{.Help}}">{{.Name}}</option>{{end}}</select></div>
+<div class="row" style="margin-top:6px"><input type="password" name="password" placeholder="App password" required style="flex:1"><input type="text" name="username" placeholder="Username (default: address)"></div>
+<ul class="meta">{{range .Presets}}{{if .Help}}<li><strong>{{.Name}}:</strong> {{.Help}}</li>{{end}}{{end}}</ul>
+<details><summary class="meta">Other provider: server settings</summary>
+<div class="row"><input type="text" name="smtp_host" placeholder="SMTP host"><input type="number" name="smtp_port" placeholder="587" style="width:80px">
+<select name="smtp_tls"><option value="">TLS mode</option><option>starttls</option><option>tls</option></select></div>
+<div class="row" style="margin-top:6px"><input type="text" name="imap_host" placeholder="IMAP host"><input type="number" name="imap_port" placeholder="993" style="width:80px"><input type="text" name="sent_folder" placeholder="Sent folder"></div>
+</details>
+<button class="primary" style="margin-top:8px">Test and save</button>
+<span class="meta">Logs in over SMTP and IMAP without sending anything. The password is stored in the secrets folder, never in the database.</span>
+</form></details>
+
+<h2>Webhooks</h2>
+<p class="meta">Signed with HMAC-SHA256 (header <code>t=…,v1=…</code> over <code>t.body</code>). Product events use the <code>Astrolabe-Signature</code> header; Stripe its own <code>Stripe-Signature</code> with the endpoint's whsec_ secret.</p>
+<table>{{range .Hooks}}<tr><td>{{.Product}}</td><td>{{.Kind}}</td><td><code>POST {{.Path}}</code></td><td>{{if .Set}}<span class="tag ok">secret set</span>{{else}}<span class="meta">set {{.Env}}</span>{{end}}</td></tr>{{end}}</table>
+
+<h2>Products</h2>
+<table>{{range .Products}}<tr><td>{{.ID}}</td><td>{{.OneLiner}}</td><td class="meta">{{len .Funnel}} stages · {{len .Sequences}} sequences</td></tr>{{else}}<tr><td class="empty">No valid products.</td></tr>{{end}}</table>
+<form method="post" action="/products/reload"><button>Reload product folders</button></form>
+{{template "foot"}}{{end}}
+
+{{define "pausebtn"}}<form method="post" action="/pauses" class="inline"><input type="hidden" name="scope" value="{{.Scope}}">
+{{if has .Pauses .Scope}}<input type="hidden" name="op" value="resume"><span class="tag warn">paused</span> <button>Resume</button>
+{{else}}<button class="danger">Pause</button>{{end}}</form>{{end}}

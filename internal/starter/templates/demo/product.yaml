@@ -1,0 +1,43 @@
+# DEMO DATA: a fictional product to try Astrolabe in sandbox mode.
+# It only loads when ASTROLABE_MODE=sandbox. Delete this folder when you
+# add your real product (astrolabe init -template devtool).
+id: [[.ID]]
+name: Pipewrench
+url: https://pipewrench.example
+one_liner: "Finds flaky CI tests and tells you why they fail."
+audience: b2b
+demo: true
+
+target:
+  include:
+    - "Teams whose CI is slowed down by flaky tests"
+    - "5–50 engineers, GitHub Actions or similar"
+  exclude:
+    - "Teams without automated tests"
+
+funnel: [reached, replied, signed_up, activated, paid]
+activation: activated
+
+offer:
+  promise: "Find the three flakiest tests in your repo"
+  cta: "Reply and I'll run it on one repo for you"
+  destination: https://pipewrench.example/start
+  success_event: activated
+  window: 14d
+
+claims:
+  allowed: claims.md
+  never: ["guaranteed", "never fails"]
+
+voice: voice.md
+sender:
+  cold: demo@pipewrench.test
+  users: hello@pipewrench.test
+
+auto_approve: {cold: none, users: none}
+limits: {cold_per_day: 50, touches_per_person_per_week: 3}
+
+fit:
+  - {any: [ci:github-actions, ci:circleci], weight: 40, label: uses hosted CI}
+  - {any: [lang:typescript, lang:go, lang:python], weight: 30, label: supported language}
+  - {any: [team:5-50], weight: 20, label: team size}

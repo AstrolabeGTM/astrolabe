@@ -1,0 +1,6 @@
+email,name,title,company,company_domain,facts
+sam.lee@acme.example,Sam Lee,Staff Engineer,Acme,acme.example,ci:github-actions;lang:typescript;team:5-50
+priya.n@globex.example,Priya Nair,Engineering Manager,Globex,globex.example,ci:circleci;lang:go;team:5-50
+tom@initech.example,Tom Park,CTO,Initech,initech.example,lang:python
+jo@umbrella.example,Jo Rivera,Backend Engineer,Umbrella,umbrella.example,ci:github-actions;lang:go
+mia@hooli.example,Mia Chen,Founder,Hooli,hooli.example,team:5-50

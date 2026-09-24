@@ -1,0 +1,42 @@
+id: [[.ID]]
+name: [[.Name]]
+url: [[.URL]]
+one_liner: "[[.OneLiner]]"
+audience: b2b
+
+target:                           # who it's for (sales: ICP)
+  include:
+    - "Small teams who need what [[.Name]] does (edit me)"
+  exclude:
+    - "Enterprises needing procurement and SSO on day one (edit me)"
+
+funnel:
+  - reached
+  - replied
+  - trial                         # Stripe trial or your own trial event
+  - activated
+  - paid
+
+activation: activated
+
+offer:
+  promise: "Get [[.Name]] set up for your team in one session"
+  cta: "Start a free trial"
+  destination: [[.URL]]/signup
+  success_event: activated
+  window: 14d
+
+claims:
+  allowed: claims.md
+  never: ["guaranteed", "risk-free"]
+
+voice: voice.md
+sender:
+  cold: [[.SenderCold]]
+  users: [[.SenderUsers]]
+
+auto_approve: {cold: none, users: none}
+limits: {cold_per_day: 20, touches_per_person_per_week: 2}
+
+fit:
+  - {any: [team:5-50], weight: 30, label: team size}

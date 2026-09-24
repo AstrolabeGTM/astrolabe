@@ -1,0 +1,42 @@
+id: [[.ID]]
+name: [[.Name]]
+url: [[.URL]]
+one_liner: "[[.OneLiner]]"
+audience: b2c
+
+target:
+  include:
+    - "People who want what [[.Name]] does (edit me)"
+  exclude:
+    - "Under 18"
+
+funnel:                           # sent by your app as product events
+  - installed
+  - signed_up
+  - activated
+  - active
+  - paid
+
+activation: activated
+
+offer:
+  promise: "Get your first result with [[.Name]] in five minutes"
+  cta: "Open the app and try it"
+  destination: [[.URL]]/start
+  success_event: activated
+  window: 7d
+
+claims:
+  allowed: claims.md
+  never: ["guaranteed"]
+
+voice: voice.md
+sender:
+  cold: [[.SenderCold]]
+  users: [[.SenderUsers]]
+
+# Push and in-app messages go through your app's own endpoint:
+notify: {url: "[[.URL]]/astrolabe/notify"}   # edit; set ASTROLABE_NOTIFY_SECRET_[[.EnvID]]
+
+auto_approve: {cold: none, users: none}
+limits: {cold_per_day: 10, touches_per_person_per_week: 3}

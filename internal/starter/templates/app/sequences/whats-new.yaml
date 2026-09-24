@@ -1,0 +1,4 @@
+kind: users
+steps:
+  - {channel: push, after: 0d, goal: "what's new since they were last active", subject: "New in [[.Name]]"}
+stop_on: [replied, unsubscribed, active]

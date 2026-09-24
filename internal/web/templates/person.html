@@ -1,0 +1,29 @@
+{{define "person"}}{{template "head" (dict "Title" .Person.Name "Active" .Active "Flash" .Flash "Error" .Error)}}
+{{with .Person}}<h1 style="font-size:22px;margin:8px 0">{{if .Name}}{{.Name}}{{else}}Person #{{.ID}}{{end}}
+{{if .Suppressed}}<span class="tag bad">do not contact: {{.Suppressed}}</span>{{end}}</h1>
+<div class="meta">#{{.ID}} {{.Title}} · {{.Company}} {{.Domain}} · {{.Email}}{{if .GitHub}} · <a href="https://github.com/{{.GitHub}}" target="_blank" rel="noopener">github.com/{{.GitHub}}</a>{{end}}</div>
+{{if .Notes}}<p>{{.Notes}}</p>{{end}}{{end}}
+
+<h2>Scores</h2>
+{{range .Scores}}<div class="card"><span class="tag {{if eq .Tier "A"}}ok{{else if eq .Tier "B"}}warn{{else if not .Eligible}}bad{{end}}">{{.ProductID}} {{.Tier}} {{.Priority}}</span> <span class="meta">{{.Summary}}</span></div>
+{{else}}<p class="empty">Not scored yet.</p>{{end}}
+
+<h2>Facts</h2>
+<div class="card"><div class="meta">{{range $k, $v := .Facts}}<span class="tag" title="from {{$v}}">{{$k}}</span> {{else}}No facts yet.{{end}}</div>
+<form method="post" action="/people/{{.Person.ID}}/facts" class="row" style="margin-top:8px">
+<input type="hidden" name="back" value="/people/{{.Person.ID}}">
+<input type="text" name="facts" placeholder="dep:bullmq, team:5-50" style="flex:1"><button>Add facts</button></form></div>
+
+<h2>Research notes</h2>
+{{range .Briefs}}<div class="card"><div class="meta">{{.Product}} · {{ago .At}}</div><pre>{{.Body}}</pre></div>{{else}}<p class="empty">No research notes yet.</p>{{end}}
+{{if .AI}}<form method="post" action="/people/{{.Person.ID}}/research" class="row">{{$pid := .Person.ID}}
+<select name="product">{{range .Products}}<option>{{.ID}}</option>{{end}}</select><button>Research with Claude</button></form>{{end}}
+
+<h2>Signals</h2>
+<table>{{range .Signals}}<tr><td class="meta" style="white-space:nowrap">{{ago .At}}</td><td><a href="{{.URL}}" target="_blank" rel="noopener">{{if .Title}}{{.Title}}{{else}}{{.Type}}{{end}}</a><div class="meta">{{.Product}} · {{.Type}}</div></td></tr>
+{{else}}<tr><td class="empty">None.</td></tr>{{end}}</table>
+
+<h2>Messages</h2>
+{{range .Messages}}<details class="card"><summary><span class="tag">{{.Status}}</span> {{.Product}} · {{.Channel}} · {{if .Subject}}{{.Subject}}{{else}}(no subject){{end}} <span class="meta">{{ago .At}} · #{{.ID}}</span></summary><pre>{{.Body}}</pre></details>
+{{else}}<p class="empty">None.</p>{{end}}
+{{template "foot"}}{{end}}

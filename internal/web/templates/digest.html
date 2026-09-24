@@ -1,0 +1,6 @@
+{{define "digest"}}{{template "head" (dict "Title" "Weekly digest" "Active" .Active "Flash" .Flash "Error" .Error)}}
+<p class="meta">Written every Monday from 08:00 and emailed to ASTROLABE_DIGEST_TO (from ASTROLABE_DIGEST_FROM). <a href="/digest?preview">Preview this week now</a></p>
+{{if .Preview}}<h2>Preview (not saved)</h2><div class="card"><pre>{{.Preview}}</pre></div>{{end}}
+<h2>Latest</h2>
+{{if .Body}}<div class="card"><div class="meta">{{date .At}}</div><pre>{{.Body}}</pre></div>{{else}}<p class="empty">No digest yet.</p>{{end}}
+{{template "foot"}}{{end}}

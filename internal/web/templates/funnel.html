@@ -1,0 +1,76 @@
+{{define "funnel"}}{{template "head" (dict "Title" "Funnel" "Active" .Active "Flash" .Flash "Error" .Error)}}
+{{if not .Product}}<p class="empty">No valid products loaded.</p>{{else}}
+<form class="row" method="get" action="/funnel">
+  <select name="product" onchange="this.form.submit()">{{range .Products}}<option {{if eq .ID $.Product.ID}}selected{{end}}>{{.ID}}</option>{{end}}</select>
+  <span class="meta">last</span><input type="number" name="days" value="{{.Days}}" style="width:70px"><span class="meta">days</span><button>Show</button>
+</form>
+{{$p := .Product}}{{with .R}}
+<h2>{{$p.Name}}: offer “{{$p.Offer.Promise}}”</h2>
+<p class="meta">Stages come from <code>funnel:</code> in product.yaml; <strong>{{$p.Activation}}</strong> is the first-success (activation) stage.</p>
+<table>{{range .Stages}}<tr>
+  <td style="width:140px">{{.Name}}{{if .Activation}} <span class="tag ok">activation</span>{{end}}</td>
+  <td style="width:60px;text-align:right"><strong>{{.People}}</strong></td>
+  <td><div class="bar" style="width:{{pct .People $.Max}}%"></div></td>
+  <td class="meta" style="width:110px">{{if .FromPrevious}}{{printf "%.0f" .FromPrevious}}% of previous{{end}}</td>
+</tr>{{end}}</table>
+<p class="meta">A person counts for a stage if they reached it or any later one.</p>
+
+<h2>Time between stages (median)</h2>
+<table>{{range .Times}}<tr><td>{{.From}} → {{.To}}</td><td>{{if .People}}{{printf "%.1f" .MedianDays}} days <span class="meta">({{.People}} people)</span>{{else}}<span class="meta">no data</span>{{end}}</td></tr>{{end}}</table>
+
+<h2>Stuck</h2>
+<table>{{range .Stuck}}{{if .Count}}<tr><td>{{.Stage}}</td><td><strong>{{.Count}}</strong> <span class="meta">inactive &gt; {{.Days}}d</span></td>
+<td class="meta">{{range $i, $x := .People}}{{if $i}}, {{end}}<a href="/people/{{$x.ID}}">{{if $x.Name}}{{$x.Name}}{{else}}#{{$x.ID}}{{end}}</a> ({{$x.Days}}d){{end}}</td></tr>{{end}}
+{{else}}<tr><td class="empty">Nobody stuck.</td></tr>{{end}}</table>
+
+<h2>Revenue</h2>
+{{if .Revenue}}<table><tr><th>Currency</th><th>Payments</th><th>Refunds</th><th>Net</th></tr>
+{{range .Revenue}}<tr><td>{{.Currency}}</td><td>{{money .Payments}} <span class="meta">({{.Count}})</span></td><td>{{money .Refunds}}</td><td><strong>{{money .Net}}</strong></td></tr>{{end}}</table>
+{{else}}<p class="empty">No payments yet (Stripe webhook: see Settings).</p>{{end}}
+
+<h2>Where people came from (first touch)</h2>
+{{template "attrib" .Sources}}
+<h2>Automations (people they started a sequence for, and what happened after)</h2>
+{{template "attrib" .Plays}}
+
+<h2>Experiments</h2>
+{{range $.Experiments}}<div class="card"><strong>{{.Key}}</strong> <span class="meta">goal: {{.Goal}}</span>
+<table><tr><th>Variant</th><th>Sent</th><th>Replied</th><th>Reached goal</th><th>95% CI</th></tr>
+{{range .Variants}}<tr><td>{{.ID}}</td><td>{{.Sent}}</td><td>{{.Replied}}</td><td>{{.Success}} ({{printf "%.0f" (mul100 .Rate)}}%)</td><td class="meta">{{printf "%.0f" (mul100 .Low)}}–{{printf "%.0f" (mul100 .High)}}%</td></tr>{{end}}</table>
+<p>{{.Verdict}}</p></div>
+{{else}}<p class="empty">No experiments. Add variants to a sequence step.</p>{{end}}
+
+<h2>Weekly cohorts</h2>
+<table><tr><th>Week</th><th>People</th><th>{{$p.Activation}}</th><th>paid</th><th></th></tr>
+{{range .Cohorts}}<tr><td>{{.Week.Format "2 Jan"}}</td><td>{{.People}}</td><td>{{.Activated}}</td><td>{{.Paid}}</td><td>{{if not .Complete}}<span class="tag warn" title="still inside the {{$p.Offer.Window}} window">incomplete</span>{{end}}</td></tr>
+{{else}}<tr><td class="empty">No cohorts yet.</td></tr>{{end}}</table>
+
+<h2>Effort and spend</h2>
+<table>
+<tr><td>Claude API</td><td>{{.Spend.LLMCalls}} calls, {{.Spend.InTokens}} in / {{.Spend.OutTokens}} out tokens{{if .Spend.LLMUSD}} ≈ ${{printf "%.2f" (derefF .Spend.LLMUSD)}}{{else}} <span class="meta">(set ASTROLABE_LLM_PRICES for dollars)</span>{{end}}</td></tr>
+<tr><td>My time on closed tasks</td><td>{{.Spend.Minutes}} min</td></tr>
+<tr><td>Activated / paying</td><td>{{.Spend.Activated}} / {{.Spend.Paying}}</td></tr>
+{{if .Spend.MinPerActive}}<tr><td>Minutes per activated</td><td>{{printf "%.0f" (derefF .Spend.MinPerActive)}}</td></tr>{{end}}
+{{if .Spend.USDPerActive}}<tr><td>API $ per activated</td><td>{{printf "%.2f" (derefF .Spend.USDPerActive)}}</td></tr>{{end}}
+</table>
+<p class="meta">Observed costs, not proof that an automation caused a purchase.</p>
+
+<h2>Task outcomes</h2>
+{{if .Outcomes}}<table><tr><th>Outcome</th><th>Count</th><th>Minutes</th></tr>
+{{range .Outcomes}}<tr><td>{{.Outcome}}</td><td>{{.N}}</td><td>{{.Minutes}}</td></tr>{{end}}</table>
+{{else}}<p class="empty">No closed tasks yet.</p>{{end}}
+{{end}}
+
+<h2>Record a stage by hand</h2>
+<form method="post" action="/funnel/stage" class="row card">
+  <input type="hidden" name="product" value="{{.Product.ID}}">
+  <input type="text" name="person" placeholder="person id or email" required>
+  <select name="stage">{{range .Product.Funnel}}<option>{{.}}</option>{{end}}</select>
+  <button class="primary">Record</button>
+</form>
+{{end}}
+{{template "foot"}}{{end}}
+
+{{define "attrib"}}{{if .}}<table><tr><th></th><th>People</th><th>Replied</th><th>Activated</th><th>Paid</th><th>Revenue</th></tr>
+{{range .}}<tr><td>{{.Key}}</td><td>{{.People}}</td><td>{{.Replied}}</td><td>{{.Activated}}</td><td>{{.Paid}}</td><td>{{range $c, $v := .Revenue}}{{money $v}} {{$c}} {{end}}</td></tr>{{end}}</table>
+{{else}}<p class="empty">No data yet.</p>{{end}}{{end}}

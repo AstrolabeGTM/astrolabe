@@ -1,0 +1,24 @@
+kind: cold
+steps:
+  - channel: email
+    after: 0d
+    goal: offer to find their flakiest tests
+    subject: "Flaky tests at {{.Company}}?"
+    body: |
+      Hi {{.FirstName}},
+
+      Teams like {{.Company}} often lose hours to tests that fail, then pass on rerun.
+      Pipewrench reruns failures in isolation and ranks the flakiest ones.
+
+      Want me to run it on one repo and send you the top three? {{.Link}}
+
+      Alex
+  - channel: email
+    after: 3d
+    goal: gentle follow-up
+    body: |
+      Hi {{.FirstName}}, just checking whether a list of your flakiest tests would help. Happy to run it for you.
+
+      Alex
+  - {channel: linkedin_task, after: 5d, goal: connect with a short note, body: "Hi {{.FirstName}}, I build Pipewrench (finds flaky CI tests). Would love to connect."}
+stop_on: [replied, unsubscribed, bounced, signed_up]

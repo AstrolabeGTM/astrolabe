@@ -1,0 +1,12 @@
+# yaml-language-server: $schema=../../../schemas/sequence.schema.json
+kind: users
+steps:
+  - channel: email
+    after: 0d
+    goal: help them get the first report
+    subject: "Your first Pipewrench report"
+    body: |
+      Hi {{.FirstName}}, you signed up but haven't run a report yet. The one step most people miss is adding the Action to a branch with recent failures. Want me to do it with you?
+
+      Alex
+stop_on: [replied, unsubscribed, activated]

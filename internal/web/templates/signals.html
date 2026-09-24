@@ -1,0 +1,45 @@
+{{define "signals"}}{{template "head" (dict "Title" "Signals" "Active" .Active "Flash" .Flash "Error" .Error)}}
+<form class="row" method="get" action="/signals">
+  <select name="product"><option value="">all products</option>{{range .Products}}<option {{if eq .ID $.Product}}selected{{end}}>{{.ID}}</option>{{end}}</select>
+  <select name="type"><option value="">all types</option>{{range .Types}}<option {{if eq . $.Type}}selected{{end}}>{{.}}</option>{{end}}</select>
+  <select name="tier"><option value="">any priority</option>{{range (list "A" "B" "C")}}<option value="{{.}}" {{if eq . $.Tier}}selected{{end}}>priority {{.}} or better</option>{{end}}</select>
+  <span class="meta">last</span><input type="number" name="days" value="{{.Days}}" style="width:60px"><span class="meta">days</span>
+  <button>Filter</button>
+</form>
+
+{{if .Reviews}}<h2>Who is this? ({{len .Reviews}})</h2>
+<p class="meta">These signals match more than one person. Pick the right one; nothing is guessed.</p>
+{{range .Reviews}}<div class="card"><div><a href="{{.Evidence}}" target="_blank" rel="noopener">{{.Title}}</a></div>
+<div class="row">{{$rid := .ID}}{{range .Candidates}}
+<form method="post" action="/signals/reviews/{{$rid}}/resolve" class="inline"><input type="hidden" name="person" value="{{.ID}}"><button>#{{.ID}} {{.Label}}</button></form>{{end}}
+<form method="post" action="/signals/reviews/{{.ID}}/dismiss" class="inline"><button class="danger">Neither</button></form></div></div>{{end}}{{end}}
+
+<h2>Feed ({{len .Feed}})</h2>
+<p class="meta">Events about people, from monitors (<code>monitors.yaml</code>), your product, Stripe and manual notes.</p>
+<table>{{range .Feed}}<tr>
+<td style="white-space:nowrap" class="meta">{{ago .OccurredAt}}</td>
+<td><a href="{{.EvidenceURL}}" target="_blank" rel="noopener">{{if .Title}}{{.Title}}{{else}}{{.Type}}{{end}}</a>
+<div class="meta">{{.Product}} · {{.Type}} · +{{.Strength}}{{if .WhyNow}} · why now{{end}}</div></td>
+<td>{{if .PersonName}}{{.PersonName}}{{end}}<div class="meta">{{.Company}}</div></td>
+<td>{{if .Tier}}<span class="tag {{if eq .Tier "A"}}ok{{else if eq .Tier "B"}}warn{{end}}" title="{{.Summary}}">{{.Tier}} {{deref32 .Priority}}</span>{{end}}</td>
+</tr>{{else}}<tr><td class="empty">No signals yet. Monitors run on their schedule; use Run now below.</td></tr>{{end}}</table>
+
+<h2>Monitors</h2>
+<table><tr><th>Product</th><th>Monitor</th><th>Every</th><th>Last run</th><th></th></tr>
+{{range .Monitors}}<tr><td>{{.Product}}</td><td>{{.ID}} <span class="meta">{{.Type}}</span></td><td>{{.Every}}</td>
+<td>{{if .LastRun}}{{ago .LastRun}} · {{.LastCount}} new{{else}}<span class="meta">never</span>{{end}}{{if .Error}}<div class="meta" style="color:var(--bad)">{{.Error}}</div>{{end}}</td>
+<td><form method="post" action="/monitors/run"><input type="hidden" name="product" value="{{.Product}}"><input type="hidden" name="monitor" value="{{.ID}}"><button>Run now</button></form></td></tr>
+{{else}}<tr><td colspan="5" class="empty">No monitors. Add products/&lt;id&gt;/monitors.yaml.</td></tr>{{end}}</table>
+
+<h2>Add a signal by hand</h2>
+<form method="post" action="/signals" class="card row">
+  <select name="product">{{range .Products}}<option>{{.ID}}</option>{{end}}</select>
+  <input type="text" name="who" placeholder="email or GitHub login" required>
+  <input type="text" name="type" placeholder="type, e.g. referral" required style="width:150px">
+  <input type="number" name="strength" value="20" min="0" max="100" style="width:70px">
+  <label class="meta"><input type="checkbox" name="why_now"> why now</label>
+  <input type="text" name="note" placeholder="what happened" style="flex:1">
+  <input type="text" name="url" placeholder="link">
+  <button class="primary">Add</button>
+</form>
+{{template "foot"}}{{end}}

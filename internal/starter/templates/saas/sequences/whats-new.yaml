@@ -1,0 +1,4 @@
+kind: users
+steps:
+  - {channel: email, after: 0d, goal: "what changed since they last used it"}
+stop_on: [replied, unsubscribed]

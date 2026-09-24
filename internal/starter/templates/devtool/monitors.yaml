@@ -1,0 +1,24 @@
+# Where to look for people who have your problem. One phrase per search works best.
+- id: pain-issues
+  type: github_search
+  query: '"example error message" is:issue'   # edit: a phrase people write when they hit your problem
+  signal: github.issue_pain
+  strength: 25
+  every: 2h
+
+- id: community
+  type: community
+  keywords: ["example problem phrase"]        # edit
+  sources: [hn, stackoverflow]
+  signal: community.thread
+  strength: 5
+  every: 3h
+
+# Watch your own repo once it's public:
+# - id: repo
+#   type: github_repo
+#   repo: you/[[.ID]]
+#   events: [star, fork, issue]
+#   signal: github.repo
+#   strength: 10
+#   every: 1h
