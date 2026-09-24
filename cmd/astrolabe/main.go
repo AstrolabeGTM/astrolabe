@@ -34,7 +34,7 @@ import (
 // version is set at build time: -ldflags "-X main.version=v1.2.3".
 var version = "dev"
 
-const usage = `astrolabe — go-to-market for one operator, many products
+const usage = `astrolabe — go-to-market for the everyday programmer
 
 Commands:
   init [dir] [-template demo|devtool|saas|app] [-name ...]
