@@ -26,8 +26,17 @@ jobs:
       - run: go vet ./...
       - run: go test -race ./...
 
+  # Runs the README quickstart for real on Linux (bind-mount ownership,
+  # compose, sandbox loop) against an image built from this commit.
+  quickstart:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker build -t ghcr.io/astrolabe-gtm/astrolabe:latest .
+      - run: scripts/quickstart-test.sh 8080
+
   image:
-    needs: test
+    needs: [test, quickstart]
     if: startsWith(github.ref, 'refs/tags/v') || github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     permissions:

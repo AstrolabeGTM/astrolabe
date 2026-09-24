@@ -182,7 +182,11 @@ func randomPassword() string {
 }
 
 func envFile(mode string) string {
+	// The uid/gid init runs as (docker run --user) is the one compose runs
+	// the server as, so files it writes in ./products belong to you.
+	ids := fmt.Sprintf("ASTROLABE_UID=%d\nASTROLABE_GID=%d\n", os.Getuid(), os.Getgid())
 	return `# Astrolabe settings. Docs: https://github.com/astrolabe-gtm/astrolabe
+` + ids + `
 # sandbox: every message goes to a local outbox (no accounts needed).
 # live: messages are really sent. A database stays in the mode it started in.
 ASTROLABE_MODE=` + mode + `
@@ -216,6 +220,7 @@ services:
 
   astrolabe:
     image: ghcr.io/astrolabe-gtm/astrolabe:latest
+    user: "${ASTROLABE_UID:-10001}:${ASTROLABE_GID:-10001}"
     env_file: .env
     environment:
       ASTROLABE_DATABASE_URL: postgres://astrolabe:astrolabe@postgres:5432/astrolabe?sslmode=disable

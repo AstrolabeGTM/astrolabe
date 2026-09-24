@@ -200,6 +200,17 @@ func TestPresets(t *testing.T) {
 	if err := a.Apply(); err != nil || a.SMTPHost != "smtp.gmail.com" || !a.SavesSent || a.Username != "me@gmail.com" {
 		t.Fatalf("%+v %v", a, err)
 	}
+	ic := &Account{Address: "jo@icloud.com", Provider: "icloud", Password: "x"}
+	if ic.Apply(); ic.Username != "jo@icloud.com" || ic.IMAPUsername != "jo" {
+		t.Fatalf("iCloud: SMTP uses the full address, IMAP the name only: %+v", ic)
+	}
+	zc := &Account{Address: "me@mycompany.com", Provider: "zoho", Password: "x"}
+	zp := &Account{Address: "me@zohomail.com", Provider: "zoho", Password: "x"}
+	zc.Apply()
+	zp.Apply()
+	if zc.SMTPHost != "smtppro.zoho.com" || zp.SMTPHost != "smtp.zoho.com" || zp.IMAPHost != "imap.zoho.com" {
+		t.Fatalf("zoho hosts: %s / %s %s", zc.SMTPHost, zp.SMTPHost, zp.IMAPHost)
+	}
 	if err := (&Account{Address: "a@b.c", Provider: "custom", Password: "x"}).Apply(); err == nil {
 		t.Fatal("custom without hosts must fail")
 	}

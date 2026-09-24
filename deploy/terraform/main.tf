@@ -1,7 +1,6 @@
-# One VM: astrolabe + Postgres + Caddy (automatic HTTPS). Secrets live in
-# Secret Manager as one env file; daily database dumps go to a versioned
-# bucket. Cloud SQL can replace local Postgres later by changing
-# ASTROLABE_DATABASE_URL in the secret.
+# One VM running the published Astrolabe image and Postgres with docker
+# compose, behind Caddy (automatic HTTPS). Settings live in Secret Manager
+# as one env file; daily database dumps go to a versioned bucket.
 
 resource "google_project_service" "apis" {
   for_each           = toset(["compute.googleapis.com", "secretmanager.googleapis.com", "iap.googleapis.com"])
@@ -122,9 +121,10 @@ resource "google_compute_instance" "vm" {
   }
 
   metadata_startup_script = templatefile("${path.module}/startup.sh.tftpl", {
-    domain = var.domain
-    bucket = google_storage_bucket.backups.name
-    secret = google_secret_manager_secret.env.secret_id
+    domain    = var.domain
+    bucket    = google_storage_bucket.backups.name
+    secret    = google_secret_manager_secret.env.secret_id
+    image_tag = var.image_tag
   })
 
   allow_stopping_for_update = true

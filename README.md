@@ -13,7 +13,7 @@ Developer terms come first, and sales terms work too: "enroll my top MQLs in the
 
 ```sh
 mkdir my-gtm && cd my-gtm
-docker run --rm -v "$PWD:/work" -w /work ghcr.io/astrolabe-gtm/astrolabe init -template demo
+docker run --rm --user "$(id -u):$(id -g)" -v "$PWD:/work" -w /work ghcr.io/astrolabe-gtm/astrolabe init -template demo
 docker compose up -d
 ```
 
@@ -38,7 +38,7 @@ Claude Desktop takes the same command in `claude_desktop_config.json`. Then ask 
 ## Your own product
 
 ```sh
-docker run --rm -v "$PWD:/work" -w /work ghcr.io/astrolabe-gtm/astrolabe init -template devtool -name "Hook Check" -url https://hookcheck.dev
+docker run --rm --user "$(id -u):$(id -g)" -v "$PWD:/work" -w /work ghcr.io/astrolabe-gtm/astrolabe init -template devtool -name "Hook Check" -url https://hookcheck.dev
 ```
 
 | Template | For |
@@ -74,7 +74,7 @@ Cold email should come from a separate domain or mailbox (for example `you@try-y
 docker compose exec -e ASTROLABE_MAIL_PASSWORD=... astrolabe astrolabe mailbox add you@try-yourproduct.com -provider gmail
 ```
 
-Presets exist for Gmail/Google Workspace, Fastmail, iCloud and Zoho; `-provider custom -smtp host:587 -imap host:993` works for anything else. Both logins are tested before saving, and the password is stored in the secrets volume, never in the database. Astrolabe sends over SMTP, reads replies and bounces over IMAP, and files a copy in Sent where the provider doesn't. Gmail OAuth (`astrolabe gmail auth`) is still available if you prefer it.
+Presets exist for Gmail/Google Workspace, Fastmail, iCloud and Zoho (hosts, ports and username rules checked against each provider's docs in September 2026); `-provider custom -smtp host:587 -imap host:993` works for anything else. Both logins are tested before saving, and the password is stored in the secrets volume, never in the database. Astrolabe sends over SMTP, reads replies and bounces over IMAP, and files a copy in Sent where the provider doesn't. Gmail OAuth (`astrolabe gmail auth`) is still available if you prefer it.
 
 ## Go live
 

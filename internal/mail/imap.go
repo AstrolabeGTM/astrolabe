@@ -31,7 +31,11 @@ func dialIMAP(a *Account) (*imapclient.Client, error) {
 	if err != nil {
 		return nil, fmt.Errorf("imap %s: %w", a.IMAPHost, err)
 	}
-	if err := c.Login(a.Username, a.Password).Wait(); err != nil {
+	user := a.Username
+	if a.IMAPUsername != "" {
+		user = a.IMAPUsername
+	}
+	if err := c.Login(user, a.Password).Wait(); err != nil {
 		c.Close()
 		return nil, fmt.Errorf("imap login failed (check the app password): %w", err)
 	}
@@ -57,7 +61,7 @@ func appendSent(_ context.Context, a *Account, raw []byte) error {
 		return err
 	}
 	defer c.Close()
-	cmd := c.Append(a.SentFolder, int64(len(raw)), &imap.AppendOptions{Flags: []imap.Flag{imap.FlagSeen}, Time: time.Now()})
+	cmd := c.Append(sentFolder(c, a), int64(len(raw)), &imap.AppendOptions{Flags: []imap.Flag{imap.FlagSeen}, Time: time.Now()})
 	if _, err := cmd.Write(raw); err != nil {
 		return err
 	}
@@ -79,14 +83,31 @@ func FindSent(a *Account, messageID string) (bool, error) {
 		return false, err
 	}
 	defer c.Close()
-	if _, err := c.Select(a.SentFolder, &imap.SelectOptions{ReadOnly: true}).Wait(); err != nil {
-		return false, fmt.Errorf("open %s: %w", a.SentFolder, err)
+	sent := sentFolder(c, a)
+	if _, err := c.Select(sent, &imap.SelectOptions{ReadOnly: true}).Wait(); err != nil {
+		return false, fmt.Errorf("open %s: %w", sent, err)
 	}
 	data, err := c.UIDSearch(&imap.SearchCriteria{Header: []imap.SearchCriteriaHeaderField{{Key: "Message-ID", Value: messageID}}}, nil).Wait()
 	if err != nil {
 		return false, err
 	}
 	return len(data.AllUIDs()) > 0, nil
+}
+
+// sentFolder finds the Sent mailbox: the one flagged \Sent (names are
+// localised, e.g. Gmail's "[Gmail]/Gesendet"), else the configured name.
+func sentFolder(c *imapclient.Client, a *Account) string {
+	boxes, err := c.List("", "*", &imap.ListOptions{ReturnSpecialUse: true}).Collect()
+	if err == nil {
+		for _, b := range boxes {
+			for _, attr := range b.Attrs {
+				if attr == imap.MailboxAttrSent {
+					return b.Mailbox
+				}
+			}
+		}
+	}
+	return a.SentFolder
 }
 
 // Cursor is the polling position in the inbox.

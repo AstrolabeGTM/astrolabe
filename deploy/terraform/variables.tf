@@ -33,3 +33,9 @@ variable "backup_retention_days" {
   type    = number
   default = 30
 }
+
+variable "image_tag" {
+  description = "Astrolabe image tag to run (e.g. 0.1.0 or latest)"
+  type        = string
+  default     = "latest"
+}

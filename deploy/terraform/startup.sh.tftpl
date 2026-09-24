@@ -1,24 +1,21 @@
 #!/bin/bash
-# Runs on every boot; each step is idempotent.
+# Runs on every boot; each step is idempotent. The VM runs the published
+# Astrolabe image with Postgres via docker compose, behind Caddy (HTTPS).
 set -euo pipefail
 
+if ! command -v docker >/dev/null; then
+  curl -fsSL https://get.docker.com | sh
+fi
 if ! command -v caddy >/dev/null; then
   apt-get update
-  apt-get install -y postgresql debian-keyring debian-archive-keyring apt-transport-https curl gnupg
+  apt-get install -y debian-keyring debian-archive-keyring apt-transport-https curl gnupg
   curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/gpg.key' | gpg --dearmor -o /usr/share/keyrings/caddy-stable-archive-keyring.gpg
   curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/debian.deb.txt' > /etc/apt/sources.list.d/caddy-stable.list
   apt-get update
   apt-get install -y caddy
 fi
 
-id astrolabe >/dev/null 2>&1 || useradd --system --create-home --home-dir /var/lib/astrolabe astrolabe
-mkdir -p /opt/astrolabe /etc/astrolabe
-chown astrolabe:astrolabe /opt/astrolabe
-
-# Local Postgres with a peer-authenticated role for the service user.
-sudo -u postgres psql -tc "SELECT 1 FROM pg_roles WHERE rolname = 'astrolabe'" | grep -q 1 || sudo -u postgres createuser astrolabe
-sudo -u postgres psql -tc "SELECT 1 FROM pg_database WHERE datname = 'astrolabe'" | grep -q 1 || sudo -u postgres createdb -O astrolabe astrolabe
-
+mkdir -p /opt/astrolabe/products
 cat > /etc/caddy/Caddyfile <<CADDY
 ${domain} {
   reverse_proxy 127.0.0.1:8080
@@ -29,64 +26,45 @@ ${domain} {
 CADDY
 systemctl reload caddy || systemctl restart caddy
 
-# Fetch the env file from Secret Manager before each start.
-cat > /opt/astrolabe/fetch-env.sh <<'FETCH'
+# The server runs as uid 10001; the products folder is shipped by deploy.sh.
+cat > /opt/astrolabe/compose.yaml <<'COMPOSE'
+services:
+  postgres:
+    image: postgres:17
+    environment: {POSTGRES_USER: astrolabe, POSTGRES_PASSWORD: astrolabe, POSTGRES_DB: astrolabe}
+    volumes: [pgdata:/var/lib/postgresql/data]
+    healthcheck: {test: ["CMD", "pg_isready", "-U", "astrolabe"], interval: 2s, retries: 30}
+    restart: unless-stopped
+  astrolabe:
+    image: ghcr.io/astrolabe-gtm/astrolabe:${image_tag}
+    env_file: .env
+    environment:
+      ASTROLABE_DATABASE_URL: postgres://astrolabe:astrolabe@postgres:5432/astrolabe?sslmode=disable
+    ports: ["127.0.0.1:8080:8080"]
+    volumes: ["./products:/data/products", "secrets:/data/secrets"]
+    depends_on: {postgres: {condition: service_healthy}}
+    restart: unless-stopped
+volumes:
+  pgdata:
+  secrets:
+COMPOSE
+
+# The env file (ASTROLABE_* settings) comes from Secret Manager.
+cat > /opt/astrolabe/start.sh <<'START'
 #!/bin/bash
 set -euo pipefail
-gcloud secrets versions access latest --secret=${secret} > /etc/astrolabe/env.tmp
-echo "ASTROLABE_DATABASE_URL=postgres:///astrolabe?host=/var/run/postgresql" >> /etc/astrolabe/env.tmp
-echo "ASTROLABE_ADDR=127.0.0.1:8080" >> /etc/astrolabe/env.tmp
-echo "ASTROLABE_PRODUCTS=/opt/astrolabe/products" >> /etc/astrolabe/env.tmp
-echo "ASTROLABE_SECRETS_DIR=/var/lib/astrolabe/secrets" >> /etc/astrolabe/env.tmp
-# The digest runs Mondays 08:00 local; set TZ (e.g. TZ=Asia/Kolkata) in the secret, default UTC.
-grep -q '^TZ=' /etc/astrolabe/env.tmp || echo "TZ=UTC" >> /etc/astrolabe/env.tmp
-install -m 0600 -o astrolabe /etc/astrolabe/env.tmp /etc/astrolabe/env
-rm /etc/astrolabe/env.tmp
-FETCH
-chmod 0755 /opt/astrolabe/fetch-env.sh
-
-# A root oneshot writes the env file before the service loads it (systemd
-# reads EnvironmentFile before any ExecStartPre of the same unit runs).
-cat > /etc/systemd/system/astrolabe-env.service <<'UNIT'
-[Unit]
-Description=Fetch Astrolabe environment from Secret Manager
-After=network-online.target
-Wants=network-online.target
-
-[Service]
-Type=oneshot
-ExecStart=/opt/astrolabe/fetch-env.sh
-UNIT
-
-cat > /etc/systemd/system/astrolabe.service <<'UNIT'
-[Unit]
-Description=Astrolabe
-Requires=astrolabe-env.service
-After=astrolabe-env.service network-online.target postgresql.service
-Wants=network-online.target
-
-[Service]
-User=astrolabe
-EnvironmentFile=-/etc/astrolabe/env
-ExecStartPre=/opt/astrolabe/astrolabe migrate
-ExecStart=/opt/astrolabe/astrolabe serve
-Restart=always
-RestartSec=5
-# Give an in-flight send time to record its result.
-TimeoutStopSec=40
-NoNewPrivileges=true
-ProtectSystem=strict
-ReadWritePaths=/var/lib/astrolabe
-
-[Install]
-WantedBy=multi-user.target
-UNIT
+cd /opt/astrolabe
+gcloud secrets versions access latest --secret=${secret} > .env.tmp
+grep -q '^TZ=' .env.tmp || echo "TZ=UTC" >> .env.tmp
+install -m 0600 .env.tmp .env && rm .env.tmp
+docker compose pull -q
+docker compose up -d
+START
+chmod 0755 /opt/astrolabe/start.sh
 
 # Daily compressed dump to the versioned bucket at 03:15.
 cat > /etc/cron.d/astrolabe-backup <<CRON
-15 3 * * * postgres pg_dump -Fc astrolabe | gcloud storage cp - gs://${bucket}/astrolabe-\$(date +\%F).dump
+15 3 * * * root cd /opt/astrolabe && docker compose exec -T postgres pg_dump -U astrolabe -Fc astrolabe | gcloud storage cp - gs://${bucket}/astrolabe-\$(date +\%F).dump
 CRON
 
-systemctl daemon-reload
-systemctl enable astrolabe
-if [ -x /opt/astrolabe/astrolabe ]; then systemctl restart astrolabe; fi
+/opt/astrolabe/start.sh || echo "start failed: add the astrolabe-env secret, then run /opt/astrolabe/start.sh"

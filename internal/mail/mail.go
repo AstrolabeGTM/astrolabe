@@ -24,6 +24,9 @@ type Account struct {
 	Provider string `json:"provider"`
 	Username string `json:"username"`
 	Password string `json:"password"` // an app password, not your main password
+	// IMAPUsername, if set, is used for IMAP instead of Username (iCloud
+	// wants the name part only for IMAP but the full address for SMTP).
+	IMAPUsername string `json:"imap_username,omitempty"`
 
 	SMTPHost string `json:"smtp_host"`
 	SMTPPort int    `json:"smtp_port"`
@@ -56,16 +59,16 @@ type Preset struct {
 var Presets = map[string]Preset{
 	"gmail": {Name: "Gmail / Google Workspace", SMTPHost: "smtp.gmail.com", SMTPPort: 587, SMTPTLS: "starttls",
 		IMAPHost: "imap.gmail.com", IMAPPort: 993, SentFolder: "[Gmail]/Sent Mail", SavesSent: true,
-		Help: "Turn on 2-Step Verification, then create an app password at myaccount.google.com/apppasswords."},
+		Help: "Turn on 2-Step Verification, then create an app password at myaccount.google.com/apppasswords. If a Workspace admin has disabled app passwords, use astrolabe gmail auth (OAuth) instead."},
 	"fastmail": {Name: "Fastmail", SMTPHost: "smtp.fastmail.com", SMTPPort: 465, SMTPTLS: "tls",
 		IMAPHost: "imap.fastmail.com", IMAPPort: 993, SentFolder: "Sent",
 		Help: "Create an app password under Settings → Privacy & Security → Integrations."},
 	"icloud": {Name: "iCloud Mail", SMTPHost: "smtp.mail.me.com", SMTPPort: 587, SMTPTLS: "starttls",
 		IMAPHost: "imap.mail.me.com", IMAPPort: 993, SentFolder: "Sent Messages",
 		Help: "Create an app-specific password at account.apple.com."},
-	"zoho": {Name: "Zoho Mail", SMTPHost: "smtp.zoho.com", SMTPPort: 465, SMTPTLS: "tls",
-		IMAPHost: "imap.zoho.com", IMAPPort: 993, SentFolder: "Sent",
-		Help: "Enable IMAP in Zoho Mail settings and use an app-specific password (regional hosts like smtp.zoho.eu may apply)."},
+	"zoho": {Name: "Zoho Mail", SMTPHost: "smtppro.zoho.com", SMTPPort: 465, SMTPTLS: "tls",
+		IMAPHost: "imappro.zoho.com", IMAPPort: 993, SentFolder: "Sent",
+		Help: "Enable IMAP access in Zoho Mail settings and use an app-specific password. Custom domains use smtppro/imappro.zoho.com (set automatically; @zohomail.com uses smtp/imap.zoho.com); outside the US data centre use your region's domain (e.g. zoho.eu, zoho.in) with -smtp/-imap."},
 	"custom": {Name: "Other (enter SMTP/IMAP settings)", SMTPTLS: "starttls", SMTPPort: 587, IMAPPort: 993, SentFolder: "Sent"},
 }
 
@@ -96,6 +99,22 @@ func (a *Account) Apply() error {
 	set(&a.IMAPHost, p.IMAPHost)
 	seti(&a.IMAPPort, p.IMAPPort)
 	set(&a.SentFolder, p.SentFolder)
+	domain := a.Address[strings.LastIndex(a.Address, "@")+1:]
+	switch a.Provider {
+	case "icloud":
+		if a.IMAPUsername == "" {
+			a.IMAPUsername = strings.SplitN(a.Username, "@", 2)[0] // Apple: name part only for IMAP
+		}
+	case "zoho":
+		if domain == "zohomail.com" || domain == "zoho.com" {
+			if a.SMTPHost == p.SMTPHost {
+				a.SMTPHost = "smtp.zoho.com"
+			}
+			if a.IMAPHost == p.IMAPHost {
+				a.IMAPHost = "imap.zoho.com"
+			}
+		}
+	}
 	if p.SavesSent {
 		a.SavesSent = true
 	}
