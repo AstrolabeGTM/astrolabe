@@ -4,8 +4,8 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/hex"
+	neturl "net/url"
 	"os"
-	"strings"
 	"testing"
 
 	"github.com/jackc/pgx/v5"
@@ -41,11 +41,12 @@ func TestDBURL(t testing.TB) (*pgxpool.Pool, string) {
 	if _, err := conn.Exec(ctx, "CREATE DATABASE "+name); err != nil {
 		t.Fatal(err)
 	}
-	cfg, err := pgx.ParseConfig(admin)
+	u, err := neturl.Parse(admin)
 	if err != nil {
 		t.Fatal(err)
 	}
-	url := strings.Replace(admin, "/"+cfg.Database, "/"+name, 1)
+	u.Path = "/" + name
+	url := u.String()
 	pool, err := Open(ctx, url)
 	if err != nil {
 		t.Fatal(err)
