@@ -11,12 +11,12 @@ import (
 	"github.com/riverqueue/river"
 	"github.com/riverqueue/river/riverdriver/riverpgxv5"
 
-	"github.com/astrolabe-gtm/astrolabe/internal/channel"
-	"github.com/astrolabe-gtm/astrolabe/internal/funnel"
-	"github.com/astrolabe-gtm/astrolabe/internal/outreach"
-	"github.com/astrolabe-gtm/astrolabe/internal/people"
-	"github.com/astrolabe-gtm/astrolabe/internal/product"
-	"github.com/astrolabe-gtm/astrolabe/internal/store"
+	"github.com/AstrolabeGTM/astrolabe/internal/channel"
+	"github.com/AstrolabeGTM/astrolabe/internal/funnel"
+	"github.com/AstrolabeGTM/astrolabe/internal/outreach"
+	"github.com/AstrolabeGTM/astrolabe/internal/people"
+	"github.com/AstrolabeGTM/astrolabe/internal/product"
+	"github.com/AstrolabeGTM/astrolabe/internal/store"
 )
 
 type fakeSender struct {

@@ -32,7 +32,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - run: docker build -t ghcr.io/astrolabe-gtm/astrolabe:latest .
+      - run: docker build -t ghcr.io/astrolabegtm/astrolabe:latest .
       - run: scripts/quickstart-test.sh 8080
 
   image:
@@ -54,7 +54,7 @@ jobs:
       - id: meta
         uses: docker/metadata-action@v5
         with:
-          images: ghcr.io/astrolabe-gtm/astrolabe
+          images: ghcr.io/astrolabegtm/astrolabe
           tags: |
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}

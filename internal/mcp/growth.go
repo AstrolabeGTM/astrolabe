@@ -5,8 +5,8 @@ import (
 	"errors"
 	"time"
 
-	"github.com/astrolabe-gtm/astrolabe/internal/digest"
-	"github.com/astrolabe-gtm/astrolabe/internal/experiment"
+	"github.com/AstrolabeGTM/astrolabe/internal/digest"
+	"github.com/AstrolabeGTM/astrolabe/internal/experiment"
 )
 
 type contentArg struct {

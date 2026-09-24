@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 
-	"github.com/astrolabe-gtm/astrolabe/internal/product"
+	"github.com/AstrolabeGTM/astrolabe/internal/product"
 )
 
 func (s *Server) productSetup(ctx context.Context, a product.Spec) (any, error) {

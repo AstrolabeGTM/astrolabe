@@ -8,9 +8,9 @@ Updated 24 September 2026.
 
 Developers who ship products (dev tools, SaaS, apps) and would rather write code than learn five sales tools. You don't need to know what an "ICP" or a "nurture cadence" is: Astrolabe uses developer terms (events, rules, pipelines) and explains the rest in the glossary below. If you (or a teammate) do speak sales, those words work too.
 
-**How it's delivered:** open source under AGPL-3.0 at github.com/astrolabe-gtm/astrolabe, shipped as a Docker image (`ghcr.io/astrolabe-gtm/astrolabe`) plus Postgres that you self-host, the way people run Mattermost or Penpot. Each developer or team runs their own instance for their own products; there are no shared accounts or multi-tenancy. A hosted version is an open decision (§14).
+**How it's delivered:** open source under AGPL-3.0 at github.com/AstrolabeGTM/astrolabe, shipped as a Docker image (`ghcr.io/astrolabegtm/astrolabe`) plus Postgres that you self-host, the way people run Mattermost or Penpot. Each developer or team runs their own instance for their own products; there are no shared accounts or multi-tenancy. A hosted version is an open decision (§14).
 
-**Examples in this doc** use two products: *Geometer*, a developer tool that finds race conditions (cold outreach to engineers), and *Fair*, a consumer app (messages to existing users). Swap in your own.
+**Examples in this doc** use two products: *Pipewrench*, a developer tool that finds flaky CI tests (cold outreach to engineers; also the runnable demo), and *Parlo*, a consumer app (messages to existing users). Swap in your own.
 
 **Glossary (what Astrolabe calls it, what sales tools call it, what it means):**
 
@@ -18,12 +18,12 @@ Developers who ship products (dev tools, SaaS, apps) and would rather write code
 | --- | --- |
 | Signal (intent data, buying signal) | An event about a person: they opened a GitHub issue about your problem, starred your repo, posted on HN, signed up. Stored once per dedupe key, like an idempotent event log. |
 | Target (ICP, persona) | Who the product is for, in plain sentences (`target:` in `product.yaml`). |
-| Fit rules (firmographics, technographics) | Machine-checkable version of the target: facts like `dep:bullmq` or `lang:typescript` with weights. |
+| Fit rules (firmographics, technographics) | Machine-checkable version of the target: facts like `ci:github-actions` or `lang:typescript` with weights. |
 | Score / priority (lead score, MQL) | `0.4·fit + 0.4·intent + 0.2·why_now`, 0–100. Priority A (≥70) means contact now; D means just watch. |
 | Intent / why now | Recent signals, decaying with a 10-day half-life / time-sensitive signals in the last 14 days. |
 | Sequence (cadence, campaign, nurture) | A timed list of message steps (`sequences/*.yaml`). `kind: cold` for people who don't know you yet, `kind: users` for existing users. |
 | Automation (play, playbook, workflow) | A rule in `automations.yaml`: *trigger → when → action*, like a CI workflow. "On a `github.issue_pain` signal, if fit ≥ 50, start the `technical-intro` sequence." |
-| Funnel / stages (pipeline, lifecycle stages) | Your product's pipeline states (`reached → replied → installed → first_finding → paid`). A person's furthest stage is their state. |
+| Funnel / stages (pipeline, lifecycle stages) | Your product's pipeline states (`reached → replied → installed → first_report → paid`). A person's furthest stage is their state. |
 | Activation | The stage where a user first gets real value (the "aha" moment). The number to move. |
 | Offer | The one concrete thing every message asks for: a promise, a call to action and a URL. |
 | Attribution | Which signal, link or automation brought a person in, and what happened after. |
@@ -74,8 +74,8 @@ flowchart LR
 ```
 
 The same loop covers every GTM motion:
-- **Cold outreach** (Geometer): a GitHub signal leads to research notes, then an email sequence.
-- **Users** (Fair): a user stalls after KYC, so they get a WhatsApp or push nudge toward the first lesson.
+- **Cold outreach** (Pipewrench): a GitHub issue about a flaky test leads to research notes, then an email sequence.
+- **Users** (Parlo): a user finishes the placement test but never starts a lesson, so they get a WhatsApp or push nudge toward the first lesson.
 - **Content**: a release note becomes launch posts.
 - **Community**: a Hacker News thread becomes a task for you to reply in person.
 
@@ -84,15 +84,15 @@ The same loop covers every GTM motion:
 Each product is a folder `products/<id>/` with `product.yaml` plus a few markdown files. The AI builds the first version by interviewing you in chat, and you edit it from there.
 
 ```yaml
-id: geometer
-name: Geometer
-url: https://geometer.dev
-one_liner: Finds race conditions in async workflows and hands you a 5-step replay.
+id: pipewrench
+name: Pipewrench
+url: https://pipewrench.example
+one_liner: Finds flaky CI tests and tells you why they fail.
 audience: b2b                  # b2b (accounts + people) or b2c (users)
 
 target:                         # who it's for, in plain sentences
   include:
-    - TypeScript/Node backend with Postgres and a queue (BullMQ etc.)
+    - Teams whose CI is slowed down by flaky tests
     - Handles payment/commerce webhooks (Stripe, Razorpay, Shopify)
     - 5–50 backend engineers
   exclude:
@@ -102,18 +102,18 @@ funnel:                         # ordered; each stage is an event name
   - reached
   - replied
   - site_visit
-  - installed                   # npx geo test
-  - first_finding               # aha moment
+  - installed                   # added the GitHub Action
+  - first_report                # aha moment: first flaky-test report
   - ci_enabled
   - paid
 
-activation: first_finding       # the stage that defines "activated"
+activation: first_report        # the stage that defines "activated"
 
 offer:
   promise: "Help you test one async workflow and inspect the result"
   cta: "Send one workflow you'd like to test"
-  destination: https://geometer.dev/start
-  success_event: first_finding
+  destination: https://pipewrench.example/start
+  success_event: first_report
   window: 14d                  # observation window, not a promised result
 
 claims:                         # the only product claims the AI may make
@@ -124,8 +124,8 @@ claims:                         # the only product claims the AI may make
 
 voice: voice.md                 # tone, examples, words to avoid
 sender:
-  cold: you@try-geometer.example   # cold email, from a separate domain
-  users: hello@geometer.dev
+  cold: you@try-pipewrench.example   # cold email, from a separate domain
+  users: hello@pipewrench.example
 
 auto_approve:                   # which AI drafts go out without your click: none | follow_ups | all
   cold: none
@@ -135,7 +135,7 @@ limits:
   touches_per_person_per_week: 2
 
 fit:                            # facts come from enrichment, import or chat
-  - {any: [dep:bullmq, dep:bee-queue], weight: 35, label: job queue}
+  - {any: [ci:github-actions, ci:circleci], weight: 35, label: hosted CI}
   - {any: [lang:typescript], weight: 20, label: TS/Node}
   - {any: [dep:stripe, dep:razorpay], weight: 30, label: payment webhooks}
   - {any: [dep:react-native], exclude: true, label: mobile app repo}
@@ -159,7 +159,7 @@ A **monitor** produces signals. Monitors are either scheduled (polling) or event
 
 | Monitor | Type | Example signals | Products it suits |
 | --- | --- | --- | --- |
-| `github_search` | Scheduled, hourly | Issues/PRs mentioning "race condition", "processed twice"; repos adding `bullmq` | Dev tools |
+| `github_search` | Scheduled, hourly | Issues/PRs mentioning "flaky test", "fails intermittently"; repos adding a test runner | Dev tools |
 | `github_repo` | Scheduled | Stars, forks and issues on your repos or a competitor's | Dev tools |
 | `community` | Scheduled, hourly | HN, Reddit, Lobsters, Stack Overflow, RSS keyword matches | All |
 | `product_events` | Webhook | signup, activated, stalled, limit hit, invited teammate | All (your apps send these) |
@@ -173,7 +173,7 @@ Monitors are configured in `monitors.yaml`:
 ```yaml
 - id: pain-issues
   type: github_search            # github_search | github_repo | community
-  query: '"processed twice" webhook is:issue language:TypeScript'
+  query: '"flaky test" is:issue language:TypeScript'
   signal: github.issue_pain
   strength: 25
   why_now: false                  # true for time-bound triggers (postmortems, launches)
@@ -194,14 +194,14 @@ Every signal is stored in the same shape:
 
 ```json
 {
-  "product": "geometer",
+  "product": "pipewrench",
   "type": "github.issue_pain",
   "occurred_at": "2026-09-24T10:12:00Z",
-  "subject": {"github": "octo-dev", "email": null, "company_domain": "acmepay.io"},
+  "subject": {"github": "octo-dev", "email": null, "company_domain": "acme.example"},
   "strength": 25,
-  "evidence_url": "https://github.com/acmepay/api/issues/812",
-  "data": {"title": "Webhook processed twice on retry"},
-  "dedupe_key": "gh-issue:acmepay/api#812"
+  "evidence_url": "https://github.com/acme/api/issues/812",
+  "data": {"title": "Checkout test fails intermittently on CI"},
+  "dedupe_key": "gh-issue:acme/api#812"
 }
 ```
 
@@ -229,20 +229,20 @@ Scoring uses simple rules you can read, defined per product:
 | C | 30–49 | Watch; newsletter only if subscribed |
 | D | < 30 | Watch |
 
-Each score shows its breakdown ("fit 80: TS+Postgres+BullMQ; intent 45: issue 3d ago, starred repo"). Scores rank eligible prospects; they do not authorize contact. Existing users qualify for users help through product state and channel permission, without needing an acquisition score. Recompute time-dependent scores daily as well as on new signals. Learned models can come later, once there are a few hundred outcomes to learn from.
+Each score shows its breakdown ("fit 80: hosted CI + TypeScript; intent 45: issue 3d ago, starred repo"). Scores rank eligible prospects; they do not authorize contact. Existing users qualify for users help through product state and channel permission, without needing an acquisition score. Recompute time-dependent scores daily as well as on new signals. Learned models can come later, once there are a few hundred outcomes to learn from.
 
 ## 6. Automations: the growth-hacking unit
 
 A **automation** is `trigger → audience filter → action`. It is how one experiment in growth becomes a repeatable machine.
 
 ```yaml
-# products/geometer/automations.yaml
+# products/pipewrench/automations.yaml
 - id: pain-issue-outreach
   notes: "Audience, offer, max effort — written before starting"
   trigger: {signal: github.issue_pain}
   when: {min_fit: 60, not_contacted_within: 30d}
   action: {sequence: technical-intro}
-  success: {event: first_finding, within: 14d}   # default: the product offer
+  success: {event: first_report, within: 14d}   # default: the product offer
   limit_per_day: 10
 
 - id: postmortem-offer
@@ -261,10 +261,10 @@ A **automation** is `trigger → audience filter → action`. It is how one expe
 ```
 
 ```yaml
-# products/fair/automations.yaml
-- id: kyc-no-trade
-  trigger: {stage_stuck: {stage: kyc_done, for: 2d}}
-  action: {sequence: first-strategy-lesson}
+# products/parlo/automations.yaml
+- id: placement-no-lesson
+  trigger: {stage_stuck: {stage: placement_done, for: 2d}}
+  action: {sequence: first-lesson-nudge}
 
 - id: winback
   trigger: {stage_stuck: {stage: active, for: 21d}}
@@ -294,7 +294,7 @@ Automation **templates** cover the common moves, so a new product starts with a 
 **Sequences** are ordered steps with delays. Each step targets a channel:
 
 ```yaml
-# products/geometer/sequences/technical-intro.yaml
+# products/pipewrench/sequences/technical-intro.yaml
 steps:
   - {channel: email, after: 0d,  brief: true, goal: "offer to test one workflow free"}
   - {channel: email, after: 3d,  goal: "share a relevant replay example"}
@@ -307,8 +307,8 @@ stop_on: [replied, unsubscribed, bounced, installed]
 | --- | --- |
 | `email` (cold) | Any mailbox on a separate sending domain, over SMTP with an app password (the simple setup) or through the Gmail API with OAuth. Replies and bounces come back over IMAP (or the Gmail API) from the same mailbox. |
 | `email` (users) | Resend on the product domain when `ASTROLABE_RESEND_API_KEY` is set (with an idempotency key per message), else the Gmail mailbox |
-| `whatsapp` | Meta WhatsApp Cloud API with approved templates (Fair). The step names the template, language and parameters; the draft shows the template as its subject and one parameter per line. Needs `whatsapp.phone_number_id` in `product.yaml` and an explicit WhatsApp opt-in from product events. Replies arrive at `/hooks/whatsapp` (Meta signature); "STOP" unsubscribes |
-| `push` / `in_app` | A product webhook: Astrolabe posts a signed `{id, channel, user_id, title, body}` to `notify.url`, and the product's own notification service delivers it (Fair). `id` is stable per message for dedupe |
+| `whatsapp` | Meta WhatsApp Cloud API with approved templates (Parlo). The step names the template, language and parameters; the draft shows the template as its subject and one parameter per line. Needs `whatsapp.phone_number_id` in `product.yaml` and an explicit WhatsApp opt-in from product events. Replies arrive at `/hooks/whatsapp` (Meta signature); "STOP" unsubscribes |
+| `push` / `in_app` | A product webhook: Astrolabe posts a signed `{id, channel, user_id, title, body}` to `notify.url`, and the product's own notification service delivers it (Parlo). `id` is stable per message for dedupe |
 | `linkedin_task`, `x_task` | A task in your inbox with the text ready; you send it by hand and mark it done |
 | `webhook` | Any product-specific action |
 
@@ -361,7 +361,7 @@ The dashboard per product shows:
 **Product events** arrive at `POST /hooks/events/<product>`, signed like Stripe webhooks (`Astrolabe-Signature: t=<unix>,v1=<hex HMAC-SHA256 of "t.body">`, 5-minute tolerance) with the secret in `ASTROLABE_EVENTS_SECRET_<PRODUCT>`:
 
 ```json
-{"id": "evt-123", "type": "installed", "user_id": "u42", "email": "ana@acmepay.io",
+{"id": "evt-123", "type": "installed", "user_id": "u42", "email": "ana@acme.example",
  "occurred_at": "2026-09-24T10:00:00Z", "data": {}, "consent": {"whatsapp": true}}
 ```
 
@@ -395,15 +395,15 @@ At low volume, run one offer and read the replies before adding variants. Once v
 | Tools | Example |
 | --- | --- |
 | `product_setup`, `products`, `product_context` | "Set up a new product called X": Claude interviews you, then writes `products/x/` (claims and voice stay stubs until you agree them) |
-| `top_prospects`, `person`, `people`, `signals` | "Who should I contact for Geometer this week?", "Tell me about acmepay" |
-| `add_signal`, `set_facts`, `import_people` | "Bo referred Ana at acmepay", "Ana's team uses BullMQ", "import this CSV" |
+| `top_prospects`, `person`, `people`, `signals` | "Who should I contact for Pipewrench this week?", "Tell me about Acme" |
+| `add_signal`, `set_facts`, `import_people` | "Bo referred Ana at Acme", "Ana's team uses GitHub Actions", "import this CSV" |
 | `ambiguous_matches`, `resolve_match` | "Which signals couldn't be matched to one person?" |
 | `monitors`, `run_monitor` | "Run the processed-twice search now" |
 | `research` | "Research the top 10 priority-A people" |
 | `inbox`, `write_draft`, `ai_draft`, `approve`, `skip`, `resolve_send` | "Show today's drafts", "approve 1–5, rewrite 6 shorter" |
-| `label_reply`, `answer_reply` | "Ana is interested; answer that yes, BullMQ works" |
-| `start_sequence`, `pause`, `resume`, `do_not_contact` | "Start technical-intro for these 20", "pause all Fair sends", "never contact bo@x.com" |
-| `add_task`, `close_task`, `record_stage` | "Remind me to help acmepay tomorrow", "mark them activated; setup took 20 minutes" |
+| `label_reply`, `answer_reply` | "Ana is interested; answer that yes, it works with Jest" |
+| `start_sequence`, `pause`, `resume`, `do_not_contact` | "Start technical-intro for these 20", "pause all Parlo sends", "never contact bo@x.com" |
+| `add_task`, `close_task`, `record_stage` | "Remind me to help Acme tomorrow", "mark them activated; setup took 20 minutes" |
 | `automations`, `automation_runs` | "Why did pain-issue-outreach skip people today?" |
 | `funnel`, `experiments`, `digest` | "Why did activation drop last week?", "which intro variant wins?" |
 | `content`, `content_list`, `content_mark` | "Turn the v0.4 release notes into launch posts" |
@@ -520,14 +520,14 @@ Each milestone is usable on its own.
 | # | Milestone | Done when |
 | --- | --- | --- |
 | M1 | **One offer + manual outreach + outcomes** | One product and offer load and validate. People can be imported. A draft can be approved in the inbox and sent through Gmail, with duplicate jobs blocked and uncertain delivery held for review. Replies stop the sequence. Do-not-contact works. A small real batch has follow-up tasks, manually recorded activation/payment outcomes and a basic funnel. **Status (2026-09-24): code complete; not yet run against a real Gmail mailbox.** |
-| M2 | **One useful monitor + scoring (Geometer)** | Start with `github_search`; add `github_repo` or `community` when they produce useful prospects. Identities match. Scores come with breakdowns. The ranked list in chat and the web app is right by your judgment on 20 samples. **Status: built — monitors (GitHub search/repo, HN, Stack Overflow, RSS), enrichment, scoring, Signals page; ranking quality needs your judgment on real data.** |
+| M2 | **One useful monitor + scoring (developer tool)** | Start with `github_search`; add `github_repo` or `community` when they produce useful prospects. Identities match. Scores come with breakdowns. The ranked list in chat and the web app is right by your judgment on 20 samples. **Status: built — monitors (GitHub search/repo, HN, Stack Overflow, RSS), enrichment, scoring, Signals page; ranking quality needs your judgment on real data.** |
 | M3 | **Automations + sequences + research notes** | `pain-issue-outreach` runs end to end: signal → research → sequence → approval → send → stop on reply. Auto-approve modes work. **Status: built — automations (signal, stage, stuck), rechecks, research notes, AI drafts with flags, auto_approve, reply sorting and drafted answers.** |
 | M4 | **Automate measurement + stalled-user help** | Product events and Stripe replace manual outcome entry. Stages, stuck lists, source attribution and revenue show up. `stage_stuck` automations fire and cancel when the person advances. Add a second product once the first loop is useful. **Status: built — signed product-event and Stripe webhooks, payments/refunds, median stage times, stuck lists, weekly cohorts, source and automation attribution, revenue and spend.** |
-| M5 | **Users channels (Fair)** | WhatsApp templates and the product-webhook channel work. Fair's funnel (install → signup → KYC → first strategy → first trade → active) runs with `kyc-no-trade` and `winback`. **Status: built — WhatsApp templates and replies, product notify channel, Resend users email, channel consent. The Fair and Geometer product folders used as examples in this doc are private configs, not part of this repo; see `examples/` and `astrolabe init` for runnable ones.** |
+| M5 | **Users channels (consumer app)** | WhatsApp templates and the product-webhook channel work. A consumer funnel (install → signup → placement → first lesson → active) runs with `placement-no-lesson` and `winback`. **Status: built — WhatsApp templates and replies, product notify channel, Resend users email, channel consent. The Pipewrench demo in `examples/` and the `astrolabe init` templates are runnable versions of these examples.** |
 | M6 | **Experiments + content + digest** | Variants and the experiment report. Release → launch posts. Weekly digest. **Status: built — variants with fixed person/company assignment and Wilson intervals, tracked links, content repurposing and launch tasks, weekly digest.** |
 | M7 | **Open source, self-hostable, five-minute start** | AGPL-3.0; Docker image and compose; sandbox mode with a local outbox and simulated replies; `astrolabe init` with demo, devtool, saas and app templates; JSON schemas for editor autocomplete; `astrolabe doctor`; SMTP/IMAP email with app passwords; both developer and sales vocabulary in config and MCP. **Status: built; a scripted run from an empty directory to a simulated reply stopping a sequence took under a minute with Docker.** |
 
-After M1, use it with real Geometer prospects and help them reach a first finding personally. M2 and M3 automate work that proved useful in that batch. These are capability milestones, not a fixed delivery order: move product-event ingestion ahead of more monitors if following existing users to activation is the bottleneck. If people respond but never reach value, fix the offer or onboarding before expanding automation.
+After M1, use it with real prospects for your first product and help them reach the activation stage personally. M2 and M3 automate work that proved useful in that batch. These are capability milestones, not a fixed delivery order: move product-event ingestion ahead of more monitors if following existing users to activation is the bottleneck. If people respond but never reach value, fix the offer or onboarding before expanding automation.
 
 ## 13. Not doing (until a product needs it)
 
@@ -538,10 +538,9 @@ After M1, use it with real Geometer prospects and help them reach a first findin
 - Buying contact lists and bulk cold email. Outreach is signal-led only.
 - Learned scoring models, multi-touch attribution models, BigQuery or dbt.
 - Multi-user roles, per-customer installs, Kubernetes, Temporal.
-- The proof runner that auto-generates Geometer findings. Geometer's own CLI produces findings; Astrolabe only uses them as content.
 
 ## 14. Open decisions
 
 - **Hosted version.** A hosted, multi-tenant service would be a separate build: accounts, tenant isolation, billing, per-tenant mailbox and webhook secrets. Nothing here is built for it.
 - **Pricing**, if there is a hosted or paid tier.
-- **Decided:** AGPL-3.0; the public repo is github.com/astrolabe-gtm/astrolabe; distribution is a self-hosted Docker image; email via SMTP/IMAP with app passwords (Gmail OAuth kept as an option).
+- **Decided:** AGPL-3.0; the public repo is github.com/AstrolabeGTM/astrolabe; distribution is a self-hosted Docker image; email via SMTP/IMAP with app passwords (Gmail OAuth kept as an option).

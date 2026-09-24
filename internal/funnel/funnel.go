@@ -6,8 +6,8 @@ import (
 	"slices"
 	"time"
 
-	"github.com/astrolabe-gtm/astrolabe/internal/product"
-	"github.com/astrolabe-gtm/astrolabe/internal/store"
+	"github.com/AstrolabeGTM/astrolabe/internal/product"
+	"github.com/AstrolabeGTM/astrolabe/internal/store"
 )
 
 // Record adds a stage event once per dedupe key. It returns false if the

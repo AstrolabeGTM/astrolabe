@@ -17,12 +17,12 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/riverqueue/river"
 
-	"github.com/astrolabe-gtm/astrolabe/internal/channel"
-	"github.com/astrolabe-gtm/astrolabe/internal/experiment"
-	"github.com/astrolabe-gtm/astrolabe/internal/links"
-	"github.com/astrolabe-gtm/astrolabe/internal/people"
-	"github.com/astrolabe-gtm/astrolabe/internal/product"
-	"github.com/astrolabe-gtm/astrolabe/internal/store"
+	"github.com/AstrolabeGTM/astrolabe/internal/channel"
+	"github.com/AstrolabeGTM/astrolabe/internal/experiment"
+	"github.com/AstrolabeGTM/astrolabe/internal/links"
+	"github.com/AstrolabeGTM/astrolabe/internal/people"
+	"github.com/AstrolabeGTM/astrolabe/internal/product"
+	"github.com/AstrolabeGTM/astrolabe/internal/store"
 )
 
 type Service struct {

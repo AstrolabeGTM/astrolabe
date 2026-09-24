@@ -9,7 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/astrolabe-gtm/astrolabe/internal/starter"
+	"github.com/AstrolabeGTM/astrolabe/internal/starter"
 )
 
 func initCmd(args []string, in io.Reader, out io.Writer) error {

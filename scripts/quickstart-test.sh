@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
 # Runs the README quickstart for real in an empty directory and checks the
 # whole loop: init, compose up, login, start a sequence, approve, outbox,
-# simulated reply, sequence stops. Uses ghcr.io/astrolabe-gtm/astrolabe:latest
+# simulated reply, sequence stops. Uses ghcr.io/astrolabegtm/astrolabe:latest
 # (build and tag it locally first to test unreleased code).
 # Usage: scripts/quickstart-test.sh [port]
 set -euo pipefail
 PORT=${1:-8080}
-IMAGE=ghcr.io/astrolabe-gtm/astrolabe:latest
+IMAGE=ghcr.io/astrolabegtm/astrolabe:latest
 DIR=$(mktemp -d)
 PROJECT=astrolabe-quickstart-$$
 cd "$DIR"

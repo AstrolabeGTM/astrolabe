@@ -7,10 +7,10 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/astrolabe-gtm/astrolabe/internal/mail"
-	"github.com/astrolabe-gtm/astrolabe/internal/sandbox"
-	"github.com/astrolabe-gtm/astrolabe/internal/starter"
-	"github.com/astrolabe-gtm/astrolabe/internal/store"
+	"github.com/AstrolabeGTM/astrolabe/internal/mail"
+	"github.com/AstrolabeGTM/astrolabe/internal/sandbox"
+	"github.com/AstrolabeGTM/astrolabe/internal/starter"
+	"github.com/AstrolabeGTM/astrolabe/internal/store"
 )
 
 func find(checks []Check, area string, status Status, contains string) bool {

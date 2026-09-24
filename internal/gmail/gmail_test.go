@@ -10,7 +10,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/astrolabe-gtm/astrolabe/internal/channel"
+	"github.com/AstrolabeGTM/astrolabe/internal/channel"
 )
 
 func TestBuildMIMEThreadsAndRejectsHeaderInjection(t *testing.T) {

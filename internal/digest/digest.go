@@ -18,11 +18,11 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/riverqueue/river"
 
-	"github.com/astrolabe-gtm/astrolabe/internal/channel"
-	"github.com/astrolabe-gtm/astrolabe/internal/experiment"
-	"github.com/astrolabe-gtm/astrolabe/internal/funnel"
-	"github.com/astrolabe-gtm/astrolabe/internal/product"
-	"github.com/astrolabe-gtm/astrolabe/internal/score"
+	"github.com/AstrolabeGTM/astrolabe/internal/channel"
+	"github.com/AstrolabeGTM/astrolabe/internal/experiment"
+	"github.com/AstrolabeGTM/astrolabe/internal/funnel"
+	"github.com/AstrolabeGTM/astrolabe/internal/product"
+	"github.com/AstrolabeGTM/astrolabe/internal/score"
 )
 
 type ProductDigest struct {

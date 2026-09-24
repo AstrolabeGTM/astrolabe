@@ -16,10 +16,10 @@ import (
 	"github.com/riverqueue/river"
 	"github.com/riverqueue/river/rivertype"
 
-	"github.com/astrolabe-gtm/astrolabe/internal/github"
-	"github.com/astrolabe-gtm/astrolabe/internal/people"
-	"github.com/astrolabe-gtm/astrolabe/internal/product"
-	"github.com/astrolabe-gtm/astrolabe/internal/score"
+	"github.com/AstrolabeGTM/astrolabe/internal/github"
+	"github.com/AstrolabeGTM/astrolabe/internal/people"
+	"github.com/AstrolabeGTM/astrolabe/internal/product"
+	"github.com/AstrolabeGTM/astrolabe/internal/score"
 )
 
 // On the first run a monitor looks back this far; later runs overlap the

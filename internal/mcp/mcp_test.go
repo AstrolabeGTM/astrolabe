@@ -10,9 +10,9 @@ import (
 	"github.com/riverqueue/river"
 	"github.com/riverqueue/river/riverdriver/riverpgxv5"
 
-	"github.com/astrolabe-gtm/astrolabe/internal/outreach"
-	"github.com/astrolabe-gtm/astrolabe/internal/product"
-	"github.com/astrolabe-gtm/astrolabe/internal/store"
+	"github.com/AstrolabeGTM/astrolabe/internal/outreach"
+	"github.com/AstrolabeGTM/astrolabe/internal/product"
+	"github.com/AstrolabeGTM/astrolabe/internal/store"
 )
 
 func TestChatLoop(t *testing.T) {

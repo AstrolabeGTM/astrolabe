@@ -36,7 +36,7 @@ services:
     healthcheck: {test: ["CMD", "pg_isready", "-U", "astrolabe"], interval: 2s, retries: 30}
     restart: unless-stopped
   astrolabe:
-    image: ghcr.io/astrolabe-gtm/astrolabe:${image_tag}
+    image: ghcr.io/astrolabegtm/astrolabe:${image_tag}
     env_file: .env
     environment:
       ASTROLABE_DATABASE_URL: postgres://astrolabe:astrolabe@postgres:5432/astrolabe?sslmode=disable

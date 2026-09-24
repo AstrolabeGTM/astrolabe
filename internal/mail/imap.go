@@ -15,7 +15,7 @@ import (
 	"github.com/emersion/go-imap/v2"
 	"github.com/emersion/go-imap/v2/imapclient"
 
-	"github.com/astrolabe-gtm/astrolabe/internal/outreach"
+	"github.com/AstrolabeGTM/astrolabe/internal/outreach"
 )
 
 func dialIMAP(a *Account) (*imapclient.Client, error) {

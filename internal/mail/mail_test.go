@@ -15,7 +15,7 @@ import (
 	"github.com/emersion/go-imap/v2/imapserver"
 	"github.com/emersion/go-imap/v2/imapserver/imapmemserver"
 
-	"github.com/astrolabe-gtm/astrolabe/internal/channel"
+	"github.com/AstrolabeGTM/astrolabe/internal/channel"
 )
 
 // fakeSMTP is a minimal SMTP server. mode: "ok", "reject-rcpt", "drop-after-dot".

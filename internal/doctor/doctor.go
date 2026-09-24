@@ -16,11 +16,11 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"github.com/astrolabe-gtm/astrolabe/internal/gmail"
-	"github.com/astrolabe-gtm/astrolabe/internal/mail"
-	"github.com/astrolabe-gtm/astrolabe/internal/product"
-	"github.com/astrolabe-gtm/astrolabe/internal/sandbox"
-	"github.com/astrolabe-gtm/astrolabe/internal/store"
+	"github.com/AstrolabeGTM/astrolabe/internal/gmail"
+	"github.com/AstrolabeGTM/astrolabe/internal/mail"
+	"github.com/AstrolabeGTM/astrolabe/internal/product"
+	"github.com/AstrolabeGTM/astrolabe/internal/sandbox"
+	"github.com/AstrolabeGTM/astrolabe/internal/store"
 )
 
 type Status string

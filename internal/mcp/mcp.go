@@ -15,14 +15,14 @@ import (
 
 	sdk "github.com/modelcontextprotocol/go-sdk/mcp"
 
-	"github.com/astrolabe-gtm/astrolabe/internal/content"
-	"github.com/astrolabe-gtm/astrolabe/internal/draft"
-	"github.com/astrolabe-gtm/astrolabe/internal/funnel"
-	"github.com/astrolabe-gtm/astrolabe/internal/outreach"
-	"github.com/astrolabe-gtm/astrolabe/internal/people"
-	"github.com/astrolabe-gtm/astrolabe/internal/product"
-	"github.com/astrolabe-gtm/astrolabe/internal/score"
-	"github.com/astrolabe-gtm/astrolabe/internal/signal"
+	"github.com/AstrolabeGTM/astrolabe/internal/content"
+	"github.com/AstrolabeGTM/astrolabe/internal/draft"
+	"github.com/AstrolabeGTM/astrolabe/internal/funnel"
+	"github.com/AstrolabeGTM/astrolabe/internal/outreach"
+	"github.com/AstrolabeGTM/astrolabe/internal/people"
+	"github.com/AstrolabeGTM/astrolabe/internal/product"
+	"github.com/AstrolabeGTM/astrolabe/internal/score"
+	"github.com/AstrolabeGTM/astrolabe/internal/signal"
 )
 
 type Server struct {

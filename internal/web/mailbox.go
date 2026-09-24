@@ -8,8 +8,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/astrolabe-gtm/astrolabe/internal/mail"
-	"github.com/astrolabe-gtm/astrolabe/internal/outreach"
+	"github.com/AstrolabeGTM/astrolabe/internal/mail"
+	"github.com/AstrolabeGTM/astrolabe/internal/outreach"
 )
 
 func (srv *Server) mailStore() *mail.Store {

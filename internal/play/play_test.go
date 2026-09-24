@@ -14,14 +14,14 @@ import (
 	"github.com/riverqueue/river"
 	"github.com/riverqueue/river/riverdriver/riverpgxv5"
 
-	"github.com/astrolabe-gtm/astrolabe/internal/draft"
-	"github.com/astrolabe-gtm/astrolabe/internal/llm"
-	"github.com/astrolabe-gtm/astrolabe/internal/outreach"
-	"github.com/astrolabe-gtm/astrolabe/internal/people"
-	"github.com/astrolabe-gtm/astrolabe/internal/play"
-	"github.com/astrolabe-gtm/astrolabe/internal/product"
-	"github.com/astrolabe-gtm/astrolabe/internal/signal"
-	"github.com/astrolabe-gtm/astrolabe/internal/store"
+	"github.com/AstrolabeGTM/astrolabe/internal/draft"
+	"github.com/AstrolabeGTM/astrolabe/internal/llm"
+	"github.com/AstrolabeGTM/astrolabe/internal/outreach"
+	"github.com/AstrolabeGTM/astrolabe/internal/people"
+	"github.com/AstrolabeGTM/astrolabe/internal/play"
+	"github.com/AstrolabeGTM/astrolabe/internal/product"
+	"github.com/AstrolabeGTM/astrolabe/internal/signal"
+	"github.com/AstrolabeGTM/astrolabe/internal/store"
 )
 
 type env struct {

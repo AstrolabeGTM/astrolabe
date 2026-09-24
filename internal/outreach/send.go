@@ -12,8 +12,8 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/riverqueue/river"
 
-	"github.com/astrolabe-gtm/astrolabe/internal/channel"
-	"github.com/astrolabe-gtm/astrolabe/internal/product"
+	"github.com/AstrolabeGTM/astrolabe/internal/channel"
+	"github.com/AstrolabeGTM/astrolabe/internal/product"
 )
 
 // How long a claimed send may go without a recorded result before it is

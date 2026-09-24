@@ -19,16 +19,16 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/astrolabe-gtm/astrolabe/internal/app"
-	"github.com/astrolabe-gtm/astrolabe/internal/doctor"
-	"github.com/astrolabe-gtm/astrolabe/internal/hooks"
-	"github.com/astrolabe-gtm/astrolabe/internal/mcp"
-	"github.com/astrolabe-gtm/astrolabe/internal/people"
-	"github.com/astrolabe-gtm/astrolabe/internal/product"
-	"github.com/astrolabe-gtm/astrolabe/internal/sandbox"
-	"github.com/astrolabe-gtm/astrolabe/internal/score"
-	"github.com/astrolabe-gtm/astrolabe/internal/store"
-	"github.com/astrolabe-gtm/astrolabe/internal/web"
+	"github.com/AstrolabeGTM/astrolabe/internal/app"
+	"github.com/AstrolabeGTM/astrolabe/internal/doctor"
+	"github.com/AstrolabeGTM/astrolabe/internal/hooks"
+	"github.com/AstrolabeGTM/astrolabe/internal/mcp"
+	"github.com/AstrolabeGTM/astrolabe/internal/people"
+	"github.com/AstrolabeGTM/astrolabe/internal/product"
+	"github.com/AstrolabeGTM/astrolabe/internal/sandbox"
+	"github.com/AstrolabeGTM/astrolabe/internal/score"
+	"github.com/AstrolabeGTM/astrolabe/internal/store"
+	"github.com/AstrolabeGTM/astrolabe/internal/web"
 )
 
 // version is set at build time: -ldflags "-X main.version=v1.2.3".

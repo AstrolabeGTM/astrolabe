@@ -12,14 +12,14 @@ import (
 	"github.com/riverqueue/river"
 	"github.com/riverqueue/river/riverdriver/riverpgxv5"
 
-	"github.com/astrolabe-gtm/astrolabe/internal/content"
-	"github.com/astrolabe-gtm/astrolabe/internal/gmail"
-	"github.com/astrolabe-gtm/astrolabe/internal/llm"
-	"github.com/astrolabe-gtm/astrolabe/internal/outreach"
-	"github.com/astrolabe-gtm/astrolabe/internal/people"
-	"github.com/astrolabe-gtm/astrolabe/internal/product"
-	"github.com/astrolabe-gtm/astrolabe/internal/signal"
-	"github.com/astrolabe-gtm/astrolabe/internal/store"
+	"github.com/AstrolabeGTM/astrolabe/internal/content"
+	"github.com/AstrolabeGTM/astrolabe/internal/gmail"
+	"github.com/AstrolabeGTM/astrolabe/internal/llm"
+	"github.com/AstrolabeGTM/astrolabe/internal/outreach"
+	"github.com/AstrolabeGTM/astrolabe/internal/people"
+	"github.com/AstrolabeGTM/astrolabe/internal/product"
+	"github.com/AstrolabeGTM/astrolabe/internal/signal"
+	"github.com/AstrolabeGTM/astrolabe/internal/store"
 )
 
 // TestEveryPageRenders logs in and loads each page with some data, so a

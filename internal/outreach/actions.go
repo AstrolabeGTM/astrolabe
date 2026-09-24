@@ -11,10 +11,10 @@ import (
 	"github.com/riverqueue/river"
 	"github.com/riverqueue/river/rivertype"
 
-	"github.com/astrolabe-gtm/astrolabe/internal/channel"
-	"github.com/astrolabe-gtm/astrolabe/internal/funnel"
-	"github.com/astrolabe-gtm/astrolabe/internal/product"
-	"github.com/astrolabe-gtm/astrolabe/internal/store"
+	"github.com/AstrolabeGTM/astrolabe/internal/channel"
+	"github.com/AstrolabeGTM/astrolabe/internal/funnel"
+	"github.com/AstrolabeGTM/astrolabe/internal/product"
+	"github.com/AstrolabeGTM/astrolabe/internal/store"
 )
 
 type Action struct {

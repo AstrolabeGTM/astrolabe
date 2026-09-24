@@ -13,7 +13,7 @@ Developer terms come first, and sales terms work too: "enroll my top MQLs in the
 
 ```sh
 mkdir my-gtm && cd my-gtm
-docker run --rm --user "$(id -u):$(id -g)" -v "$PWD:/work" -w /work ghcr.io/astrolabe-gtm/astrolabe init -template demo
+docker run --rm --user "$(id -u):$(id -g)" -v "$PWD:/work" -w /work ghcr.io/astrolabegtm/astrolabe init -template demo
 docker compose up -d
 ```
 
@@ -38,7 +38,7 @@ Claude Desktop takes the same command in `claude_desktop_config.json`. Then ask 
 ## Your own product
 
 ```sh
-docker run --rm --user "$(id -u):$(id -g)" -v "$PWD:/work" -w /work ghcr.io/astrolabe-gtm/astrolabe init -template devtool -name "Hook Check" -url https://hookcheck.dev
+docker run --rm --user "$(id -u):$(id -g)" -v "$PWD:/work" -w /work ghcr.io/astrolabegtm/astrolabe init -template devtool -name "Hook Check" -url https://hookcheck.dev
 ```
 
 | Template | For |

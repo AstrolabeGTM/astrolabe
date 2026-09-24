@@ -10,7 +10,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/riverqueue/river"
 
-	"github.com/astrolabe-gtm/astrolabe/internal/outreach"
+	"github.com/AstrolabeGTM/astrolabe/internal/outreach"
 )
 
 type PollArgs struct{}

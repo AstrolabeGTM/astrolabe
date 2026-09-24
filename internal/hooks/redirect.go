@@ -9,10 +9,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/astrolabe-gtm/astrolabe/internal/links"
-	"github.com/astrolabe-gtm/astrolabe/internal/outreach"
-	"github.com/astrolabe-gtm/astrolabe/internal/product"
-	"github.com/astrolabe-gtm/astrolabe/internal/signal"
+	"github.com/AstrolabeGTM/astrolabe/internal/links"
+	"github.com/AstrolabeGTM/astrolabe/internal/outreach"
+	"github.com/AstrolabeGTM/astrolabe/internal/product"
+	"github.com/AstrolabeGTM/astrolabe/internal/signal"
 )
 
 // Redirector serves /l/{code}.

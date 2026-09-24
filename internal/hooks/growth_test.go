@@ -16,16 +16,16 @@ import (
 	"github.com/riverqueue/river"
 	"github.com/riverqueue/river/riverdriver/riverpgxv5"
 
-	"github.com/astrolabe-gtm/astrolabe/internal/content"
-	"github.com/astrolabe-gtm/astrolabe/internal/digest"
-	"github.com/astrolabe-gtm/astrolabe/internal/experiment"
-	"github.com/astrolabe-gtm/astrolabe/internal/hooks"
-	"github.com/astrolabe-gtm/astrolabe/internal/llm"
-	"github.com/astrolabe-gtm/astrolabe/internal/outreach"
-	"github.com/astrolabe-gtm/astrolabe/internal/people"
-	"github.com/astrolabe-gtm/astrolabe/internal/product"
-	"github.com/astrolabe-gtm/astrolabe/internal/signal"
-	"github.com/astrolabe-gtm/astrolabe/internal/store"
+	"github.com/AstrolabeGTM/astrolabe/internal/content"
+	"github.com/AstrolabeGTM/astrolabe/internal/digest"
+	"github.com/AstrolabeGTM/astrolabe/internal/experiment"
+	"github.com/AstrolabeGTM/astrolabe/internal/hooks"
+	"github.com/AstrolabeGTM/astrolabe/internal/llm"
+	"github.com/AstrolabeGTM/astrolabe/internal/outreach"
+	"github.com/AstrolabeGTM/astrolabe/internal/people"
+	"github.com/AstrolabeGTM/astrolabe/internal/product"
+	"github.com/AstrolabeGTM/astrolabe/internal/signal"
+	"github.com/AstrolabeGTM/astrolabe/internal/store"
 )
 
 func TestLinksVariantsAndAttribution(t *testing.T) {

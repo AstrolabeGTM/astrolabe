@@ -13,7 +13,7 @@ import (
 // aliases are included so either form completes and validates.
 
 // SchemaBaseURL is where the published schemas live.
-const SchemaBaseURL = "https://raw.githubusercontent.com/astrolabe-gtm/astrolabe/main/schemas/"
+const SchemaBaseURL = "https://raw.githubusercontent.com/AstrolabeGTM/astrolabe/main/schemas/"
 
 // SchemaFiles maps schema file names to the file each describes.
 var SchemaFiles = map[string]string{

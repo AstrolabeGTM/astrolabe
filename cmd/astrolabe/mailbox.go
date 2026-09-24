@@ -13,8 +13,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/astrolabe-gtm/astrolabe/internal/app"
-	"github.com/astrolabe-gtm/astrolabe/internal/mail"
+	"github.com/AstrolabeGTM/astrolabe/internal/app"
+	"github.com/AstrolabeGTM/astrolabe/internal/mail"
 )
 
 const mailboxUsage = `usage:

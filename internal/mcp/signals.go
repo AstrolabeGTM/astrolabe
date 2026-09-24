@@ -8,9 +8,9 @@ import (
 
 	"github.com/jackc/pgx/v5"
 
-	"github.com/astrolabe-gtm/astrolabe/internal/people"
-	"github.com/astrolabe-gtm/astrolabe/internal/score"
-	"github.com/astrolabe-gtm/astrolabe/internal/signal"
+	"github.com/AstrolabeGTM/astrolabe/internal/people"
+	"github.com/AstrolabeGTM/astrolabe/internal/score"
+	"github.com/AstrolabeGTM/astrolabe/internal/signal"
 )
 
 type signalsArg struct {

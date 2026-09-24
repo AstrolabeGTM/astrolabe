@@ -14,8 +14,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/astrolabe-gtm/astrolabe/internal/outreach"
-	"github.com/astrolabe-gtm/astrolabe/internal/signal"
+	"github.com/AstrolabeGTM/astrolabe/internal/outreach"
+	"github.com/AstrolabeGTM/astrolabe/internal/signal"
 )
 
 // WhatsAppVerify answers Meta's subscription check (GET with hub.mode,

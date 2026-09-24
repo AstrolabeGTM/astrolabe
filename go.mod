@@ -1,4 +1,4 @@
-module github.com/astrolabe-gtm/astrolabe
+module github.com/AstrolabeGTM/astrolabe
 
 go 1.27.1
 

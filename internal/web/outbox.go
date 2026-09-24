@@ -5,8 +5,8 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/astrolabe-gtm/astrolabe/internal/outreach"
-	"github.com/astrolabe-gtm/astrolabe/internal/sandbox"
+	"github.com/AstrolabeGTM/astrolabe/internal/outreach"
+	"github.com/AstrolabeGTM/astrolabe/internal/sandbox"
 )
 
 func (srv *Server) outboxPage(w http.ResponseWriter, r *http.Request) {

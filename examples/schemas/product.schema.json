@@ -1,5 +1,5 @@
 {
-  "$id": "https://raw.githubusercontent.com/astrolabe-gtm/astrolabe/main/schemas/product.schema.json",
+  "$id": "https://raw.githubusercontent.com/AstrolabeGTM/astrolabe/main/schemas/product.schema.json",
   "$schema": "http://json-schema.org/draft-07/schema#",
   "additionalProperties": false,
   "properties": {

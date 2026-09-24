@@ -3,7 +3,7 @@ package mcp
 import (
 	"context"
 
-	"github.com/astrolabe-gtm/astrolabe/internal/sandbox"
+	"github.com/AstrolabeGTM/astrolabe/internal/sandbox"
 )
 
 type outboxArg struct {

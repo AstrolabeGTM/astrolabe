@@ -6,9 +6,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/astrolabe-gtm/astrolabe/internal/content"
-	"github.com/astrolabe-gtm/astrolabe/internal/digest"
-	"github.com/astrolabe-gtm/astrolabe/internal/outreach"
+	"github.com/AstrolabeGTM/astrolabe/internal/content"
+	"github.com/AstrolabeGTM/astrolabe/internal/digest"
+	"github.com/AstrolabeGTM/astrolabe/internal/outreach"
 )
 
 func (srv *Server) contentPage(w http.ResponseWriter, r *http.Request) {

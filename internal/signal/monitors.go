@@ -14,8 +14,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/astrolabe-gtm/astrolabe/internal/github"
-	"github.com/astrolabe-gtm/astrolabe/internal/product"
+	"github.com/AstrolabeGTM/astrolabe/internal/github"
+	"github.com/AstrolabeGTM/astrolabe/internal/product"
 )
 
 // Sources holds the external clients monitors use; tests point them at fakes.

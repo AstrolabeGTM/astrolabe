@@ -11,7 +11,7 @@ import (
 	"net/textproto"
 	"time"
 
-	"github.com/astrolabe-gtm/astrolabe/internal/channel"
+	"github.com/AstrolabeGTM/astrolabe/internal/channel"
 )
 
 // Sender sends through an account's SMTP server.

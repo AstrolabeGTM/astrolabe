@@ -10,7 +10,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/astrolabe-gtm/astrolabe/internal/app"
+	"github.com/AstrolabeGTM/astrolabe/internal/app"
 )
 
 // adminPassword returns ASTROLABE_PASSWORD, or a password generated on the

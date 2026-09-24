@@ -18,7 +18,7 @@ services:
 
   astrolabe:
     build: .
-    image: ghcr.io/astrolabe-gtm/astrolabe:dev
+    image: ghcr.io/astrolabegtm/astrolabe:dev
     environment:
       ASTROLABE_DATABASE_URL: postgres://astrolabe:astrolabe@postgres:5432/astrolabe?sslmode=disable
       ASTROLABE_MODE: sandbox

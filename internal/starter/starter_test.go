@@ -10,7 +10,7 @@ import (
 	"github.com/google/jsonschema-go/jsonschema"
 	"gopkg.in/yaml.v3"
 
-	"github.com/astrolabe-gtm/astrolabe/internal/product"
+	"github.com/AstrolabeGTM/astrolabe/internal/product"
 )
 
 func validate(t *testing.T, schemaFile, file string) {
