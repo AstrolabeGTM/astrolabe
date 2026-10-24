@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Pipewrench social card</title>
+<!--
+  A social card. It fills whatever size it is rendered at ({{width}} x {{height}}),
+  so one template serves every size listed in the campaign.
+  Fields: {{headline}} {{detail}} {{cta}} {{url}}. Alt text: {{alt}} (stored with the image).
+  Keep CSS and images beside this file; they are sent to the renderer with it.
+-->
+<link rel="stylesheet" href="creative.css">
+</head>
+<body style="width:{{width}}px;height:{{height}}px;--u:calc(min({{width}}, {{height}}) * 0.01px)">
+<main class="card" role="img" aria-label="{{alt}}">
+  <div class="brand">pipewrench</div>
+  <div class="body">
+    <h1>{{headline}}</h1>
+    <p>{{detail}}</p>
+  </div>
+  <div class="foot">
+    <span class="cta">{{cta}}</span>
+    <span class="url">{{url}}</span>
+  </div>
+</main>
+</body>
+</html>

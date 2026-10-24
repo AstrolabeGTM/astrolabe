@@ -238,7 +238,7 @@ func BuildReport(ctx context.Context, q store.Q, p *product.Product, c *product.
 	}
 	r.Counts = []Count{
 		succ,
-		{Label: "platform clicks as entered", N: st.Spend.Clicks, Of: ptr(int64(st.Spend.Entries)), OfWhat: fmt.Sprintf("spend entries (%d of them carry a click count)", st.Spend.ClickEntries)},
+		{Label: "platform clicks as entered", N: st.Spend.Clicks, OfWhat: fmt.Sprintf("entered on %d of %d spend entries", st.Spend.ClickEntries, st.Spend.Entries)},
 		{Label: "tracked-link clicks (Astrolabe short links made for this campaign)", N: linkClicks},
 		{Label: "signals carrying campaign=" + c.Code + " (any type)", N: int64(st.Events.TaggedAll)},
 		{Label: "posting tasks posted", N: posted, Of: ptr(posts), OfWhat: "posting tasks made"},

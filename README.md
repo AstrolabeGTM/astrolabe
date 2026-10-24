@@ -112,6 +112,7 @@ This writes `products/<id>/`:
 | `sequences/*.yaml` | Timed message steps, `kind: cold` (strangers) or `kind: users` (existing users) |
 | `monitors.yaml` | Where to look for signals: GitHub searches, your repo's stars, issues and discussions, HN/Stack Overflow/RSS keywords, and `github_release` counters (release downloads, stars, forks, watchers, discussions; no people). Add `reception: true` to log results as public mentions |
 | `automations.yaml` | `trigger → when → action` rules (sales: plays) |
+| `campaigns/*.yaml` | A campaign (a launch week, a small paid test): goal, landing page, budget cap, dates, stop rule, a gate checklist, launch tasks and creatives. Budget and dates can be changed in chat, with every change kept. Spend, creative approval and a report with counts, no pixels, nothing posted for you. See the docs, section 15.9 |
 
 Every YAML file starts with a `# yaml-language-server: $schema=...` line, so VS Code (with the YAML extension), Zed, Neovim and JetBrains autocomplete keys, explain them on hover and flag typos. Or ask Claude to "set up a new product" and it interviews you and writes the folder.
 
@@ -195,6 +196,7 @@ An event whose `type` matches a funnel stage records that stage. Sending `user_i
 | `ASTROLABE_RESEND_API_KEY` | Optional: Resend for email to existing users |
 | `ASTROLABE_WHATSAPP_*`, `ASTROLABE_NOTIFY_SECRET_<PRODUCT>` | WhatsApp and push/in-app channels |
 | `ASTROLABE_DIGEST_TO`, `ASTROLABE_DIGEST_FROM`, `TZ` | Weekly digest email (Mondays 08:00) |
+| `ASTROLABE_RENDER_URL` | Optional creative renderer, a headless-Chromium sidecar (Gotenberg 8). Start it with `docker compose --profile creative up -d`; the compose files default to `http://gotenberg:3000`. Without it, campaign creatives keep their copy, checks and approval, and rendering says what to start |
 
 Run `astrolabe help` for every command.
 

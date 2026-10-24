@@ -1,0 +1,56 @@
+# DEMO DATA: a small campaign for the fictional Pipewrench. A campaign is a
+# goal, a landing page, a budget cap and the work to do. Budget, dates, stop
+# rule and gate checks can be changed later (in chat); every change is kept.
+code: launch
+label: Launch week
+goal: "Tell teams with flaky CI that Pipewrench exists, and get them to try it on one repo."
+audience: "Engineers and engineering managers whose CI is slowed down by flaky tests."
+channels: [hn, x, newsletter]
+offer: "Run Pipewrench on one repo and see the three flakiest tests."
+landing: https://pipewrench.example/c/launch
+success_event: signed_up        # a funnel stage; a signal type such as form.request works too
+
+budget:
+  cap: 150
+  currency: USD
+
+# Change these in chat ("move the launch to next week"); the history keeps the old values.
+start: "2026-11-02"
+end: "2026-11-09"
+
+stop_rule:
+  text: "Stop paid spend when half the budget has produced no signups."
+  when: {spend_pct: 50, max_events: 0}
+
+# Checks to make before spending. Spend before they are all checked is
+# allowed, but flagged on the entry and in the report.
+gate:
+  - "Landing page is live and says what Pipewrench does"
+  - "Every claim in the copy is in claims.md"
+  - "A signup carrying campaign=launch shows up in the report"
+
+# Launch tasks. Each becomes a task with the post text; mark it posted with its URL.
+tasks:
+  - id: show-hn
+    title: "Post Show HN"
+    channel: hn
+    day: 0
+    body: "Show HN: Pipewrench finds flaky CI tests and tells you why they fail. It reruns a failing test in isolation to tell flaky from broken. {{link}}"
+  - id: post-x
+    title: "Post on X"
+    channel: x
+    day: 1
+    body: "Pipewrench ranks your tests by how often they flip between pass and fail. Setup is one GitHub Action. {{link}}"
+
+# Creatives: an HTML template plus copy, rendered at each size by the optional
+# renderer (docker compose --profile creative up). Copy is checked like an email draft.
+creatives:
+  - id: social-card
+    template: creative/card.html
+    sizes: [1200x630, 1080x1080]
+    copy:
+      headline: "Find your flakiest tests"
+      detail: "Pipewrench reruns a failing test in isolation to tell flaky from broken."
+      cta: "Try it on one repo"
+      url: "pipewrench.example/c/launch"
+    alt: "A dark card that reads: Find your flakiest tests. Pipewrench reruns a failing test in isolation to tell flaky from broken."

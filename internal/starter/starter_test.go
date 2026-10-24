@@ -10,6 +10,8 @@ import (
 	"github.com/google/jsonschema-go/jsonschema"
 	"gopkg.in/yaml.v3"
 
+	"github.com/AstrolabeGTM/astrolabe/internal/campaign"
+	"github.com/AstrolabeGTM/astrolabe/internal/draft"
 	"github.com/AstrolabeGTM/astrolabe/internal/product"
 )
 
@@ -163,5 +165,31 @@ func TestComposeHasOptionalRenderer(t *testing.T) {
 	}
 	if !strings.Contains(ComposeFile, "ASTROLABE_RENDER_URL") {
 		t.Error("astrolabe needs ASTROLABE_RENDER_URL")
+	}
+}
+
+// The demo has a small campaign with a creative, and its copy passes the
+// claims check so the sandbox shows something approvable.
+func TestDemoHasCampaign(t *testing.T) {
+	dir := t.TempDir()
+	if _, err := Init(Options{Dir: dir, Template: "demo"}); err != nil {
+		t.Fatal(err)
+	}
+	p, err := product.Load(filepath.Join(dir, "products", "pipewrench-demo"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	c := p.Campaign("launch")
+	if c == nil || len(c.Creatives) != 1 || len(c.Creatives[0].Sizes) != 2 || len(c.Gate) == 0 || len(c.Tasks) == 0 {
+		t.Fatalf("%+v", c)
+	}
+	cr := c.Creatives[0]
+	if flags := campaign.CopyFlags(p, cr, cr.Copy, cr.Alt); len(flags) != 0 {
+		t.Errorf("demo creative copy is flagged: %v", flags)
+	}
+	for _, task := range c.Tasks {
+		if flags := draft.CheckCopy(p, strings.ReplaceAll(task.Body, "{{link}}", c.Landing), ""); len(flags) != 0 {
+			t.Errorf("demo post %s is flagged: %v", task.ID, flags)
+		}
 	}
 }
