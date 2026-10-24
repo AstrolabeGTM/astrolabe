@@ -46,6 +46,8 @@ type Product struct {
 	Updates *Updates `yaml:"updates" json:"updates,omitempty"`
 	// Pipeline tracks companies through deal stages (optional, b2b).
 	Pipeline *Pipeline `yaml:"pipeline" json:"pipeline,omitempty"`
+	// Review sets the weekly review's questions, response targets and day (optional).
+	Review *Review `yaml:"review" json:"review,omitempty"`
 	// Lifecycle channels (optional).
 	WhatsApp *WhatsAppConfig `yaml:"whatsapp" json:"whatsapp,omitempty"`
 	// Demo marks example data that only loads in sandbox mode.
@@ -424,6 +426,7 @@ func (p *Product) validate() []string {
 	bad = append(bad, p.validatePipeline()...)
 	bad = append(bad, p.validateMonitors()...)
 	bad = append(bad, p.validateUpdates()...)
+	bad = append(bad, p.validateReview()...)
 	bad = append(bad, p.validatePlays(seen)...)
 	bad = append(bad, p.validateCampaigns()...)
 

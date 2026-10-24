@@ -371,6 +371,60 @@
       },
       "type": "object"
     },
+    "review": {
+      "additionalProperties": false,
+      "description": "The weekly review (sales: pipeline review, forecast call, QBR-lite): its questions, response-time targets and day.",
+      "properties": {
+        "questions": {
+          "description": "The questions the weekly review asks, in order (default: five, about activation, reach, accounts, surprises and the biggest blocker).",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "targets": {
+          "additionalProperties": false,
+          "description": "How fast we first answer inbound items. The review counts answers within and over target, in wall-clock time.",
+          "properties": {
+            "discussions": {
+              "description": "First response to a new GitHub discussion, e.g. 24h (default).",
+              "pattern": "^\\d+[dhm]$",
+              "type": "string"
+            },
+            "issues": {
+              "description": "First response to a new GitHub issue, e.g. 24h (default).",
+              "pattern": "^\\d+[dhm]$",
+              "type": "string"
+            },
+            "replies": {
+              "description": "First response to a reply labelled interested or question, e.g. 2h (default).",
+              "pattern": "^\\d+[dhm]$",
+              "type": "string"
+            },
+            "requests": {
+              "description": "First response to a form request, e.g. 2h (default).",
+              "pattern": "^\\d+[dhm]$",
+              "type": "string"
+            }
+          },
+          "type": "object"
+        },
+        "weekday": {
+          "description": "The review day: monday to sunday (default friday).",
+          "enum": [
+            "monday",
+            "tuesday",
+            "wednesday",
+            "thursday",
+            "friday",
+            "saturday",
+            "sunday"
+          ],
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
     "sender": {
       "additionalProperties": false,
       "description": "Mailboxes messages come from.",
