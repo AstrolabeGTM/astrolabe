@@ -110,7 +110,7 @@ This writes `products/<id>/`:
 | `product.yaml` | Name, who it's for (`target`), funnel stages, the offer, sender mailboxes, `fit` rules, `auto_approve`, limits |
 | `claims.md`, `voice.md` | What's true about the product (drafts may only use this) and how you write. It won't load while they start with `STUB:`. |
 | `sequences/*.yaml` | Timed message steps, `kind: cold` (strangers) or `kind: users` (existing users) |
-| `monitors.yaml` | Where to look for signals: GitHub searches, your repo's stars and issues, HN/Stack Overflow/RSS keywords, and `github_release` counters (release downloads, stars, forks, watchers, discussions; no people). Add `reception: true` to log results as public mentions |
+| `monitors.yaml` | Where to look for signals: GitHub searches, your repo's stars, issues and discussions, HN/Stack Overflow/RSS keywords, and `github_release` counters (release downloads, stars, forks, watchers, discussions; no people). Add `reception: true` to log results as public mentions |
 | `automations.yaml` | `trigger → when → action` rules (sales: plays) |
 
 Every YAML file starts with a `# yaml-language-server: $schema=...` line, so VS Code (with the YAML extension), Zed, Neovim and JetBrains autocomplete keys, explain them on hover and flag typos. Or ask Claude to "set up a new product" and it interviews you and writes the folder.

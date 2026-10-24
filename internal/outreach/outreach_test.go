@@ -410,3 +410,46 @@ func must1[T any](v T, err error) T {
 	}
 	return v
 }
+
+func TestTaskStepsCreateTasksOnScheduleAndNeverSend(t *testing.T) {
+	w := newWorldWith(t, 1, func(p *product.Product) {
+		p.Sequences["checkin"] = &product.Sequence{ID: "checkin", Kind: "cold", StopOn: []string{"replied"}, Steps: []product.Step{
+			{Channel: "task", After: "0d", Goal: "kick off the evaluation", Body: "Ask what they want to test first"},
+			{Channel: "task", After: "7d", Goal: "week 1 check-in"},
+			{Channel: "task", After: "14d", Goal: "week 2 check-in"},
+		}}
+	})
+	ctx := context.Background()
+	if !product.ManualChannel("task") || product.LifecycleOnly("task") {
+		t.Fatal("task must be a manual, cold-allowed channel")
+	}
+	_, err := w.s.Enroll(ctx, "demo", "checkin", w.people)
+	w.must(err)
+	for i, days := range []int{0, 7, 14} {
+		if i > 0 {
+			w.now = w.now.Add(7 * 24 * time.Hour)
+		}
+		w.s.Tick(ctx)
+		drafts, _ := w.s.Actions(ctx, "demo", "draft")
+		if len(drafts) != 1 || drafts[0].Channel != "task" || drafts[0].Step != i {
+			t.Fatalf("day %d: want one task for step %d, got %+v", days, i, drafts)
+		}
+		if i == 0 && drafts[0].Body != "Ask what they want to test first" {
+			t.Fatalf("task note: %q", drafts[0].Body)
+		}
+		if i > 0 {
+			w.must(w.s.Edit(ctx, drafts[0].ID, "", "Check how the trial is going"))
+		}
+		// Not due yet: another tick adds nothing.
+		if n, _ := w.s.Tick(ctx); n != 0 {
+			t.Fatalf("day %d: extra task drafted early", days)
+		}
+		w.must(w.s.Approve(ctx, drafts[0].ID)) // doing the task marks it done
+		if w.status(drafts[0].ID) != "sent" {
+			t.Fatalf("done task status %s", w.status(drafts[0].ID))
+		}
+	}
+	if len(w.sender.sent) != 0 {
+		t.Fatalf("task steps sent %d messages", len(w.sender.sent))
+	}
+}

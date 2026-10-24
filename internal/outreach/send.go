@@ -146,7 +146,7 @@ func (s *Service) SendAction(ctx context.Context, id int64) (SendOutcome, error)
 			FROM actions a
 			JOIN enrollments e ON e.id = a.enrollment_id
 			JOIN sequences s ON s.product_id = e.product_id AND s.id = e.sequence_id
-			WHERE a.status IN ('sending', 'sent', 'unknown') AND NOT (a.channel LIKE '%\_task')`,
+			WHERE a.status IN ('sending', 'sent', 'unknown') AND NOT (a.channel = 'task' OR a.channel LIKE '%\_task')`,
 			a.ProductID, a.PersonID, now).Scan(&today, &week); err != nil {
 			return err
 		}

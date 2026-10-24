@@ -124,6 +124,7 @@ func ownerOrg(repo, login string) string {
 
 func (s *Sources) githubRepo(ctx context.Context, base Signal, m *product.Monitor, since time.Time) ([]Signal, error) {
 	var out []Signal
+	var errs []error // events that fail alone (discussion); the other events still run
 	for _, ev := range m.Events {
 		sig := base
 		sig.Type = m.Signal + "." + ev
@@ -193,9 +194,31 @@ func (s *Sources) githubRepo(ctx context.Context, base Signal, m *product.Monito
 				x.DedupeKey = fmt.Sprintf("gh-issue:%s#%d", m.Repo, it.Number)
 				out = append(out, x)
 			}
+		case "discussion":
+			// GraphQL needs a token; without one this event fails alone.
+			if s.GitHub.Token == "" {
+				errs = append(errs, fmt.Errorf("discussion: GitHub Discussions need a token (GraphQL); set ASTROLABE_GITHUB_TOKEN"))
+				continue
+			}
+			owner, _, _ := strings.Cut(m.Repo, "/")
+			ds, err := s.GitHub.Discussions(ctx, m.Repo, since)
+			for _, d := range ds {
+				if d.Author == "" || d.Bot || strings.EqualFold(d.Author, owner) {
+					continue
+				}
+				x := sig
+				x.OccurredAt, x.Title, x.EvidenceURL = d.CreatedAt, d.Title, d.URL
+				x.Subject = Subject{GitHub: d.Author}
+				x.Data = map[string]any{"repo": m.Repo, "category": d.Category}
+				x.DedupeKey = fmt.Sprintf("gh-discussion:%s#%d", m.Repo, d.Number)
+				out = append(out, x)
+			}
+			if err != nil {
+				errs = append(errs, fmt.Errorf("discussion: %w", err))
+			}
 		}
 	}
-	return out, nil
+	return out, errors.Join(errs...)
 }
 
 func (s *Sources) getJSON(ctx context.Context, u string, out any) error {

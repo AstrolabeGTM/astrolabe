@@ -102,12 +102,12 @@ func (p *Product) validateMonitors() []string {
 				bad = append(bad, where+": repo must be owner/name")
 			}
 			for _, e := range m.Events {
-				if !slices.Contains([]string{"star", "fork", "issue"}, e) {
-					bad = append(bad, where+": events are star, fork, issue")
+				if !slices.Contains([]string{"star", "fork", "issue", "discussion"}, e) {
+					bad = append(bad, where+": events are star, fork, issue, discussion")
 				}
 			}
 			if len(m.Events) == 0 {
-				bad = append(bad, where+": events needs at least one of star, fork, issue")
+				bad = append(bad, where+": events needs at least one of star, fork, issue, discussion")
 			}
 		case "github_release":
 			if strings.Count(m.Repo, "/") != 1 {
