@@ -7,6 +7,8 @@ import (
 	"time"
 
 	"github.com/AstrolabeGTM/astrolabe/internal/digest"
+	"github.com/AstrolabeGTM/astrolabe/internal/notes"
+	"github.com/AstrolabeGTM/astrolabe/internal/people"
 	"github.com/AstrolabeGTM/astrolabe/internal/pipeline"
 	"github.com/AstrolabeGTM/astrolabe/internal/product"
 	"github.com/AstrolabeGTM/astrolabe/internal/store"
@@ -63,5 +65,38 @@ func TestDigestShowsPipeline(t *testing.T) {
 	}
 	if d.Products[0].Pipeline != nil || strings.Contains(d.Text(), "Pipeline (accounts)") {
 		t.Fatalf("pipeline shown without one:\n%s", d.Text())
+	}
+}
+
+func TestDigestShowsConversations(t *testing.T) {
+	ctx := context.Background()
+	pool := store.TestDB(t)
+	now := time.Date(2026, 10, 22, 10, 0, 0, 0, time.UTC)
+	p := product.TestProduct(t)
+	if err := product.Sync(ctx, pool, []*product.Product{p}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := people.Import(ctx, pool, p.ID, []people.Row{{Email: "sam@acme.example", Name: "Sam"}}); err != nil {
+		t.Fatal(err)
+	}
+	sam, _ := people.FindByEmail(ctx, pool, "sam@acme.example")
+	for _, assisted := range []bool{true, false, false} {
+		if _, err := notes.Log(ctx, pool, p, notes.LogOpts{PersonID: sam.ID, Channel: "call", Summary: "x", Assisted: assisted,
+			PMF: &notes.PMF{Answer: "very_disappointed", UsedTwoWeeks: true}}, now); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if _, err := notes.SaveThemes(ctx, pool, p.ID, "2026-W43", "Flaky tests", []notes.ThemeItem{{Theme: "Flaky tests", Count: 3}}, now); err != nil {
+		t.Fatal(err)
+	}
+	d, err := digest.Build(ctx, pool, []*product.Product{p}, now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	text := d.Text()
+	for _, want := range []string{"Conversations (7d): 3 logged, 1 assisted, 2 unassisted", "very disappointed 3", "of 3 answers", "Themes (2026-W43): Flaky tests (3);"} {
+		if !strings.Contains(text, want) {
+			t.Errorf("digest lacks %q:\n%s", want, text)
+		}
 	}
 }

@@ -1,0 +1,54 @@
+# DEMO DATA: example conversation notes, loaded once in sandbox mode. Days
+# count back from the day the demo starts. People must be in demo-people.csv.
+- person: sam.lee@acme.example
+  account: acme.example
+  days_ago: 3
+  channel: call
+  duration_minutes: 30
+  summary: "Walked through the first flaky-test report on the payments repo; Sam found two quarantine candidates."
+  their_words: "I stopped re-running CI by hand after the second day. I would miss this on Monday morning."
+  problem: "Checkout tests fail about once a day and block merges."
+  current_approach: "Re-run failed jobs by hand; a quarantine list in a wiki page."
+  next_step: "Review the second report with Sam on Friday."
+  pmf:
+    answer: very_disappointed
+    used_two_weeks: true
+    alternative: "Back to the wiki page and re-running jobs, I guess."
+    who_else: "Anyone on our platform team who owns CI."
+  pricing:
+    - offer: "Team plan, $29 per month"
+      replaces: "A paid CI minutes top-up we buy every month"
+      approver: "Our engineering manager"
+      buying_process: card
+      reaction: "That is less than the CI minutes we waste on re-runs."
+
+- person: priya.n@globex.example
+  account: globex.example
+  days_ago: 5
+  channel: call
+  duration_minutes: 25
+  assisted: true
+  summary: "Set up the CLI together on her screen; I coached every step of the first run."
+  their_words: "I would not have found the config flag without you on the call."
+  problem: "Go integration tests time out on CircleCI twice a week."
+  current_approach: "A shell script that retries the job up to three times."
+  next_step: "Send the one-page trial plan."
+  pmf:
+    answer: somewhat_disappointed
+    used_two_weeks: true
+    alternative: "My retry script."
+  pricing:
+    - offer: "Team plan, $29 per month"
+      replaces: "Nothing, it is a new line item"
+      approver: "Her director"
+      buying_process: invoice
+      reaction: "Fine for a team, but it needs an invoice and a sign-off."
+
+- person: tom@initech.example
+  days_ago: 10
+  channel: email
+  summary: "Replied to the intro: interested, but the team is mid-migration."
+  their_words: "Not this quarter. Ask me again after the migration."
+  problem: "Slow Python test suites."
+  current_approach: "pytest-xdist and a nightly full run."
+  next_step: "Check back in January."

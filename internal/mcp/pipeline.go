@@ -11,6 +11,7 @@ import (
 
 	sdk "github.com/modelcontextprotocol/go-sdk/mcp"
 
+	"github.com/AstrolabeGTM/astrolabe/internal/notes"
 	"github.com/AstrolabeGTM/astrolabe/internal/people"
 	"github.com/AstrolabeGTM/astrolabe/internal/pipeline"
 	"github.com/AstrolabeGTM/astrolabe/internal/play"
@@ -181,7 +182,18 @@ func (s *Server) account(ctx context.Context, a accountArg) (any, error) {
 	if err != nil {
 		return nil, err
 	}
-	return s.accountDetail(ctx, p, id)
+	d, err := pipeline.Get(ctx, s.S.Pool, p, id, time.Now())
+	if err != nil {
+		return nil, err
+	}
+	list, err := notes.List(ctx, s.S.Pool, notes.ListOpts{Product: p.ID, AccountID: id}, time.Now())
+	if err != nil {
+		return nil, err
+	}
+	return struct {
+		*pipeline.Detail
+		Conversations []*notes.Note `json:"conversations"`
+	}{d, list}, nil
 }
 
 func (s *Server) addAccount(ctx context.Context, a addAccountArg) (any, error) {
