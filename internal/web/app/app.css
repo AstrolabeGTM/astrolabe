@@ -116,6 +116,18 @@ main:focus { outline: none; }
 .kv dt { color: var(--muted); }
 .kv dd { margin: 0; overflow-wrap: anywhere; }
 
+.person-grid { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 8px 28px; align-items: start; }
+.person-grid aside .section:first-child, .person-grid > div > .section:first-child { margin-top: 12px; }
+.score-parts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin: 12px 0 0; }
+.score-parts dt { font-weight: 600; }
+.score-parts dd { margin: 4px 0 0; font-size: 14px; color: var(--muted); }
+.score-parts ul, .plain-list { margin: 0; padding-left: 18px; }
+.plain-list li + li { margin-top: 6px; }
+.plain-list .sub { display: block; color: var(--muted); font-size: 13px; }
+.ident { overflow-wrap: anywhere; }
+@media (max-width: 1000px) { .person-grid { grid-template-columns: minmax(0, 1fr); } }
+@media (max-width: 560px) { .score-parts { grid-template-columns: minmax(0, 1fr); } }
+
 /* ---- badges and tags ---- */
 .badge { display: inline-flex; align-items: center; gap: 6px; border-radius: 999px; padding: 3px 11px; font-size: 13px;
   font-weight: 600; border: 1px solid transparent; text-decoration: none; white-space: nowrap; }
@@ -202,6 +214,13 @@ th { font-size: 12.5px; font-weight: 600; color: var(--muted); text-transform: u
 td.num, th.num { text-align: right; }
 td .sub { display: block; color: var(--muted); font-size: 13px; overflow-wrap: anywhere; }
 caption { text-align: left; padding: 10px 12px; color: var(--muted); font-size: 13px; caption-side: bottom; }
+
+.selection-bar { display: flex; flex-wrap: wrap; gap: 6px 16px; align-items: center; margin-bottom: 10px; }
+.selection-bar p { margin: 0; }
+.selection-bar .btn { margin-left: auto; }
+th.select, td.select { width: 36px; padding-right: 0; }
+td.select input, th.select input { width: 18px; height: 18px; margin: 2px 0 0; }
+.people-table td { min-width: 0; }
 
 /* ---- dialog and toast ---- */
 dialog { border: 1px solid var(--line); border-radius: 14px; padding: 0; width: min(620px, calc(100vw - 24px)); max-height: calc(100vh - 32px);

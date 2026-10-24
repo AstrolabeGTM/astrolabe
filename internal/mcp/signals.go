@@ -7,17 +7,16 @@ import (
 	"strings"
 	"time"
 
-	"github.com/jackc/pgx/v5"
-
 	"github.com/AstrolabeGTM/astrolabe/internal/people"
-	"github.com/AstrolabeGTM/astrolabe/internal/product"
 	"github.com/AstrolabeGTM/astrolabe/internal/score"
 	"github.com/AstrolabeGTM/astrolabe/internal/signal"
+	"github.com/AstrolabeGTM/astrolabe/internal/views"
 )
 
 type signalsArg struct {
 	Product string `json:"product,omitempty"`
 	Type    string `json:"type,omitempty"`
+	MinTier string `json:"min_tier,omitempty" jsonschema:"only signals about people at this priority or better: A, B, C or D"`
 	Days    int    `json:"days,omitempty" jsonschema:"default 7"`
 	Limit   int    `json:"limit,omitempty" jsonschema:"default 50"`
 }
@@ -54,42 +53,7 @@ type reviewArg struct {
 }
 
 func (s *Server) signals(ctx context.Context, a signalsArg) (any, error) {
-	if a.Days <= 0 {
-		a.Days = 7
-	}
-	if a.Limit <= 0 {
-		a.Limit = 50
-	}
-	rows, err := s.S.Pool.Query(ctx, `
-		SELECT s.id, s.product_id, s.type, s.occurred_at, s.title, s.evidence_url, s.strength, s.why_now, s.person_id,
-			COALESCE(p.name, ''), COALESCE(NULLIF(c.name, ''), c.domain, c.github_org, ''), COALESCE(sc.tier, ''), s.data
-		FROM signals s LEFT JOIN people p ON p.id = s.person_id LEFT JOIN companies c ON c.id = s.company_id
-		LEFT JOIN scores sc ON sc.product_id = s.product_id AND sc.person_id = s.person_id
-		WHERE s.occurred_at > now() - make_interval(days => $3) AND ($1 = '' OR s.product_id = $1) AND ($2 = '' OR s.type = $2)
-		ORDER BY s.occurred_at DESC LIMIT $4`, a.Product, a.Type, a.Days, a.Limit)
-	if err != nil {
-		return nil, err
-	}
-	type item struct {
-		ID         int64          `json:"id"`
-		Product    string         `json:"product"`
-		Type       string         `json:"type"`
-		OccurredAt time.Time      `json:"occurred_at"`
-		Title      string         `json:"title"`
-		URL        string         `json:"url"`
-		Strength   int            `json:"strength"`
-		WhyNow     bool           `json:"why_now,omitempty"`
-		PersonID   *int64         `json:"person_id,omitempty"`
-		Person     string         `json:"person,omitempty"`
-		Company    string         `json:"company,omitempty"`
-		Tier       string         `json:"tier,omitempty"`
-		Data       map[string]any `json:"data,omitempty"`
-	}
-	items, err := pgx.CollectRows(rows, func(r pgx.CollectableRow) (item, error) {
-		var i item
-		return i, r.Scan(&i.ID, &i.Product, &i.Type, &i.OccurredAt, &i.Title, &i.URL, &i.Strength, &i.WhyNow, &i.PersonID, &i.Person, &i.Company, &i.Tier, &i.Data)
-	})
-	return map[string]any{"signals": items}, err
+	return signal.Recent(ctx, s.S.Pool, signal.Filter{Product: a.Product, Type: a.Type, MinTier: a.MinTier, Days: a.Days, Limit: a.Limit}, time.Now())
 }
 
 func (s *Server) hot(ctx context.Context, a hotArg) (any, error) {
@@ -125,25 +89,8 @@ func (s *Server) addSignal(ctx context.Context, a addSignalArg) (any, error) {
 }
 
 func (s *Server) monitors(ctx context.Context, _ noArgs) (any, error) {
-	type status struct {
-		Product   string     `json:"product"`
-		Monitor   string     `json:"monitor"`
-		Type      string     `json:"type"`
-		Every     string     `json:"every"`
-		LastRun   *time.Time `json:"last_run,omitempty"`
-		LastCount int        `json:"last_new_signals"`
-		Error     string     `json:"error,omitempty"`
-	}
-	var out []status
-	for _, p := range s.Products() {
-		for _, m := range p.Monitors {
-			st := status{Product: p.ID, Monitor: m.ID, Type: m.Type, Every: m.Every}
-			s.S.Pool.QueryRow(ctx, `SELECT last_run_at, last_count, last_error FROM monitor_runs WHERE product_id = $1 AND monitor_id = $2`,
-				p.ID, m.ID).Scan(&st.LastRun, &st.LastCount, &st.Error)
-			out = append(out, st)
-		}
-	}
-	return map[string]any{"monitors": out}, nil
+	list, err := signal.Monitors(ctx, s.S.Pool, s.Products(), time.Now())
+	return map[string]any{"monitors": list}, err
 }
 
 func (s *Server) runMonitor(ctx context.Context, a runMonitorArg) (any, error) {
@@ -165,35 +112,13 @@ func (s *Server) setFacts(ctx context.Context, a factsArg) (any, error) {
 	if err != nil {
 		return nil, err
 	}
-	if err := people.SetFacts(ctx, s.S.Pool, p.ID, a.Facts, "manual"); err != nil {
-		return nil, err
-	}
-	if _, err := score.RecomputeAll(ctx, s.S.Pool, "", time.Now()); err != nil {
-		return nil, err
-	}
-	facts, err := people.Facts(ctx, s.S.Pool, p.ID)
+	facts, err := views.SetFacts(ctx, s.S.Pool, p.ID, a.Facts)
 	return map[string]any{"facts": facts}, err
 }
 
 func (s *Server) reviews(ctx context.Context, _ noArgs) (any, error) {
-	rows, err := s.S.Pool.Query(ctx, `
-		SELECT r.id, s.title, s.evidence_url, s.subject, r.candidates FROM identity_reviews r JOIN signals s ON s.id = r.signal_id
-		WHERE r.status = 'open' ORDER BY r.id`)
-	if err != nil {
-		return nil, err
-	}
-	type rv struct {
-		ID         int64          `json:"review_id"`
-		Title      string         `json:"title"`
-		URL        string         `json:"url"`
-		Subject    map[string]any `json:"subject"`
-		Candidates []int64        `json:"candidate_person_ids"`
-	}
-	list, err := pgx.CollectRows(rows, func(r pgx.CollectableRow) (rv, error) {
-		var x rv
-		return x, r.Scan(&x.ID, &x.Title, &x.URL, &x.Subject, &x.Candidates)
-	})
-	return map[string]any{"reviews": list}, err
+	list, total, err := signal.OpenReviews(ctx, s.S.Pool, 200)
+	return map[string]any{"reviews": list, "total": total}, err
 }
 
 func (s *Server) resolveReview(ctx context.Context, a reviewArg) (any, error) {
@@ -231,47 +156,12 @@ type companyFactsArg struct {
 	Product string   `json:"product,omitempty" jsonschema:"show the company's fit for this product"`
 }
 
-// companyFit is a company's own facts scored against a product's fit rules.
-type companyFit struct {
-	people.Company
-	Fit       int      `json:"fit"`
-	Breakdown []string `json:"breakdown"`
-	Eligible  bool     `json:"eligible"`
-	Excluded  string   `json:"excluded,omitempty"`
-}
-
-func fitOf(p *product.Product, c people.Company) companyFit {
-	f := score.CompanyFit(p, c.Facts)
-	return companyFit{Company: c, Fit: f.Fit, Breakdown: f.Breakdown, Eligible: f.Eligible, Excluded: f.Excluded}
-}
-
 func (s *Server) importCompanies(ctx context.Context, a importCompaniesArg) (any, error) {
 	p, err := s.find(a.Product)
 	if err != nil {
 		return nil, err
 	}
-	rows, err := people.ReadCompaniesCSV(strings.NewReader(a.CSV))
-	if err != nil {
-		return nil, err
-	}
-	res, err := people.ImportCompanies(ctx, s.S.Pool, rows)
-	if err != nil {
-		return nil, err
-	}
-	// Facts on a company change the fit of the people who work there.
-	if _, err := score.RecomputeAll(ctx, s.S.Pool, "", time.Now()); err != nil {
-		return nil, err
-	}
-	type item struct {
-		companyFit
-		Created  bool `json:"created"`
-		NewFacts int  `json:"new_facts"`
-	}
-	out := make([]item, 0, len(res.Companies))
-	for _, c := range res.Companies {
-		out = append(out, item{fitOf(p, c.Company), c.Created, c.NewFacts})
-	}
-	return map[string]any{"created": res.Created, "updated": res.Updated, "skipped": res.Skipped, "companies": out}, nil
+	return views.ImportCompanies(ctx, s.S.Pool, p, a.CSV)
 }
 
 func (s *Server) setCompanyFacts(ctx context.Context, a companyFactsArg) (any, error) {
@@ -295,5 +185,5 @@ func (s *Server) setCompanyFacts(ctx context.Context, a companyFactsArg) (any, e
 	if err != nil {
 		return nil, err
 	}
-	return map[string]any{"company": fitOf(p, *c)}, nil
+	return map[string]any{"company": views.FitOf(p, *c)}, nil
 }

@@ -333,3 +333,77 @@ func TestTodayAPI(t *testing.T) {
 		t.Fatalf("skipping a missing action: %d", code)
 	}
 }
+
+func TestPeopleAPI(t *testing.T) {
+	ts, srv := apiServer(t)
+	ctx := context.Background()
+	s := newSession(t, ts)
+	imp := s.mustPost("/api/people/import", map[string]string{"product": "demo", "csv": "email,name,facts\nana@acme.example,Ana,team:5-50\nnot-an-email,Bo,\n"})
+	if imp["created"].(float64) != 1 || len(imp["skipped"].([]any)) != 1 {
+		t.Fatalf("import: %v", imp)
+	}
+	if code, _ := s.post("/api/people/import", map[string]string{"product": "nope", "csv": "email\na@b.example\n"}); code != http.StatusBadRequest {
+		t.Fatalf("import into an unknown product: %d", code)
+	}
+	// Someone known only from GitHub: listed as not emailable, refused with the reason.
+	var gh int64
+	if err := srv.S.Pool.QueryRow(ctx, `INSERT INTO people (name, first_name) VALUES ('octo', 'octo') RETURNING id`).Scan(&gh); err != nil {
+		t.Fatal(err)
+	}
+	if err := people.LinkIdentity(ctx, srv.S.Pool, "github", "octo", gh, people.SourceGitHub, false); err != nil {
+		t.Fatal(err)
+	}
+	srv.S.Pool.Exec(ctx, `INSERT INTO product_people (product_id, person_id) VALUES ('demo', $1)`, gh)
+
+	list := s.get("/api/people?product=demo")
+	if list["total"].(float64) != 2 {
+		t.Fatalf("people: %v", list)
+	}
+	refused := map[string]string{}
+	for _, p := range list["people"].([]any) {
+		m := p.(map[string]any)
+		r, _ := m["email_refused"].(string)
+		refused[m["name"].(string)] = r
+	}
+	if refused["Ana"] != "" || !strings.Contains(refused["octo"], "Acceptable Use Policies") {
+		t.Fatalf("email guard in the list: %v", refused)
+	}
+	res := s.mustPost("/api/sequences/start", map[string]any{"product": "demo", "sequence": "intro", "person_ids": []int64{1, gh}})
+	if res["started"].(float64) != 1 || len(res["skipped"].([]any)) != 1 || !strings.Contains(res["skipped"].([]any)[0].(string), "Acceptable Use Policies") {
+		t.Fatalf("start: %v", res)
+	}
+
+	p := s.get(fmt.Sprintf("/api/people/%d", gh))
+	pol := p["email_policy"].([]any)[0].(map[string]any)
+	if pol["may_email"] != false || !strings.Contains(pol["reason"].(string), "GitHub") {
+		t.Fatalf("person email policy: %v", pol)
+	}
+	if ids := p["identities"].([]any); len(ids) != 1 || ids[0].(map[string]any)["source"] != "github" {
+		t.Fatalf("identities: %v", ids)
+	}
+	if code, _ := s.post(fmt.Sprintf("/api/people/%d/facts", gh), map[string]string{"facts": "nocolon"}); code != http.StatusBadRequest {
+		t.Fatalf("a fact without a colon: %d", code)
+	}
+	facts := s.mustPost(fmt.Sprintf("/api/people/%d/facts", gh), map[string]string{"facts": "dep:bullmq, team:5-50"})
+	if len(facts["facts"].(map[string]any)) != 2 {
+		t.Fatalf("facts: %v", facts)
+	}
+	s.mustPost("/api/people/1/do-not-contact", map[string]any{"reason": "asked"})
+	if p := s.get("/api/people/1"); p["do_not_contact"] == nil || len(p["messages"].([]any)) != 1 {
+		t.Fatalf("after do-not-contact: %v", p)
+	}
+	s.mustPost("/api/people/1/do-not-contact", map[string]any{"allow": true})
+	if p := s.get("/api/people/1"); p["do_not_contact"] != nil {
+		t.Fatal("still on the do-not-contact list")
+	}
+	if code, _ := s.post("/api/people/1/research", map[string]string{"product": "demo"}); code != http.StatusBadRequest {
+		t.Fatalf("research without an API key: %d", code)
+	}
+	if code, _ := do(t, s.c, "GET", ts.URL+"/api/people/999", "", nil); code != http.StatusBadRequest {
+		t.Fatalf("missing person: %d", code)
+	}
+	comp := s.mustPost("/api/companies/import", map[string]string{"product": "demo", "csv": "domain,company,facts\nacme.example,Acme,team:5-50\n"})
+	if c := comp["result"].(map[string]any)["companies"].([]any)[0].(map[string]any); c["fit"] == nil || c["domain"] != "acme.example" {
+		t.Fatalf("company import: %v", comp)
+	}
+}

@@ -285,13 +285,32 @@ func FindByEmail(ctx context.Context, q store.Q, email string) (*Person, error) 
 	return scan(q.QueryRow(ctx, personSelect+` WHERE p.id = (SELECT person_id FROM identities WHERE kind = 'email' AND value = $1)`, NormalizeEmail(email)))
 }
 
+// inProduct limits a person query to a product ($1) and a search ($2).
+const inProduct = `
+	JOIN product_people pp ON pp.person_id = p.id AND pp.product_id = $1
+	WHERE $2 = '' OR p.name ILIKE '%'||$2||'%' OR c.domain ILIKE '%'||$2||'%' OR c.name ILIKE '%'||$2||'%'
+		OR EXISTS (SELECT 1 FROM identities i WHERE i.person_id = p.id AND i.value ILIKE '%'||$2||'%')`
+
 // List returns a product's people, optionally filtered by a search string.
 func List(ctx context.Context, q store.Q, productID, search string, limit int) ([]*Person, error) {
-	rows, err := q.Query(ctx, personSelect+`
-		JOIN product_people pp ON pp.person_id = p.id AND pp.product_id = $1
-		WHERE $2 = '' OR p.name ILIKE '%'||$2||'%' OR c.domain ILIKE '%'||$2||'%' OR c.name ILIKE '%'||$2||'%'
-			OR EXISTS (SELECT 1 FROM identities i WHERE i.person_id = p.id AND i.value ILIKE '%'||$2||'%')
-		ORDER BY p.id LIMIT $3`, productID, search, limit)
+	return list(ctx, q, inProduct+` ORDER BY p.id LIMIT $3`, productID, search, limit)
+}
+
+// ListRanked is List ordered by the product's score, best first (unscored
+// people last), with the number of people matching in all.
+func ListRanked(ctx context.Context, q store.Q, productID, search string, limit int) ([]*Person, int, error) {
+	var total int
+	if err := q.QueryRow(ctx, `SELECT count(*) FROM people p LEFT JOIN companies c ON c.id = p.company_id`+inProduct, productID, search).Scan(&total); err != nil {
+		return nil, 0, err
+	}
+	out, err := list(ctx, q, `
+		LEFT JOIN scores sc ON sc.person_id = p.id AND sc.product_id = $1`+inProduct+`
+		ORDER BY sc.priority DESC NULLS LAST, p.id LIMIT $3`, productID, search, limit)
+	return out, total, err
+}
+
+func list(ctx context.Context, q store.Q, rest string, args ...any) ([]*Person, error) {
+	rows, err := q.Query(ctx, personSelect+rest, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -305,6 +324,30 @@ func List(ctx context.Context, q store.Q, productID, search string, limit int) (
 		out = append(out, p)
 	}
 	return out, rows.Err()
+}
+
+// Identity is one way to recognise a person (an email, a GitHub login, a
+// product user id, ...) and where it came from (see the Source constants).
+type Identity struct {
+	Kind   string `json:"kind"`
+	Value  string `json:"value"`
+	Source string `json:"source"`
+}
+
+// Identities lists a person's identities.
+func Identities(ctx context.Context, q store.Q, personID int64) ([]Identity, error) {
+	rows, err := q.Query(ctx, `SELECT kind, value, source FROM identities WHERE person_id = $1 ORDER BY kind, value`, personID)
+	if err != nil {
+		return nil, err
+	}
+	out, err := pgx.CollectRows(rows, func(r pgx.CollectableRow) (Identity, error) {
+		var i Identity
+		return i, r.Scan(&i.Kind, &i.Value, &i.Source)
+	})
+	if out == nil {
+		out = []Identity{}
+	}
+	return out, err
 }
 
 // Suppress marks a person do-not-contact across all products. The first

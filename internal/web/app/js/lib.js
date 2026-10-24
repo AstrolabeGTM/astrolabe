@@ -210,6 +210,9 @@ export function closeDialog(restore = true) {
 export function initDialog() {
   const d = $("#dialog");
   d.addEventListener("close", () => {
+    // The close event comes a moment later; if another dialog has opened
+    // since, it is not this one's to clear.
+    if (d.open) return;
     d.innerHTML = "";
     if (restoreOnClose) {
       if (lastFocus?.isConnected) lastFocus.focus();

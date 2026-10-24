@@ -23,7 +23,6 @@ import (
 	"github.com/AstrolabeGTM/astrolabe/internal/outreach"
 	"github.com/AstrolabeGTM/astrolabe/internal/people"
 	"github.com/AstrolabeGTM/astrolabe/internal/product"
-	"github.com/AstrolabeGTM/astrolabe/internal/score"
 	"github.com/AstrolabeGTM/astrolabe/internal/sentmail"
 	"github.com/AstrolabeGTM/astrolabe/internal/signal"
 	"github.com/AstrolabeGTM/astrolabe/internal/views"
@@ -81,8 +80,8 @@ Rules: use only claims from product_context.claims; never use never_claim phrase
 
 	// People and signals
 	register(srv, "top_prospects", "Highest-priority people for a product who aren't excluded, with the score breakdown (fit/intent/why_now) and whether they were already contacted. min_tier defaults to B.", s.hot)
-	register(srv, "people", "List or search a product's people by name, email or company domain.", s.people)
-	register(srv, "person", "Everything about one person (id or email): facts, scores, research notes, sequences, messages and replies.", s.person)
+	register(srv, "people", "List or search a product's people by name, email or company domain, best priority first: score (fit, intent, why now), sequences, and the outreach guard's reason if the product may not email them. total counts all matches; limit defaults to 100.", s.people)
+	register(srv, "person", "Everything about one person (id or email): identities and where each came from, facts, scores with breakdown, research notes, sequences, messages, replies, signals, open tasks, do-not-contact, and for each product whether the outreach guard lets it email them (and why not).", s.person)
 	register(srv, "import_people", "Import people from CSV text with a header row. Columns: email, github, name, first_name, title, company, company_domain, notes, facts (';'-separated, e.g. dep:bullmq). Matches existing people by email or GitHub.", s.importPeople)
 	register(srv, "import_companies", "Import companies (no people needed) from CSV text with a header row: domain, company (or name), facts (';'-separated lowercase kind:value, e.g. fact:sells_to_enterprise;dep:bullmq), notes. Other columns are ignored. Matches existing companies by domain, so re-importing is safe. Returns each company's fit against the product's fit rules.", s.importCompanies)
 	register(srv, "set_company_facts", "Add kind:value facts to a company (id or domain) by hand; they count toward the company's fit and toward everyone who works there. Rescores.", s.setCompanyFacts)
@@ -340,11 +339,10 @@ func (s *Server) productContext(ctx context.Context, a productArg) (any, error) 
 }
 
 func (s *Server) people(ctx context.Context, a peopleArg) (any, error) {
-	if a.Limit <= 0 {
-		a.Limit = 100
+	if _, err := s.find(a.Product); err != nil {
+		return nil, err
 	}
-	list, err := people.List(ctx, s.S.Pool, a.Product, a.Search, a.Limit)
-	return map[string]any{"people": list}, err
+	return views.GetPeople(ctx, s.S.Pool, a.Product, a.Search, a.Limit)
 }
 
 func (s *Server) resolvePerson(ctx context.Context, who string) (*people.Person, error) {
@@ -363,100 +361,19 @@ func (s *Server) person(ctx context.Context, a personArg) (any, error) {
 	if err != nil {
 		return nil, err
 	}
-	type enrollment struct {
-		Product, Sequence, Status, StopReason string
-		NextStep                              int
-	}
-	rows, err := s.S.Pool.Query(ctx, `SELECT product_id, sequence_id, status, stop_reason, next_step + 1 FROM enrollments WHERE person_id = $1`, p.ID)
-	if err != nil {
-		return nil, err
-	}
-	var enrolls []enrollment
-	for rows.Next() {
-		var e enrollment
-		if err := rows.Scan(&e.Product, &e.Sequence, &e.Status, &e.StopReason, &e.NextStep); err != nil {
-			return nil, err
-		}
-		enrolls = append(enrolls, e)
-	}
-	rows.Close()
-	type msg struct {
-		ID                             int64
-		Channel, Status, Subject, Body string
-		SentAt                         *time.Time
-	}
-	rows, err = s.S.Pool.Query(ctx, `SELECT id, channel, status, subject, body, sent_at FROM actions WHERE person_id = $1 ORDER BY id`, p.ID)
-	if err != nil {
-		return nil, err
-	}
-	var msgs []msg
-	for rows.Next() {
-		var m msg
-		if err := rows.Scan(&m.ID, &m.Channel, &m.Status, &m.Subject, &m.Body, &m.SentAt); err != nil {
-			return nil, err
-		}
-		msgs = append(msgs, m)
-	}
-	rows.Close()
-	type reply struct {
-		ID                            int64
-		Subject, Body, Classification string
-		ReceivedAt                    time.Time
-	}
-	rows, err = s.S.Pool.Query(ctx, `SELECT id, subject, body, classification, received_at FROM replies WHERE person_id = $1 ORDER BY received_at`, p.ID)
-	if err != nil {
-		return nil, err
-	}
-	var replies []reply
-	for rows.Next() {
-		var r reply
-		if err := rows.Scan(&r.ID, &r.Subject, &r.Body, &r.Classification, &r.ReceivedAt); err != nil {
-			return nil, err
-		}
-		replies = append(replies, r)
-	}
-	rows.Close()
-	var briefs []map[string]any
-	brows, err := s.S.Pool.Query(ctx, `SELECT DISTINCT ON (product_id) product_id, body, created_at FROM briefs WHERE person_id = $1 ORDER BY product_id, id DESC`, p.ID)
-	if err != nil {
-		return nil, err
-	}
-	for brows.Next() {
-		var prod, body string
-		var at time.Time
-		if err := brows.Scan(&prod, &body, &at); err != nil {
-			return nil, err
-		}
-		briefs = append(briefs, map[string]any{"product": prod, "brief": body, "written": at})
-	}
-	brows.Close()
-	var scores []any
-	for _, pr := range s.Products() {
-		if sc, ok, _ := score.Get(ctx, s.S.Pool, pr.ID, p.ID); ok {
-			scores = append(scores, map[string]any{"product": pr.ID, "tier": sc.Tier, "priority": sc.Priority, "why": sc.Summary()})
-		}
-	}
-	facts, _ := people.Facts(ctx, s.S.Pool, p.ID)
-	return map[string]any{"person": p, "facts": facts, "scores": scores, "briefs": briefs, "enrollments": enrolls, "messages": msgs, "replies": replies}, nil
+	return views.GetPerson(ctx, s.S, s.Products(), p.ID, time.Now())
 }
 
 func (s *Server) importPeople(ctx context.Context, a importArg) (any, error) {
 	if _, err := s.find(a.Product); err != nil {
 		return nil, err
 	}
-	rows, err := people.ReadCSV(strings.NewReader(a.CSV))
-	if err != nil {
-		return nil, err
-	}
-	return people.Import(ctx, s.S.Pool, a.Product, rows)
+	return views.ImportPeople(ctx, s.S.Pool, a.Product, a.CSV)
 }
 
 func (s *Server) enroll(ctx context.Context, a enrollArg) (any, error) {
-	res, err := s.S.Enroll(ctx, a.Product, a.Sequence, a.PersonIDs)
+	res, err := views.StartSequence(ctx, s.S, a.Product, a.Sequence, a.PersonIDs)
 	if err != nil {
-		return nil, err
-	}
-	if _, err := s.S.Tick(ctx); err != nil {
 		return nil, err
 	}
 	return res, nil

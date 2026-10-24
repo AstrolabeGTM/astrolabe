@@ -3,6 +3,8 @@ package outreach
 import (
 	"context"
 
+	"github.com/jackc/pgx/v5"
+
 	"github.com/AstrolabeGTM/astrolabe/internal/product"
 	"github.com/AstrolabeGTM/astrolabe/internal/store"
 )
@@ -32,23 +34,40 @@ func HasEmailStep(seq *product.Sequence) bool {
 // words fit to show the operator. People with no GitHub trace at all pass
 // here; a missing address is reported where the address is needed.
 func MayEmail(ctx context.Context, q store.Q, productID string, personID int64) (ok bool, reason string, err error) {
-	prod, err := product.Get(ctx, q, productID)
+	refused, err := EmailRefusals(ctx, q, productID, []int64{personID})
 	if err != nil {
 		return false, "", err
 	}
-	if prod.Outreach.EmailFromGitHub {
-		return true, "", nil
+	if r, no := refused[personID]; no {
+		return false, r, nil
 	}
-	var own, fromGitHub bool
-	if err := q.QueryRow(ctx, `
-		SELECT
-			COALESCE(bool_or(kind = 'email' AND source <> 'github'), false),
-			COALESCE(bool_or(source = 'github'), false)
-		FROM identities WHERE person_id = $1 AND kind IN ('email', 'github')`, personID).Scan(&own, &fromGitHub); err != nil {
-		return false, "", err
+	return true, "", nil
+}
+
+// EmailRefusals is MayEmail for many people at once: it returns the reason
+// for each person who may not be emailed for the product; everyone else
+// may be. Lists such as the People screen use it.
+func EmailRefusals(ctx context.Context, q store.Q, productID string, personIDs []int64) (map[int64]string, error) {
+	refused := map[int64]string{}
+	prod, err := product.Get(ctx, q, productID)
+	if err != nil {
+		return nil, err
 	}
-	if own || !fromGitHub {
-		return true, "", nil
+	if prod.Outreach.EmailFromGitHub || len(personIDs) == 0 {
+		return refused, nil
 	}
-	return false, githubPolicyReason, nil
+	rows, err := q.Query(ctx, `
+		SELECT person_id FROM identities
+		WHERE person_id = ANY($1) AND kind IN ('email', 'github')
+		GROUP BY person_id
+		HAVING NOT COALESCE(bool_or(kind = 'email' AND source <> 'github'), false)
+		   AND COALESCE(bool_or(source = 'github'), false)`, personIDs)
+	if err != nil {
+		return nil, err
+	}
+	ids, err := pgx.CollectRows(rows, pgx.RowTo[int64])
+	for _, id := range ids {
+		refused[id] = githubPolicyReason
+	}
+	return refused, err
 }
