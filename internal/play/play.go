@@ -420,7 +420,11 @@ func (e *Engine) scanAccounts(ctx context.Context, p *product.Product, pl *produ
 		r := Run{Play: pl, AccountID: &account, Key: fmt.Sprintf("%s:%s:%d:%d", kind, stage, h.account, h.stay),
 			Title: h.name + " entered " + stage}
 		if kind == "account_stuck" {
-			r.Title = fmt.Sprintf("%s in %s for %d days", h.name, stage, int(e.now().Sub(h.entered).Hours()/24))
+			now := e.now()
+			y1, m1, d1 := h.entered.In(now.Location()).Date()
+			y2, m2, d2 := now.Date()
+			days := int(time.Date(y2, m2, d2, 0, 0, 0, 0, time.UTC).Sub(time.Date(y1, m1, d1, 0, 0, 0, 0, time.UTC)).Hours() / 24)
+			r.Title = fmt.Sprintf("%s in %s for %d days", h.name, stage, days)
 		}
 		if pl.Action.Sequence != "" {
 			r.PersonID = h.person

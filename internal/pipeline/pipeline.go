@@ -74,7 +74,7 @@ type Account struct {
 	Status    string    `json:"status"`
 	Stage     string    `json:"stage"`
 	EnteredAt time.Time `json:"entered_at"`
-	// DaysInStage counts whole days in the current stage (or since the
+	// DaysInStage counts calendar days in the current stage (or since the
 	// account was paused or lost).
 	DaysInStage int    `json:"days_in_stage"`
 	Stuck       bool   `json:"stuck,omitempty"`
@@ -105,7 +105,7 @@ func scanAccount(row pgx.Row) (*Account, error) {
 
 // derive fills the fields that depend on the time and the product config.
 func (a *Account) derive(p *product.Product, now time.Time) {
-	a.DaysInStage = max(0, int(now.Sub(a.EnteredAt).Hours()/24))
+	a.DaysInStage = Days(a.EnteredAt, now)
 	if a.Status != Open {
 		return
 	}
@@ -116,6 +116,15 @@ func (a *Account) derive(p *product.Product, now time.Time) {
 }
 
 func day(t time.Time) string { return t.Format("2006-01-02") }
+
+// Days counts calendar days from one time to another, in the second's
+// location (so a daylight-saving change never makes 18 days read as 17).
+func Days(from, to time.Time) int {
+	y1, m1, d1 := from.In(to.Location()).Date()
+	y2, m2, d2 := to.Date()
+	n := time.Date(y2, m2, d2, 0, 0, 0, 0, time.UTC).Sub(time.Date(y1, m1, d1, 0, 0, 0, 0, time.UTC))
+	return max(0, int(n.Hours()/24))
+}
 
 func needPipeline(p *product.Product) error {
 	if p.Pipeline == nil {
