@@ -19,9 +19,11 @@ import (
 	"github.com/riverqueue/river"
 
 	"github.com/AstrolabeGTM/astrolabe/internal/channel"
+	"github.com/AstrolabeGTM/astrolabe/internal/counters"
 	"github.com/AstrolabeGTM/astrolabe/internal/experiment"
 	"github.com/AstrolabeGTM/astrolabe/internal/funnel"
 	"github.com/AstrolabeGTM/astrolabe/internal/product"
+	"github.com/AstrolabeGTM/astrolabe/internal/reception"
 	"github.com/AstrolabeGTM/astrolabe/internal/score"
 )
 
@@ -36,6 +38,8 @@ type ProductDigest struct {
 	Drop        string              `json:"biggest_drop,omitempty"`
 	Revenue     []funnel.Money      `json:"revenue_this_week"`
 	Actions     []string            `json:"actions"`
+	Counters    *counters.Report    `json:"public_counters,omitempty"`
+	Reception   *reception.Report   `json:"reception,omitempty"`
 }
 
 // Moved: people entering a stage this week vs the week before.
@@ -110,6 +114,18 @@ func Build(ctx context.Context, pool *pgxpool.Pool, products []*product.Product,
 				pd.Drop = fmt.Sprintf("%s → %s: %.0f%% (%d of %d)", prev.Name, cur.Name, cur.FromPrevious, cur.People, prev.People)
 			}
 		}
+		if pd.Counters, err = counters.Weekly(ctx, pool, p.ID, now); err != nil {
+			return nil, err
+		}
+		if len(pd.Counters.Repos) == 0 {
+			pd.Counters = nil // no counter monitor: leave the section out
+		}
+		if pd.Reception, err = reception.Week(ctx, pool, p.ID, now, 10); err != nil {
+			return nil, err
+		}
+		if pd.Reception.Total == 0 {
+			pd.Reception = nil
+		}
 		pd.Actions = actions(p, &pd)
 		d.Products = append(d.Products, pd)
 	}
@@ -178,6 +194,12 @@ func (d *Digest) Text() string {
 		}
 		for _, e := range p.Experiments {
 			fmt.Fprintf(&b, "Experiment %s: %s\n", e.Key, e.Verdict)
+		}
+		if p.Counters != nil {
+			b.WriteString(p.Counters.Text())
+		}
+		if p.Reception != nil {
+			b.WriteString(p.Reception.Text())
 		}
 		if p.Drop != "" {
 			fmt.Fprintf(&b, "Biggest drop (30d): %s\n", p.Drop)

@@ -561,11 +561,63 @@ _In progress._
 
 ### 15.3 Public counters
 
-_In progress._
+A `github_release` monitor takes one snapshot a day of a repo's public numbers. It produces **no signals and no people**; these are totals about the project, never about a person.
+
+```yaml
+- id: releases
+  type: github_release
+  repo: you/pipewrench          # owner/name
+  every: 24h                    # no signal or strength needed
+```
+
+Each snapshot records:
+
+- each release asset's `download_count`, by release tag and asset name (draft releases are skipped);
+- stars, forks, watchers (`subscribers_count`) and open issues (GitHub counts open pull requests in this number);
+- the discussion count, through GraphQL `repository { discussions { totalCount } }`. This needs `ASTROLABE_GITHUB_TOKEN`. Without a token, or if the lookup fails, discussions are skipped and the monitor's last message and the `counters` report say so; the other numbers are still recorded.
+
+Snapshots are stored per day (UTC). Running again the same day replaces that day's value, so reruns never double-count.
+
+**Weekly changes.** The change over the last 7 days is the latest snapshot minus the snapshot 7 days earlier, shown next to the 7 days before that; the report states both windows by date, per asset and in total. If history is shorter than a window, the change is counted from the first snapshot and says so. Where you see it:
+
+- the MCP tool `counters` (sales words: download and star metrics, adoption numbers);
+- a short "Public counters" section in the weekly digest, left out when no counter monitor exists.
+
+A download count counts downloads of a release file. It is not installs, users or people: one person can download several times, and CI jobs and mirrors count too. Astrolabe words it that way everywhere.
+
+Code: `internal/counters` (plain Go functions: `Collect`, `Store`, `Weekly`); the `monitor` job calls it from `internal/signal`.
 
 ### 15.4 Reception log
 
-_In progress._
+The reception log keeps **public mentions** of a product: a Hacker News thread, a Stack Overflow question, a blog post, a GitHub issue. Each has:
+
+| Field | Meaning |
+| --- | --- |
+| URL | Unique per product; the same page logged twice is stored once (a trailing slash or `#fragment` does not make a new one) |
+| date | When it was posted |
+| source | `hn`, `stackoverflow`, `rss`, `github`, `manual`, ... |
+| title or excerpt | What it says, shortened |
+| tone | `positive`, `mixed`, `negative` or `unknown` (the default; set by hand, never guessed) |
+| asks a question | True if the title or excerpt contains a question mark |
+| found by | `monitor:<id>`, or `manual` |
+
+Two ways in:
+
+- **By hand:** the MCP tool `log_mention`, with `set_tone` to rate it later.
+- **From monitors:** add `reception: true` to any `github_search`, `github_repo` or `community` monitor. Its results are also filed as mentions, deduplicated by URL. The monitor still makes its normal signals; a mention is not a person.
+
+```yaml
+- id: community
+  type: community
+  keywords: ["pipewrench"]
+  sources: [hn, stackoverflow]
+  signal: community.thread
+  strength: 5
+  every: 3h
+  reception: true
+```
+
+`reception` (sales words: brand mentions, social listening, sentiment) shows the last 7 days of mentions with the window stated, counts by tone and how many ask a question. The weekly digest has a short section with the same counts. Code: `internal/reception` (`Add`, `SetTone`, `Week`), so a later page can reuse it.
 
 ### 15.5 Form intake
 

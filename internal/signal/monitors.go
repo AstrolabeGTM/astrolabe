@@ -44,6 +44,8 @@ func (s *Sources) Run(ctx context.Context, productID string, m *product.Monitor,
 		return s.githubSearch(ctx, base, m, since)
 	case "github_repo":
 		return s.githubRepo(ctx, base, m, since)
+	case "github_release":
+		return nil, nil // counters, not signals: see RunMonitor
 	case "community":
 		var out []Signal
 		var errs []error

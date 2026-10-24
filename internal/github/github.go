@@ -119,6 +119,10 @@ type Repository struct {
 	CreatedAt       time.Time `json:"created_at"`
 	Owner           User      `json:"owner"`
 	StargazersCount int       `json:"stargazers_count"`
+	ForksCount      int       `json:"forks_count"`
+	// SubscribersCount is the watcher count; OpenIssuesCount includes open pull requests.
+	SubscribersCount int `json:"subscribers_count"`
+	OpenIssuesCount  int `json:"open_issues_count"`
 }
 
 func (c *Client) Repo(ctx context.Context, repo string) (*Repository, error) {
@@ -162,4 +166,97 @@ func (c *Client) File(ctx context.Context, repo, path string) ([]byte, error) {
 		return nil, fmt.Errorf("github: unexpected encoding %q", r.Encoding)
 	}
 	return base64.StdEncoding.DecodeString(strings.ReplaceAll(r.Content, "\n", ""))
+}
+
+type ReleaseAsset struct {
+	Name          string `json:"name"`
+	DownloadCount int64  `json:"download_count"`
+}
+
+type Release struct {
+	TagName string         `json:"tag_name"`
+	Draft   bool           `json:"draft"`
+	Assets  []ReleaseAsset `json:"assets"`
+}
+
+// Releases returns published releases with their assets, newest first, up to
+// 500 releases.
+func (c *Client) Releases(ctx context.Context, repo string) ([]Release, error) {
+	var all []Release
+	for page := 1; page <= 5; page++ {
+		var r []Release
+		if err := c.get(ctx, fmt.Sprintf("/repos/%s/releases?per_page=100&page=%d", repo, page), "", &r); err != nil {
+			return all, err
+		}
+		for _, x := range r {
+			if !x.Draft {
+				all = append(all, x)
+			}
+		}
+		if len(r) < 100 {
+			break
+		}
+	}
+	return all, nil
+}
+
+// DiscussionCount returns the repository's discussion count through GraphQL,
+// which needs a token.
+func (c *Client) DiscussionCount(ctx context.Context, repo string) (int64, error) {
+	if c.Token == "" {
+		return 0, fmt.Errorf("no GitHub token configured")
+	}
+	owner, name, ok := strings.Cut(repo, "/")
+	if !ok {
+		return 0, fmt.Errorf("repo %q must be owner/name", repo)
+	}
+	body, _ := json.Marshal(map[string]any{
+		"query":     "query($owner:String!,$name:String!){repository(owner:$owner,name:$name){discussions{totalCount}}}",
+		"variables": map[string]string{"owner": owner, "name": name},
+	})
+	base := c.Base
+	if base == "" {
+		base = "https://api.github.com"
+	}
+	req, err := http.NewRequestWithContext(ctx, "POST", base+"/graphql", strings.NewReader(string(body)))
+	if err != nil {
+		return 0, err
+	}
+	req.Header.Set("Authorization", "Bearer "+c.Token)
+	req.Header.Set("Content-Type", "application/json")
+	hc := c.HTTP
+	if hc == nil {
+		hc = &http.Client{Timeout: 30 * time.Second}
+	}
+	resp, err := hc.Do(req)
+	if err != nil {
+		return 0, err
+	}
+	defer resp.Body.Close()
+	b, _ := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
+	if resp.StatusCode != 200 {
+		return 0, fmt.Errorf("github graphql: %d %s", resp.StatusCode, strings.TrimSpace(string(b)))
+	}
+	var r struct {
+		Data struct {
+			Repository *struct {
+				Discussions struct {
+					TotalCount int64 `json:"totalCount"`
+				} `json:"discussions"`
+			} `json:"repository"`
+		} `json:"data"`
+		Errors []struct {
+			Message string `json:"message"`
+		} `json:"errors"`
+	}
+	if err := json.Unmarshal(b, &r); err != nil {
+		return 0, err
+	}
+	if len(r.Errors) > 0 {
+		return 0, fmt.Errorf("github graphql: %s", r.Errors[0].Message)
+	}
+	if r.Data.Repository == nil {
+		return 0, ErrNotFound
+	}
+	return r.Data.Repository.Discussions.TotalCount, nil
 }

@@ -22,3 +22,10 @@
 #   signal: github.repo
 #   strength: 10
 #   every: 1h
+
+# Count downloads and stars daily (totals only; no people, no signals):
+# - id: releases
+#   type: github_release
+#   repo: you/[[.ID]]
+#   every: 24h
+# Add `reception: true` to a community monitor to log what's said about you in public.
