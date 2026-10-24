@@ -699,3 +699,22 @@ func TestTodayShowsAccounts(t *testing.T) {
 		t.Fatalf("today should list the overdue next action and the revisit: %v %v", kinds, today["counts"])
 	}
 }
+
+func TestForgetRoute(t *testing.T) {
+	ts, srv := apiServer(t)
+	if _, err := people.Import(context.Background(), srv.S.Pool, "demo", []people.Row{{Email: "ana@acme.example", Name: "Ana"}}); err != nil {
+		t.Fatal(err)
+	}
+	s := newSession(t, ts)
+	dry := s.mustPost("/api/people/forget", map[string]any{"person": "ana@acme.example"})["report"].(map[string]any)
+	if dry["dry_run"] != true || dry["deleted"].(map[string]any)["people"].(float64) != 1 {
+		t.Fatalf("dry run: %v", dry)
+	}
+	if p := s.get("/api/people/1"); p["person"] == nil {
+		t.Fatal("a dry run deleted the person")
+	}
+	s.mustPost("/api/people/forget", map[string]any{"person": "ana@acme.example", "confirm": true})
+	if code, _ := do(t, s.c, "GET", ts.URL+"/api/people/1", "", nil); code != http.StatusBadRequest {
+		t.Fatalf("the person is still there: %d", code)
+	}
+}

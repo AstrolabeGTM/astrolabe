@@ -111,6 +111,18 @@ function render(v) {
     </div><aside aria-label="Identities, facts and notes">${aside(v)}</aside></div>`;
 }
 
+// forgetReport shows what forgetting erases (or erased), table by table,
+// and what must be deleted by hand.
+function forgetReport(r) {
+  const rows = Object.entries(r.deleted || {}).filter(([, n]) => n > 0).sort().map(([t, n]) => `<li><span>${e(words(t))}</span><span class="num">${n}</span></li>`).join("");
+  const scrub = Object.entries(r.scrubbed || {}).filter(([, n]) => n > 0).map(([t, n]) => `<li><span>${e(words(t))} (mentions removed from text)</span><span class="num">${n}</span></li>`).join("");
+  const remote = [...(r.remote_planned || []), ...(r.remote_left || [])];
+  return `<h3>${r.dry_run ? "Would be erased" : "Erased"}</h3>${rows || scrub ? `<ul class="tally">${rows}${scrub}</ul>` : `<p class="muted">Nothing found.</p>`}
+    ${remote.length ? `<h3 class="section">Copies elsewhere</h3><ul class="flags">${remote.map(x => `<li>${e(x.source)} ${e(x.form || "")} submission ${e(x.id)}${x.error ? `: ${e(x.error)}` : r.dry_run ? ": deleted through its API" : ": delete it by hand"}</li>`).join("")}</ul>` : ""}
+    ${(r.review || []).length ? `<h3 class="section">Look at these yourself</h3><ul class="plain-list">${r.review.map(x => `<li>${e(x)}</li>`).join("")}</ul>` : ""}
+    ${(r.not_covered || []).length ? `<details><summary>What Astrolabe cannot reach (${r.not_covered.length})</summary><ul class="plain-list help">${r.not_covered.map(x => `<li>${e(x)}</li>`).join("")}</ul></details>` : ""}`;
+}
+
 export default {
   id: "person", title: "Person", section: "people",
   load: params => api(`/api/people/${encodeURIComponent(params.id || "")}`),
@@ -120,7 +132,8 @@ export default {
     <button type="button" class="btn btn-sm" data-action="person-start">Start a sequence</button>
     <button type="button" class="btn btn-sm" data-action="person-task">Add a task</button>
     ${v.do_not_contact ? `<button type="button" class="btn btn-sm" data-action="person-allow">Allow contact again</button>`
-      : `<button type="button" class="btn btn-sm btn-danger" data-action="person-dnc">Do not contact</button>`}` : "",
+      : `<button type="button" class="btn btn-sm btn-danger" data-action="person-dnc">Do not contact</button>`}
+    <button type="button" class="btn btn-sm btn-danger" data-action="person-forget">Forget this person…</button>` : "",
   actions: {
     ...seqActions,
     "person-start": (b, ctx) => startSequenceDialog([ctx.data.person.id], { productId: ctx.data.products[0] || state.boot.products[0]?.id,
@@ -134,6 +147,19 @@ export default {
         <div class="form-actions"><button type="button" class="btn" data-close>Cancel</button><button class="btn btn-primary">Do not contact</button></div></form>`,
     }),
     "person-allow": async (b, ctx) => ctx.done((await post(`/api/people/${ctx.data.person.id}/do-not-contact`, { allow: true })).status),
+    "person-forget": async (b, ctx) => {
+      const p = ctx.data.person;
+      const r = (await post("/api/people/forget", { person: String(p.id) })).report;
+      const word = p.email || "forget";
+      openDialog({
+        title: `Forget ${nameOf(p)}?`, wide: true,
+        description: "This erases everything about them, on their request. Nothing has been deleted yet: below is what would go. It cannot be undone.",
+        body: `<form class="form" data-form="person-forget" data-word="${e(word)}">${forgetReport(r)}
+          <p class="help">Accounts and companies stay. A salted hash of their addresses and GitHub login is kept so a later import, form, monitor or reply is dropped and they are never contacted again.</p>
+          ${field("confirm", `Type ${word} to confirm`, { required: true, attrs: 'autocomplete="off"' })}
+          <div class="form-actions"><button type="button" class="btn" data-close>Keep them</button><button class="btn btn-primary btn-destructive">Erase everything</button></div></form>`,
+      });
+    },
   },
   forms: {
     ...seqForms,
@@ -141,5 +167,12 @@ export default {
     facts: async (f, ctx) => ctx.done((await post(`/api/people/${ctx.data.person.id}/facts`, { facts: formData(f).facts })).status),
     research: async (f, ctx) => ctx.done((await post(`/api/people/${ctx.data.person.id}/research`, { product: formData(f).product })).status),
     "person-dnc": async (f, ctx) => ctx.done((await post(`/api/people/${ctx.data.person.id}/do-not-contact`, { reason: formData(f).reason })).status),
+    "person-forget": async (f, ctx) => {
+      if (formData(f).confirm.trim() !== f.dataset.word) throw new Error(`Type ${f.dataset.word} exactly to confirm.`);
+      const r = (await post("/api/people/forget", { person: String(ctx.data.person.id), confirm: true })).report;
+      location.hash = "#people";
+      openDialog({ title: "Forgotten", description: "Everything about them in Astrolabe is erased.",
+        body: `${forgetReport(r)}<div class="form-actions"><button type="button" class="btn btn-primary" data-close>Done</button></div>` });
+    },
   },
 };
