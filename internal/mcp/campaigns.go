@@ -328,7 +328,12 @@ func (s *Server) editCreative(ctx context.Context, a editCreativeArg) (any, erro
 	return campaign.EditCreative(ctx, s.S.Pool, p, c, cr, by, a.Copy, a.Alt)
 }
 
-func (s *Server) approveCreative(ctx context.Context, a editCreativeArg) (any, error) {
+type approveCreativeArg struct {
+	campaignArg
+	Creative string `json:"creative"`
+}
+
+func (s *Server) approveCreative(ctx context.Context, a approveCreativeArg) (any, error) {
 	p, c, cr, err := s.creativeTarget(a.campaignArg, a.Creative)
 	if err != nil {
 		return nil, err

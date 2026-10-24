@@ -21,7 +21,8 @@ Developers who ship products (dev tools, SaaS, apps) and would rather write code
 | Fit rules (firmographics, technographics) | Machine-checkable version of the target: facts like `ci:github-actions` or `lang:typescript` with weights. |
 | Score / priority (lead score, MQL) | `0.4·fit + 0.4·intent + 0.2·why_now`, 0–100. Priority A (≥70) means contact now; D means just watch. |
 | Intent / why now | Recent signals, decaying with a 10-day half-life / time-sensitive signals in the last 14 days. |
-| Sequence (cadence, campaign, nurture) | A timed list of message steps (`sequences/*.yaml`). `kind: cold` for people who don't know you yet, `kind: users` for existing users. |
+| Sequence (cadence, drip, email campaign, nurture) | A timed list of message steps (`sequences/*.yaml`). `kind: cold` for people who don't know you yet, `kind: users` for existing users. |
+| Campaign (ad campaign, flight, insertion order) | A planned push with a goal, landing page, budget cap, dates, gate checklist, launch tasks and creatives (`campaigns/*.yaml`, §15.9). Not the same as a sequence. |
 | Automation (play, playbook, workflow) | A rule in `automations.yaml`: *trigger → when → action*, like a CI workflow. "On a `github.issue_pain` signal, if fit ≥ 50, start the `technical-intro` sequence." |
 | Funnel / stages (pipeline, lifecycle stages) | Your product's pipeline states (`reached → replied → installed → first_report → paid`). A person's furthest stage is their state. |
 | Activation | The stage where a user first gets real value (the "aha" moment). The number to move. |

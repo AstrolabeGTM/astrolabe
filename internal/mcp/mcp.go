@@ -147,7 +147,7 @@ var salesTerms = map[string]string{
 	"monitors":          "intent/social listening sources",
 	"run_monitor":       "refresh listening, pull new intent",
 	"do_not_contact":    "suppress, unsubscribe, opt out, DNC list, blacklist",
-	"start_sequence":    "enroll in a cadence/sequence/campaign, start nurture",
+	"start_sequence":    "enroll in a cadence/sequence/drip, start an email campaign or nurture",
 	"inbox":             "tasks queue, approvals, rep inbox",
 	"write_draft":       "edit email copy",
 	"ai_draft":          "AI copywriting, personalize an email",
@@ -159,7 +159,7 @@ var salesTerms = map[string]string{
 	"add_task":          "follow-up task, reminder, next step",
 	"close_task":        "log the outcome, disposition, closed won/lost",
 	"record_stage":      "move a lead to a lifecycle/pipeline stage, conversion",
-	"pause":             "pause a campaign or cadence",
+	"pause":             "pause an email campaign or cadence",
 	"automations":       "plays, playbooks, workflows, triggers",
 	"automation_runs":   "play/workflow history",
 	"funnel":            "pipeline, conversion rates, attribution, revenue, CAC",
@@ -169,7 +169,7 @@ var salesTerms = map[string]string{
 	"reception":         "brand mentions, social listening, press and buzz, sentiment",
 	"log_mention":       "log a brand mention, coverage or press hit",
 	"set_tone":          "tag sentiment of a mention",
-	"content":           "social posts, launch campaign, content marketing",
+	"content":           "social posts, launch posts, content marketing",
 }
 
 func register[In any](srv *sdk.Server, name, desc string, f func(context.Context, In) (any, error)) {
