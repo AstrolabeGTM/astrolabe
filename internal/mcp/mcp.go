@@ -119,7 +119,7 @@ Rules: use only claims from product_context.claims; never use never_claim phrase
 	// Sequences and messages
 	register(srv, "start_sequence", "Start a sequence for people (by id). One active sequence per person per product; the first draft appears immediately. A person known only from GitHub is refused for any sequence with an email step (GitHub's Acceptable Use Policies); the reason is in `skipped`.", s.enroll)
 	register(srv, "inbox", "Everything waiting on the operator: sends needing a decision, replies to label, due tasks, drafts, and queued sends.", s.inbox)
-	register(srv, "today", "What is waiting on the operator, most urgent first: replies to label, drafts to approve (exact sender, recipient, text and flags), held, blocked, failed or unknown sends with their reason, and tasks due today. Each item has its age and its response target (replies 2 hours, drafts and held sends 1 day, tasks their due time) and whether it is past or near it; counts are complete even when the list is capped. Same as the browser app's Today screen.", s.today)
+	register(srv, "today", "What is waiting on the operator, most urgent first: replies to label, drafts to approve (exact sender, recipient, text and flags), held, blocked, failed or unknown sends with their reason, tasks due today (form requests included, with how long ago they arrived), pipeline accounts whose next action is overdue, and paused or lost accounts whose revisit date has come. Each item has its age and its response target (replies 2 hours, drafts and held sends 1 day, tasks their due time) and whether it is past or near it; counts are complete even when the list is capped. Same as the browser app's Today screen.", s.today)
 	register(srv, "check_sent", "For a send whose delivery is unknown: look for it in the sending mailbox's Sent folder by Message-ID. If found it is recorded as sent; otherwise nothing changes and the result says what to check by hand.", s.checkSent)
 	register(srv, "write_draft", "Set a draft's text (email subject/body, or the note for a manual LinkedIn/X task). Any earlier approval is withdrawn.", s.writeDraft)
 	register(srv, "ai_draft", "Have the Claude API write a draft now from claims, voice, research and the triggering signal. Returns it with flags; never sends.", s.aiDraft)
@@ -444,7 +444,7 @@ func (s *Server) inbox(ctx context.Context, a inboxArg) (any, error) {
 }
 
 func (s *Server) today(ctx context.Context, a inboxArg) (any, error) {
-	t, err := views.GetToday(ctx, s.S, a.Product, time.Now())
+	t, err := views.GetToday(ctx, s.S, s.Products(), a.Product, time.Now())
 	if err != nil {
 		return nil, err
 	}

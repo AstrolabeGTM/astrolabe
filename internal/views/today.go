@@ -6,7 +6,11 @@ import (
 	"strings"
 	"time"
 
+	"github.com/jackc/pgx/v5"
+
 	"github.com/AstrolabeGTM/astrolabe/internal/outreach"
+	"github.com/AstrolabeGTM/astrolabe/internal/pipeline"
+	"github.com/AstrolabeGTM/astrolabe/internal/product"
 )
 
 // Response targets: how long each kind of item may wait on the operator.
@@ -41,7 +45,8 @@ type Targets struct {
 // Item is one thing waiting on the operator: a reply to label, a draft to
 // approve, a held send to decide on, a task that is due, or a queued send.
 type Item struct {
-	// Kind is reply, approval, held, task or queued.
+	// Kind is reply, approval, held, task, queued, account (an overdue
+	// next action) or revisit (a paused or lost account to look at again).
 	Kind string `json:"kind"`
 	// Key is unique on the page, e.g. "reply:12".
 	Key string `json:"key"`
@@ -60,6 +65,8 @@ type Item struct {
 	Reply  *outreach.Reply  `json:"reply,omitempty"`
 	Action *outreach.Action `json:"action,omitempty"`
 	Task   *outreach.Task   `json:"task,omitempty"`
+	// Account is set for account and revisit items.
+	Account *pipeline.Account `json:"account,omitempty"`
 }
 
 // Count is how many items of a kind wait, and how many are past or near
@@ -107,7 +114,7 @@ func isHeld(a *outreach.Action) bool { return strings.HasPrefix(a.Error, "held: 
 // GetToday lists what waits on the operator for one product, or all when
 // product is "". Replies wait ReplyTarget, drafts ApprovalTarget, held sends
 // HeldTarget; tasks are listed when due by the end of today.
-func GetToday(ctx context.Context, out *outreach.Service, productID string, now time.Time) (*Today, error) {
+func GetToday(ctx context.Context, out *outreach.Service, products []*product.Product, productID string, now time.Time) (*Today, error) {
 	t := &Today{Now: now, Product: productID, Items: []Item{}, Counts: map[string]Count{},
 		Targets:     Targets{int64(ReplyTarget.Seconds()), int64(ApprovalTarget.Seconds()), int64(HeldTarget.Seconds()), NearShare, int64(TaskSoon.Seconds())},
 		ReplyLabels: outreach.Classifications, Outcomes: outreach.Outcomes,
@@ -186,6 +193,10 @@ func GetToday(ctx context.Context, out *outreach.Service, productID string, now 
 		t.Items = append(t.Items, it)
 	}
 
+	if err := t.accounts(ctx, out, products, productID, now); err != nil {
+		return nil, err
+	}
+
 	// Most urgent first: past target, then near it, then the rest; within
 	// each, whatever passes (or passed) its target first.
 	slices.SortStableFunc(t.Items, func(a, b Item) int {
@@ -206,4 +217,63 @@ func GetToday(ctx context.Context, out *outreach.Service, productID string, now 
 		t.Counts[it.Kind] = c
 	}
 	return t, nil
+}
+
+// accounts adds pipeline accounts whose next action is overdue, and paused
+// or lost accounts whose revisit date has come and that have no revisit
+// task yet (once the task exists it is listed as a task).
+func (t *Today) accounts(ctx context.Context, out *outreach.Service, products []*product.Product, productID string, now time.Time) error {
+	t.Counts["account"], t.Counts["revisit"] = Count{}, Count{}
+	for _, p := range products {
+		if p.Pipeline == nil || (productID != "" && p.ID != productID) {
+			continue
+		}
+		b, err := pipeline.BuildBoard(ctx, out.Pool, p, now)
+		if err != nil {
+			return err
+		}
+		y, m, d := now.In(time.Local).Date()
+		today := time.Date(y, m, d, 0, 0, 0, 0, time.Local)
+		day := func(s string) time.Time {
+			v, _ := time.ParseInLocation("2006-01-02", s, time.Local)
+			return v
+		}
+		for _, a := range b.Overdue {
+			due := day(a.NextDue)
+			t.Items = append(t.Items, Item{Kind: "account", Key: "account:" + itoa(a.ID), Since: due, Due: due,
+				AgeSeconds: int64(now.Sub(due).Seconds()), State: "past", Account: a})
+			c := t.Counts["account"]
+			c.Total++
+			t.Counts["account"] = c
+		}
+		rows, err := out.Pool.Query(ctx, `SELECT id FROM accounts WHERE product_id = $1 AND revisit_task_id IS NOT NULL`, p.ID)
+		if err != nil {
+			return err
+		}
+		tasked := map[int64]bool{}
+		if err := forRows(rows, func(r pgx.Rows) error {
+			var id int64
+			err := r.Scan(&id)
+			tasked[id] = true
+			return err
+		}); err != nil {
+			return err
+		}
+		for _, a := range b.RevisitDue {
+			if tasked[a.ID] {
+				continue
+			}
+			on := day(a.RevisitOn)
+			state := "near"
+			if on.Before(today) {
+				state = "past"
+			}
+			t.Items = append(t.Items, Item{Kind: "revisit", Key: "revisit:" + itoa(a.ID), Since: on, Due: on,
+				AgeSeconds: int64(now.Sub(on).Seconds()), State: state, Account: a})
+			c := t.Counts["revisit"]
+			c.Total++
+			t.Counts["revisit"] = c
+		}
+	}
+	return nil
 }

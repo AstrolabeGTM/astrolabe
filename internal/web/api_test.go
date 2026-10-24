@@ -682,3 +682,20 @@ func TestContentCalendarRoutes(t *testing.T) {
 		t.Fatalf("drafting without the Claude API: %d", code)
 	}
 }
+
+func TestTodayShowsAccounts(t *testing.T) {
+	ts, _ := apiServer(t)
+	s := newSession(t, ts)
+	yesterday := time.Now().AddDate(0, 0, -2).Format("2006-01-02")
+	s.mustPost("/api/accounts/add", map[string]any{"product": "demo", "company": "acme.example", "evidence": "asked", "next_action": "Reply to Sam", "due": yesterday})
+	b := s.mustPost("/api/accounts/add", map[string]any{"product": "demo", "company": "globex.example", "evidence": "asked", "next_action": "Call Priya"})
+	s.mustPost("/api/accounts/close", map[string]any{"product": "demo", "account": fmt.Sprint(b["id"]), "status": "paused", "reason": "no_timing", "revisit": time.Now().Format("2006-01-02")})
+	today := s.get("/api/today?product=demo")
+	kinds := map[string]int{}
+	for _, it := range today["items"].([]any) {
+		kinds[it.(map[string]any)["kind"].(string)]++
+	}
+	if kinds["account"] != 1 || kinds["revisit"] != 1 || count(today, "account") != 1 || count(today, "revisit") != 1 {
+		t.Fatalf("today should list the overdue next action and the revisit: %v %v", kinds, today["counts"])
+	}
+}

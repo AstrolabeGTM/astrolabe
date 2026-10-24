@@ -44,7 +44,7 @@ func (srv *Server) product(id string) (*product.Product, error) {
 func status(msg string) map[string]string { return map[string]string{"status": msg} }
 
 func (srv *Server) apiToday(w http.ResponseWriter, r *http.Request) {
-	t, err := views.GetToday(r.Context(), srv.S, r.URL.Query().Get("product"), time.Now())
+	t, err := views.GetToday(r.Context(), srv.S, srv.Products(), r.URL.Query().Get("product"), time.Now())
 	respond(w, t, err)
 }
 

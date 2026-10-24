@@ -381,6 +381,9 @@ type Task struct {
 	Evidence   string    `json:"evidence_url,omitempty"`
 	// AnswerID is the draft email answering the reply, if one exists.
 	AnswerID *int64 `json:"answer_action_id,omitempty"`
+	// CreatedAt is when the task was made (for a form request: when it
+	// arrived), so its age shows beside its due time.
+	CreatedAt time.Time `json:"created_at"`
 }
 
 var Outcomes = []string{"activated", "paid", "wrong_fit", "unclear_value", "setup_blocked", "price", "later", "other"}
@@ -466,7 +469,7 @@ func (s *Service) Tasks(ctx context.Context, openOnly bool, limit int) ([]*Task,
 	rows, err := s.Pool.Query(ctx, `
 		SELECT t.id, t.product_id, t.person_id, COALESCE(p.name, ''), t.next_action, t.due_at, t.status, t.outcome, t.reply_id,
 			t.draft, t.play_id, COALESCE(sg.evidence_url, ''),
-			(SELECT a.id FROM actions a WHERE a.reply_id = t.reply_id AND a.kind = 'reply' AND t.reply_id IS NOT NULL LIMIT 1)
+			(SELECT a.id FROM actions a WHERE a.reply_id = t.reply_id AND a.kind = 'reply' AND t.reply_id IS NOT NULL LIMIT 1), t.created_at
 		FROM tasks t LEFT JOIN people p ON p.id = t.person_id LEFT JOIN signals sg ON sg.id = t.signal_id
 		WHERE NOT $1 OR t.status = 'open'
 		ORDER BY t.status, t.due_at LIMIT $2`, openOnly, limit)
@@ -478,7 +481,7 @@ func (s *Service) Tasks(ctx context.Context, openOnly bool, limit int) ([]*Task,
 	for rows.Next() {
 		t := &Task{}
 		if err := rows.Scan(&t.ID, &t.ProductID, &t.PersonID, &t.PersonName, &t.NextAction, &t.DueAt, &t.Status, &t.Outcome, &t.ReplyID,
-			&t.Draft, &t.PlayID, &t.Evidence, &t.AnswerID); err != nil {
+			&t.Draft, &t.PlayID, &t.Evidence, &t.AnswerID, &t.CreatedAt); err != nil {
 			return nil, err
 		}
 		out = append(out, t)

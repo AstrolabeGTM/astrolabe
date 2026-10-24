@@ -97,7 +97,7 @@
 | `start_sequence` | Start a sequence for people (by id). |
 | `status` | The instance at a glance: mode (sandbox or live), loaded products with their sequences, how many product folders failed to load, active pauses, and whether AI drafting is on. |
 | `themes` | The saved themes for a product and ISO week (default this week), or an empty answer if none were saved. |
-| `today` | What is waiting on the operator, most urgent first: replies to label, drafts to approve (exact sender, recipient, text and flags), held, blocked, failed or unknown sends with their reason, and tasks due today. |
+| `today` | What is waiting on the operator, most urgent first: replies to label, drafts to approve (exact sender, recipient, text and flags), held, blocked, failed or unknown sends with their reason, tasks due today (form requests included, with how long ago they arrived), pipeline accounts whose next action is overdue, and paused or lost accounts whose revisit date has come. |
 | `top_prospects` | Highest-priority people for a product who aren't excluded, with the score breakdown (fit/intent/why_now) and whether they were already contacted. min_tier defaults to B. |
 | `update_account` | Edit an account: goal (what they want to achieve), timing (what is driving the timing), baseline (how they do it today), people with roles (person id or email; remove=true takes one off; an unknown email is added as a new person) and evidence links. |
 | `updates_add` | Ask someone to join a product's updates list, by hand (for example they asked in person). |
