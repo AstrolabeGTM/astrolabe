@@ -34,9 +34,26 @@ type Monitor struct {
 	// Reception also files each result in the reception log as a public
 	// mention of the product.
 	Reception bool `yaml:"reception" json:"reception,omitempty"`
+
+	// Forms (netlify_forms polls Netlify; form_webhook receives signed posts).
+	Site    string            `yaml:"site" json:"site,omitempty"`       // netlify_forms: site id or name
+	Form    string            `yaml:"form" json:"form,omitempty"`       // netlify_forms: the form's name
+	Fields  map[string]string `yaml:"fields" json:"fields,omitempty"`   // Astrolabe key -> the form's field name
+	Account bool              `yaml:"account" json:"account,omitempty"` // open a pipeline account for the company
+	Respond string            `yaml:"respond" json:"respond,omitempty"` // response time for the account's next action; default 1d
 }
 
-var MonitorTypes = []string{"github_search", "github_repo", "community", "github_release"}
+var MonitorTypes = []string{"github_search", "github_repo", "community", "github_release", "netlify_forms", "form_webhook"}
+
+// FormFieldKeys are the keys a form monitor's fields map may set.
+var FormFieldKeys = []string{"email", "name", "company", "domain", "role", "source", "campaign", "message"}
+
+// FormMonitor reports monitor types that turn form submissions into signals.
+func FormMonitor(t string) bool { return t == "netlify_forms" || t == "form_webhook" }
+
+// PushMonitor reports monitor types that receive data instead of polling,
+// so the scheduler never runs them.
+func PushMonitor(t string) bool { return t == "form_webhook" }
 
 // CounterMonitor reports monitor types that record aggregate counts, never
 // signals about people.
@@ -92,6 +109,9 @@ func (p *Product) validateMonitors() []string {
 		if d, err := AfterDuration(m.Every); err != nil || d < 15*time.Minute {
 			bad = append(bad, where+": every must be at least 15m (e.g. 1h)")
 		}
+		if FormMonitor(m.Type) {
+			bad = append(bad, p.validateForm(where, m)...)
+		}
 		switch m.Type {
 		case "github_search":
 			if m.Query == "" {
@@ -126,6 +146,30 @@ func (p *Product) validateMonitors() []string {
 				bad = append(bad, where+": rss needs feeds")
 			}
 		}
+	}
+	return bad
+}
+
+func (p *Product) validateForm(where string, m *Monitor) []string {
+	var bad []string
+	if m.Type == "netlify_forms" && (m.Site == "" || m.Form == "") {
+		bad = append(bad, where+": site (a Netlify site id or name) and form (the form's name) are required")
+	}
+	for k, v := range m.Fields {
+		if !slices.Contains(FormFieldKeys, k) {
+			bad = append(bad, fmt.Sprintf("%s: fields key %q must be one of %v", where, k, FormFieldKeys))
+		}
+		if strings.TrimSpace(v) == "" {
+			bad = append(bad, fmt.Sprintf("%s: fields.%s needs the form's field name", where, k))
+		}
+	}
+	if m.Respond != "" {
+		if _, err := AfterDuration(m.Respond); err != nil {
+			bad = append(bad, where+": respond: "+err.Error())
+		}
+	}
+	if m.Account && (p.Pipeline == nil || len(p.Pipeline.Stages) == 0) {
+		bad = append(bad, where+": account: true needs a pipeline in product.yaml")
 	}
 	return bad
 }

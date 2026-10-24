@@ -17,3 +17,10 @@
 - id: stuck-after-signup
   trigger: {stage_stuck: {stage: signed_up, for: 3d}}
   action: {sequence: activation-help}
+
+# A request form (see the netlify_forms monitor in monitors.yaml) records a form.request
+# signal and, if the monitor sets `account: true`, opens an account. This is the reply task.
+# People who typed in their own address are fine to email, but you reply yourself.
+- id: form-request-reply
+  trigger: {signal: form.request}
+  action: {task: "Reply to the request", draft: true}

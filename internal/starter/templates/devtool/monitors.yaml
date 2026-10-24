@@ -29,3 +29,24 @@
 #   repo: you/[[.ID]]
 #   every: 24h
 # Add `reception: true` to a community monitor to log what's said about you in public.
+
+# Pull a request form from Netlify (needs ASTROLABE_NETLIFY_TOKEN; spam is skipped).
+# Each submission becomes a person (their email counts as one they gave you), a
+# form.request signal, and with `account: true` (needs a pipeline in product.yaml)
+# an account whose next action is "Reply to the request". automations.yaml adds the task.
+# Field names default to common ones (email, name, company, role, message, campaign,
+# how_did_you_hear_about_us); map yours with `fields:` if they differ.
+# - id: request-form
+#   type: netlify_forms
+#   site: yoursite.netlify.app
+#   form: request
+#   signal: form.request
+#   strength: 40
+#   why_now: true
+#   every: 1h
+#   # account: true
+#   # respond: 1d
+#   # fields: {source: heard_from, message: what_are_you_building}
+#
+# Or post from your own server: POST /hooks/forms/[[.ID]]?form=<monitor id>, signed like
+# product events with ASTROLABE_FORMS_SECRET_<PRODUCT>; type: form_webhook takes the same keys.

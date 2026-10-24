@@ -22,6 +22,7 @@ import (
 
 	"github.com/jackc/pgx/v5"
 
+	"github.com/AstrolabeGTM/astrolabe/internal/forms"
 	"github.com/AstrolabeGTM/astrolabe/internal/links"
 	"github.com/AstrolabeGTM/astrolabe/internal/outreach"
 	"github.com/AstrolabeGTM/astrolabe/internal/product"
@@ -36,10 +37,12 @@ const (
 type Handler struct {
 	Signals *signal.Service
 	Out     *outreach.Service
-	// Secret returns the signing secret for "events" or "stripe" webhooks of
+	// Secret returns the signing secret for "events" "stripe" or "forms" webhooks of
 	// a product, or "" if none is configured (the webhook is then refused).
 	Secret func(kind, productID string) string
-	Now    func() time.Time
+	// Forms takes in form posts (nil refuses /hooks/forms).
+	Forms *forms.Intake
+	Now   func() time.Time
 }
 
 func (h *Handler) now() time.Time {
@@ -49,7 +52,8 @@ func (h *Handler) now() time.Time {
 	return time.Now()
 }
 
-// EnvSecret reads ASTROLABE_EVENTS_SECRET_<PRODUCT> / ASTROLABE_STRIPE_SECRET_<PRODUCT>.
+// EnvSecret reads ASTROLABE_EVENTS_SECRET_<PRODUCT>, ASTROLABE_STRIPE_SECRET_<PRODUCT>
+// and ASTROLABE_FORMS_SECRET_<PRODUCT>.
 func EnvSecret(kind, productID string) string {
 	name := fmt.Sprintf("ASTROLABE_%s_SECRET_%s", strings.ToUpper(kind), strings.ToUpper(strings.ReplaceAll(productID, "-", "_")))
 	return os.Getenv(name)
@@ -241,6 +245,57 @@ func (h *Handler) handleEvent(ctx context.Context, productID string, ev Event) e
 		}
 	}
 	return h.markSeen(ctx, "events:"+productID, ev.ID, productID)
+}
+
+// ---- forms ----
+
+// FormPost receives a form submission at /hooks/forms/{product}, signed like
+// product events (Astrolabe-Signature). The body is a JSON object of the
+// form's fields. The form is the product's form_webhook monitor named by
+// ?form=<monitor id> (optional when the product has just one); the monitor
+// says which signal to record and how fields map. A field named "id" makes
+// retries safe; without one the body's hash is used.
+func (h *Handler) FormPost(w http.ResponseWriter, r *http.Request) {
+	productID, body, ok := h.read(w, r, "forms", "Astrolabe-Signature")
+	if !ok {
+		return
+	}
+	if h.Forms == nil {
+		http.Error(w, "forms are not enabled", http.StatusNotFound)
+		return
+	}
+	var fields map[string]any
+	if err := json.Unmarshal(body, &fields); err != nil || fields == nil {
+		http.Error(w, "the body must be a JSON object of fields", http.StatusBadRequest)
+		return
+	}
+	p, err := product.Get(r.Context(), h.Out.Pool, productID)
+	if err != nil {
+		http.Error(w, "unknown product", http.StatusNotFound)
+		return
+	}
+	var m *product.Monitor
+	want := r.URL.Query().Get("form")
+	for _, x := range p.Monitors {
+		if x.Type == "form_webhook" && (want == "" || x.ID == want) {
+			if m != nil {
+				http.Error(w, "this product has several form_webhook monitors: add ?form=<monitor id>", http.StatusBadRequest)
+				return
+			}
+			m = x
+		}
+	}
+	if m == nil {
+		http.Error(w, "no form_webhook monitor for that product/form", http.StatusNotFound)
+		return
+	}
+	at := h.now()
+	if _, err := h.Forms.Submit(r.Context(), p, m, forms.Submission{Source: "webhook", ExternalID: forms.BodyID(body, fields), At: at, Fields: fields}); err != nil {
+		slog.Error("form submission", "product", productID, "monitor", m.ID, "err", err)
+		http.Error(w, "processing failed", http.StatusInternalServerError)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
 }
 
 // ---- Stripe ----

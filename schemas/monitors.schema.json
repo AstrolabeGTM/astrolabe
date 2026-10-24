@@ -4,6 +4,10 @@
   "items": {
     "additionalProperties": false,
     "properties": {
+      "account": {
+        "description": "Open a pipeline account for the requester's company in the first stage, with the next action \"Reply to the request\". Needs a pipeline.",
+        "type": "boolean"
+      },
       "events": {
         "description": "For github_repo: star, fork, issue, discussion (discussion needs ASTROLABE_GITHUB_TOKEN).",
         "items": {
@@ -22,6 +26,17 @@
           "type": "string"
         },
         "type": "array"
+      },
+      "fields": {
+        "additionalProperties": {
+          "type": "string"
+        },
+        "description": "Form field names by Astrolabe key (email, name, company, domain, role, source, campaign, message). Common names are matched when a key is not set.",
+        "type": "object"
+      },
+      "form": {
+        "description": "For netlify_forms: the form's name (the name attribute of the HTML form).",
+        "type": "string"
       },
       "id": {
         "type": "string"
@@ -45,8 +60,16 @@
         "description": "owner/name of a repo to watch.",
         "type": "string"
       },
+      "respond": {
+        "description": "How soon to reply, e.g. 1d (default); the account's next action is due then.",
+        "type": "string"
+      },
       "signal": {
         "description": "Signal type it produces, e.g. github.issue_pain.",
+        "type": "string"
+      },
+      "site": {
+        "description": "For netlify_forms: the Netlify site id or name (like mysite.netlify.app).",
         "type": "string"
       },
       "sources": {
@@ -61,12 +84,14 @@
         "type": "integer"
       },
       "type": {
-        "description": "github_search, github_repo, community, or github_release (download, star and issue counts; no people).",
+        "description": "github_search, github_repo, community, github_release (download, star and issue counts; no people), netlify_forms (polls a Netlify form's verified submissions; needs ASTROLABE_NETLIFY_TOKEN), or form_webhook (receives signed POSTs at /hooks/forms/\u003cproduct\u003e; never polled).",
         "enum": [
           "github_search",
           "github_repo",
           "community",
-          "github_release"
+          "github_release",
+          "netlify_forms",
+          "form_webhook"
         ],
         "type": "string"
       },

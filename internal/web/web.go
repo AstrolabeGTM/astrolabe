@@ -104,6 +104,7 @@ func (srv *Server) Handler() http.Handler {
 	if srv.Hooks != nil {
 		mux.HandleFunc("POST /hooks/stripe/{product}", srv.Hooks.Stripe)
 		mux.HandleFunc("POST /hooks/events/{product}", srv.Hooks.ProductEvents)
+		mux.HandleFunc("POST /hooks/forms/{product}", srv.Hooks.FormPost)
 		mux.HandleFunc("GET /hooks/whatsapp", srv.Hooks.WhatsAppVerify)
 		mux.Handle("GET /l/{code}", &hooks.Redirector{Signals: srv.Signals, Out: srv.S})
 		mux.HandleFunc("POST /hooks/whatsapp", srv.Hooks.WhatsApp)
@@ -702,7 +703,8 @@ func (srv *Server) settingsPage(w http.ResponseWriter, r *http.Request) {
 		}
 		hookList = append(hookList,
 			hook{p.ID, "product events", "/hooks/events/" + p.ID, env("events"), hooks.EnvSecret("events", p.ID) != ""},
-			hook{p.ID, "Stripe", "/hooks/stripe/" + p.ID, env("stripe"), hooks.EnvSecret("stripe", p.ID) != ""})
+			hook{p.ID, "Stripe", "/hooks/stripe/" + p.ID, env("stripe"), hooks.EnvSecret("stripe", p.ID) != ""},
+			hook{p.ID, "forms", "/hooks/forms/" + p.ID, env("forms"), hooks.EnvSecret("forms", p.ID) != ""})
 	}
 	var presets []map[string]string
 	for _, name := range mail.PresetNames() {

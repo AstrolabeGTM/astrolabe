@@ -110,7 +110,7 @@ This writes `products/<id>/`:
 | `product.yaml` | Name, who it's for (`target`), funnel stages, the offer, sender mailboxes, `fit` rules, `auto_approve`, limits, and for b2b an optional account `pipeline` |
 | `claims.md`, `voice.md` | What's true about the product (drafts may only use this) and how you write. It won't load while they start with `STUB:`. |
 | `sequences/*.yaml` | Timed message steps, `kind: cold` (strangers) or `kind: users` (existing users) |
-| `monitors.yaml` | Where to look for signals: GitHub searches, your repo's stars, issues and discussions, HN/Stack Overflow/RSS keywords, and `github_release` counters (release downloads, stars, forks, watchers, discussions; no people). Add `reception: true` to log results as public mentions |
+| `monitors.yaml` | Where to look for signals: GitHub searches, your repo's stars, issues and discussions, HN/Stack Overflow/RSS keywords, `github_release` counters (release downloads, stars, forks, watchers, discussions; no people), and request forms (`netlify_forms` polled from Netlify, or `form_webhook`). Add `reception: true` to log results as public mentions |
 | `automations.yaml` | `trigger → when → action` rules (sales: plays) |
 
 Every YAML file starts with a `# yaml-language-server: $schema=...` line, so VS Code (with the YAML extension), Zed, Neovim and JetBrains autocomplete keys, explain them on hover and flag typos. Or ask Claude to "set up a new product" and it interviews you and writes the folder.
@@ -171,6 +171,8 @@ t=$(date +%s); sig=$(printf '%s.%s' "$t" "$body" | openssl dgst -sha256 -hmac "$
 curl -X POST https://gtm.example.com/hooks/events/hook-check -H "Astrolabe-Signature: t=$t,v1=$sig" -d "$body"
 ```
 
+A form on your own server posts its fields as JSON to `POST /hooks/forms/<product>` the same way, signed with `ASTROLABE_FORMS_SECRET_<PRODUCT>` (add `?form=<monitor id>` when the product has several `form_webhook` monitors); a form on Netlify needs no webhook, because a `netlify_forms` monitor pulls it. Each request becomes a person, a signal, an account and a reply task; see section 15.5 of [docs/astrolabe.md](docs/astrolabe.md).
+
 An event whose `type` matches a funnel stage records that stage. Sending `user_id` with `email` links the signup to earlier outreach.
 
 ## How sending stays safe
@@ -192,7 +194,8 @@ An event whose `type` matches a funnel stage records that stage. Sending `user_i
 | `ASTROLABE_PUBLIC_URL` | Public https address (tracked links, webhooks) |
 | `ASTROLABE_GITHUB_TOKEN` | GitHub monitors and enrichment (no scopes needed) |
 | `ASTROLABE_ANTHROPIC_API_KEY` | AI research, drafts, reply sorting, content |
-| `ASTROLABE_EVENTS_SECRET_<PRODUCT>`, `ASTROLABE_STRIPE_SECRET_<PRODUCT>` | Webhook signing secrets |
+| `ASTROLABE_EVENTS_SECRET_<PRODUCT>`, `ASTROLABE_STRIPE_SECRET_<PRODUCT>`, `ASTROLABE_FORMS_SECRET_<PRODUCT>` | Webhook signing secrets (product events, Stripe, forms) |
+| `ASTROLABE_NETLIFY_TOKEN` | `netlify_forms` monitors: a Netlify personal access token that reads form submissions |
 | `ASTROLABE_RESEND_API_KEY` | Optional: Resend for email to existing users |
 | `ASTROLABE_WHATSAPP_*`, `ASTROLABE_NOTIFY_SECRET_<PRODUCT>` | WhatsApp and push/in-app channels |
 | `ASTROLABE_DIGEST_TO`, `ASTROLABE_DIGEST_FROM`, `TZ` | Weekly digest email (Mondays 08:00) |

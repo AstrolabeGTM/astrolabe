@@ -1,0 +1,12 @@
+# The demo has no outside sources to poll. The request-a-demo form arrives by
+# signed webhook instead, so you can try it with curl (README: forms).
+# On a real site you would pull it from Netlify:
+#   type: netlify_forms, site: pipewrench.example, form: request-demo
+- id: request-demo
+  type: form_webhook
+  signal: form.request
+  strength: 40
+  why_now: true
+  every: 1h
+  account: true          # opens an account in "identified", next action "Reply to the request"
+  respond: 1d

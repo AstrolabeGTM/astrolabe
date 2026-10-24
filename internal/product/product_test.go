@@ -161,3 +161,24 @@ func TestTaskChannelAndDiscussionEventValidate(t *testing.T) {
 		t.Fatalf("a sequence with an email step must stop on replied: %v", err)
 	}
 }
+
+func TestFormMonitorsValidate(t *testing.T) {
+	p := TestProduct(t)
+	write := func(s string) { os.WriteFile(filepath.Join(p.Dir, "monitors.yaml"), []byte(s), 0o644) }
+	write("- {id: req, type: netlify_forms, site: me.netlify.app, form: request, signal: form.request, strength: 40, every: 1h, fields: {source: heard_from}}\n" +
+		"- {id: hook, type: form_webhook, signal: form.updates, strength: 5, every: 1h}\n")
+	if _, err := Load(p.Dir); err != nil {
+		t.Fatalf("valid form monitors: %v", err)
+	}
+	for name, c := range map[string]struct{ yaml, want string }{
+		"no form":     {"- {id: req, type: netlify_forms, site: s, signal: form.request, strength: 40, every: 1h}", "form (the form's name)"},
+		"bad key":     {"- {id: h, type: form_webhook, signal: form.x, strength: 5, every: 1h, fields: {phone: tel}}", `fields key "phone"`},
+		"no pipeline": {"- {id: h, type: form_webhook, signal: form.x, strength: 5, every: 1h, account: true}", "needs a pipeline"},
+		"bad respond": {"- {id: h, type: form_webhook, signal: form.x, strength: 5, every: 1h, respond: soon}", "respond"},
+	} {
+		write(c.yaml + "\n")
+		if _, err := Load(p.Dir); err == nil || !strings.Contains(err.Error(), c.want) {
+			t.Errorf("%s: %v", name, err)
+		}
+	}
+}

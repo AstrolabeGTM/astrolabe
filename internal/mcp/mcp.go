@@ -72,7 +72,7 @@ Rules: use only claims from product_context.claims; never use never_claim phrase
 	// People and signals
 	register(srv, "top_prospects", "Highest-priority people for a product who aren't excluded, with the score breakdown (fit/intent/why_now) and whether they were already contacted. min_tier defaults to B.", s.hot)
 	register(srv, "people", "List or search a product's people by name, email or company domain.", s.people)
-	register(srv, "person", "Everything about one person (id or email): facts, scores, research notes, sequences, messages and replies.", s.person)
+	register(srv, "person", "Everything about one person (id or email): facts, how they said they heard of you (reported_source, apart from first touch), scores, research notes, sequences, messages and replies.", s.person)
 	register(srv, "import_people", "Import people from CSV text with a header row. Columns: email, github, name, first_name, title, company, company_domain, notes, facts (';'-separated, e.g. dep:bullmq). Matches existing people by email or GitHub.", s.importPeople)
 	register(srv, "import_companies", "Import companies (no people needed) from CSV text with a header row: domain, company (or name), facts (';'-separated lowercase kind:value, e.g. fact:sells_to_enterprise;dep:bullmq), notes. Other columns are ignored. Matches existing companies by domain, so re-importing is safe. Returns each company's fit against the product's fit rules.", s.importCompanies)
 	register(srv, "set_company_facts", "Add kind:value facts to a company (id or domain) by hand; they count toward the company's fit and toward everyone who works there. Rescores.", s.setCompanyFacts)
@@ -82,7 +82,8 @@ Rules: use only claims from product_context.claims; never use never_claim phrase
 	register(srv, "ambiguous_matches", "Signals whose email/GitHub point at two different people. Nothing is guessed; pick one with resolve_match.", s.reviews)
 	register(srv, "resolve_match", "Attach an ambiguous signal to one candidate person, or dismiss it (omit person_id).", s.resolveReview)
 	register(srv, "monitors", "Status of each monitor in monitors.yaml: last run, new signals, errors.", s.monitors)
-	register(srv, "run_monitor", "Run one monitor now and store what it finds.", s.runMonitor)
+	register(srv, "run_monitor", "Run one monitor now and store what it finds. For a netlify_forms monitor this pulls new verified submissions from Netlify and takes each in (person, account, signal).", s.runMonitor)
+	register(srv, "form_submissions", "Recent form submissions (netlify_forms and form_webhook monitors) with the person, company and pipeline account each created, the self-reported source (how they said they heard of you) and the campaign code.", s.formSubmissions)
 	register(srv, "do_not_contact", "Put a person (id or email) on the do-not-contact list: no product will message them again. allow=true removes them.", s.doNotContact)
 
 	// Sequences and messages
@@ -105,7 +106,7 @@ Rules: use only claims from product_context.claims; never use never_claim phrase
 	// Automations and results
 	register(srv, "automations", "Automations per product (automations.yaml): trigger, when, action, and how many times each started a sequence, created a task or skipped.", s.plays)
 	register(srv, "automation_runs", "Recent automation runs with outcome and the reason for skips.", s.playRuns)
-	register(srv, "funnel", "Funnel report for the last N days: people per stage, median days between stages, who is stuck, weekly cohorts, what brought people in (first touch and automation), revenue, spend, task outcomes.", s.funnel)
+	register(srv, "funnel", "Funnel report for the last N days: people per stage, median days between stages, who is stuck, weekly cohorts, what brought people in (first touch and automation), form requests by the source people reported, revenue, spend, task outcomes.", s.funnel)
 	register(srv, "experiments", "A/B results per sequence step: sends, replies, reached goal with 95% intervals, and a verdict (says when there is too little data).", s.experiments)
 	register(srv, "digest", "This week's summary per product: what moved, automations, experiments, stuck people, uncontacted A-tier people, biggest drop, and up to three concrete actions.", s.digestNow)
 	register(srv, "counters", "Public counters from github_release monitors: release download counts per asset and in total, plus stars, forks, watchers, open issues and discussions, with the change over the last 7 days against the 7 before (both windows stated). A download count counts downloads of a release file, not installs or people. These numbers are never tied to a person and make no signals. Omit product for all.", s.counters)
@@ -419,7 +420,11 @@ func (s *Server) person(ctx context.Context, a personArg) (any, error) {
 		}
 	}
 	facts, _ := people.Facts(ctx, s.S.Pool, p.ID)
-	return map[string]any{"person": p, "facts": facts, "scores": scores, "briefs": briefs, "enrollments": enrolls, "messages": msgs, "replies": replies}, nil
+	reported, err := s.reportedSources(ctx, p.ID)
+	if err != nil {
+		return nil, err
+	}
+	return map[string]any{"person": p, "facts": facts, "reported_source": reported, "scores": scores, "briefs": briefs, "enrollments": enrolls, "messages": msgs, "replies": replies}, nil
 }
 
 func (s *Server) importPeople(ctx context.Context, a importArg) (any, error) {

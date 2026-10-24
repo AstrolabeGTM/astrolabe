@@ -105,20 +105,33 @@ func (svc *Service) RunMonitor(ctx context.Context, src *Sources, productID, mon
 		productID, monitorID).Scan(&last); err == nil {
 		since = last.Add(-runOverlap)
 	}
-	sigs, runErr := src.Run(ctx, productID, m, since)
-	if m.Reception {
-		if err := svc.fileMentions(ctx, productID, m, sigs); err != nil {
-			return 0, fmt.Errorf("reception log: %w", err)
-		}
-	}
+	var sigs []Signal
+	var runErr error
 	n := 0
-	for i := range sigs {
-		res, err := svc.Ingest(ctx, &sigs[i])
-		if err != nil {
-			return n, fmt.Errorf("ingest %s: %w", sigs[i].DedupeKey, err)
+	if product.FormMonitor(m.Type) {
+		if m.Type == "form_webhook" {
+			return 0, fmt.Errorf("monitor %s receives form posts at /hooks/forms/%s; it is not polled", monitorID, productID)
 		}
-		if !res.Duplicate {
-			n++
+		if svc.Forms == nil {
+			return 0, errors.New("form intake is not configured in this process")
+		}
+		n, runErr = svc.Forms.Poll(ctx, p, m, since, now)
+		sigs = make([]Signal, n) // only the count matters below
+	} else {
+		sigs, runErr = src.Run(ctx, productID, m, since)
+		if m.Reception {
+			if err := svc.fileMentions(ctx, productID, m, sigs); err != nil {
+				return 0, fmt.Errorf("reception log: %w", err)
+			}
+		}
+		for i := range sigs {
+			res, err := svc.Ingest(ctx, &sigs[i])
+			if err != nil {
+				return n, fmt.Errorf("ingest %s: %w", sigs[i].DedupeKey, err)
+			}
+			if !res.Duplicate {
+				n++
+			}
 		}
 	}
 	errMsg := ""
@@ -180,7 +193,7 @@ func (w *DueWorker) Work(ctx context.Context, _ *river.Job[DueArgs]) error {
 			if err != nil && !errors.Is(err, pgx.ErrNoRows) {
 				return err
 			}
-			if time.Since(last) < m.Interval() {
+			if product.PushMonitor(m.Type) || time.Since(last) < m.Interval() {
 				continue
 			}
 			if _, err := w.S.River.Insert(ctx, MonitorArgs{Product: p.ID, Monitor: m.ID}, nil); err != nil {
