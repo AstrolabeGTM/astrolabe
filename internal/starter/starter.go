@@ -199,6 +199,7 @@ ASTROLABE_PASSWORD=` + randomPassword() + `
 # ASTROLABE_MCP_TOKEN=                                 # bearer token for MCP over HTTP; default: generated
 # ASTROLABE_ANTHROPIC_API_KEY=                         # AI research, drafts, reply sorting
 # ASTROLABE_GITHUB_TOKEN=                              # GitHub monitors (strongly recommended)
+# ASTROLABE_RENDER_URL=http://gotenberg:3000          # creative renderer; start it with: docker compose --profile creative up -d
 # ASTROLABE_DIGEST_TO=you@yourdomain.com               # weekly digest
 # ASTROLABE_DIGEST_FROM=you@yourdomain.com
 # TZ=UTC
@@ -227,12 +228,22 @@ services:
     env_file: .env
     environment:
       ASTROLABE_DATABASE_URL: postgres://astrolabe:astrolabe@postgres:5432/astrolabe?sslmode=disable
+      # Only used if you start the optional renderer: docker compose --profile creative up -d
+      ASTROLABE_RENDER_URL: ${ASTROLABE_RENDER_URL:-http://gotenberg:3000}
     ports: ["8080:8080"]
     volumes:
       - ./products:/data/products
       - secrets:/data/secrets
     depends_on:
       postgres: {condition: service_healthy}
+    restart: unless-stopped
+
+  # Optional: renders campaign creatives (HTML to PNG/PDF) with headless
+  # Chromium. Off unless you ask: docker compose --profile creative up -d
+  # Not published on any port; only Astrolabe can reach it.
+  gotenberg:
+    image: gotenberg/gotenberg:8
+    profiles: [creative]
     restart: unless-stopped
 
 volumes:

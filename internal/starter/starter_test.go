@@ -146,3 +146,22 @@ func TestExamplesMatchDemoTemplate(t *testing.T) {
 		})
 	}
 }
+
+// The renderer sidecar is optional: it sits behind a compose profile and
+// publishes no port.
+func TestComposeHasOptionalRenderer(t *testing.T) {
+	i := strings.Index(ComposeFile, "  gotenberg:")
+	if i < 0 {
+		t.Fatal("compose file has no gotenberg service")
+	}
+	svc := ComposeFile[i:]
+	if j := strings.Index(svc, "\nvolumes:"); j > 0 {
+		svc = svc[:j]
+	}
+	if !strings.Contains(svc, "gotenberg/gotenberg:8") || !strings.Contains(svc, "profiles: [creative]") || strings.Contains(svc, "ports:") {
+		t.Errorf("sidecar must be pinned to 8, in the creative profile, with no ports:\n%s", svc)
+	}
+	if !strings.Contains(ComposeFile, "ASTROLABE_RENDER_URL") {
+		t.Error("astrolabe needs ASTROLABE_RENDER_URL")
+	}
+}

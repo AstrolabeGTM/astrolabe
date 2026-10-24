@@ -70,7 +70,7 @@ func mcpCommand(ctx context.Context, cfg app.Config, args []string, out io.Write
 }
 
 func newMCPServer(ctx context.Context, a *app.App, cfg app.Config, products *atomic.Pointer[[]*product.Product]) *mcp.Server {
-	return &mcp.Server{S: a.Outreach, Signals: a.Signals, Sources: a.Sources, Writer: a.Writer, Studio: a.Studio, ProductsDir: cfg.ProductsDir, Mode: a.Cfg.Mode,
+	return &mcp.Server{S: a.Outreach, Signals: a.Signals, Sources: a.Sources, Writer: a.Writer, Studio: a.Studio, Render: a.Render, ProductsDir: cfg.ProductsDir, Mode: a.Cfg.Mode,
 		Products: func() []*product.Product { return *products.Load() },
 		Reload: func(ctx context.Context) error {
 			list, err := a.LoadProducts(ctx)

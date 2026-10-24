@@ -21,6 +21,7 @@ import (
 	"github.com/AstrolabeGTM/astrolabe/internal/outreach"
 	"github.com/AstrolabeGTM/astrolabe/internal/people"
 	"github.com/AstrolabeGTM/astrolabe/internal/product"
+	"github.com/AstrolabeGTM/astrolabe/internal/render"
 	"github.com/AstrolabeGTM/astrolabe/internal/score"
 	"github.com/AstrolabeGTM/astrolabe/internal/signal"
 )
@@ -31,6 +32,7 @@ type Server struct {
 	Sources     *signal.Sources // nil disables run_monitor
 	Writer      *draft.Writer   // nil or disabled without an API key
 	Studio      *content.Studio
+	Render      *render.Client              // optional Chromium sidecar for creatives; nil or unconfigured is fine
 	Reload      func(context.Context) error // re-read product folders
 	Mode        string                      // sandbox or live
 	ProductsDir string
@@ -47,7 +49,7 @@ func (s *Server) Build(version string) *sdk.Server {
 		Instructions: `Astrolabe is go-to-market for developers: it finds people who need your product, drafts outreach you approve, and measures what converts. Each product is a folder of YAML + Markdown (products/<id>/).
 
 The operator may use developer or sales words; both mean the same things here. Answer in whichever vocabulary they use.
-Sales term -> Astrolabe term: lead/contact/prospect -> person; ICP/persona -> target and fit rules; lead scoring/MQL -> score/priority; intent data/buying signal -> signal; cadence/campaign/nurture -> sequence; enroll -> start_sequence; play/playbook/workflow -> automation; suppress/unsubscribe/DNC -> do_not_contact; lifecycle stage/pipeline stage -> funnel stage; outbound -> kind cold; lifecycle/retention messaging -> kind users; brief/account research -> research; disposition -> label_reply or close_task outcome.
+Sales term -> Astrolabe term: lead/contact/prospect -> person; ICP/persona -> target and fit rules; lead scoring/MQL -> score/priority; intent data/buying signal -> signal; cadence/drip/email campaign/nurture -> sequence; enroll -> start_sequence; play/playbook/workflow -> automation; suppress/unsubscribe/DNC -> do_not_contact; lifecycle stage/pipeline stage -> funnel stage; ad campaign/flight/insertion order/launch plan -> campaign (a file in campaigns/ with a budget cap, dates, stop rule and gate checklist); creative review/ad creative -> creative (copy plus an HTML template, rendered at each size, approved by hash); outbound -> kind cold; lifecycle/retention messaging -> kind users; brief/account research -> research; disposition -> label_reply or close_task outcome.
 
 Words, in developer terms:
 - signal: an event about a person (a GitHub issue they opened, a star, an HN post, a product event). Stored once per dedupe key.
@@ -120,6 +122,7 @@ Rules: use only claims from product_context.claims; never use never_claim phrase
 		register(srv, "simulate_bounce", "Sandbox only: make an outbox email bounce; the person goes on do-not-contact.", s.simulateBounce)
 	}
 	register(srv, "content_mark", "Mark a content item posted (with its URL) or skipped.", s.contentMark)
+	s.registerCampaigns(srv)
 	return srv
 }
 

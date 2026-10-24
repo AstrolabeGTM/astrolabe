@@ -46,6 +46,10 @@ Commands:
   import -companies -product <id> <file.csv>
                                   import companies without people (columns: domain, company,
                                   facts, notes); shows each company's fit
+  campaigns export [-product id] [-o file]
+                                  campaigns.json: [{"code","label"}] of campaigns not ended, for a website's landing pages
+  campaigns report <product> <campaign>
+                                  spend, clicks and attributed results for the campaign window
   monitor run <product> <monitor> run one monitor now
   score [product]                 recompute scores
   mode [set sandbox|live]         show or deliberately switch this database's mode
@@ -76,6 +80,7 @@ Environment:
   ASTROLABE_WHATSAPP_TOKEN / _APP_SECRET / _VERIFY_TOKEN / _API_VERSION   WhatsApp Cloud API
   ASTROLABE_NOTIFY_SECRET_<PRODUCT> signs push/in-app messages sent to the product's notify.url
   ASTROLABE_DIGEST_TO / _FROM     weekly digest recipient and sender mailbox
+  ASTROLABE_RENDER_URL            optional Chromium sidecar that renders creatives (docker compose --profile creative up; http://gotenberg:3000)
   ASTROLABE_ANTHROPIC_API_KEY     Claude API key for briefs, drafts and reply sorting (optional)
   ASTROLABE_MODEL_WRITER / _FAST  models (default claude-sonnet-5 / claude-haiku-4-5-20251001)
   ASTROLABE_LLM_PRICES            e.g. "claude-sonnet-5=3:15" (USD per M input:output tokens) for spend
@@ -144,6 +149,8 @@ func run(ctx context.Context, args []string, out io.Writer) error {
 		return err
 	case "mcp":
 		return mcpCommand(ctx, cfg, args[1:], out)
+	case "campaigns":
+		return campaignsCmd(ctx, cfg, args[1:], out)
 	case "monitor":
 		if len(args) != 4 || args[1] != "run" {
 			return errors.New("usage: astrolabe monitor run <product> <monitor>")
