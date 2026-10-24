@@ -11,6 +11,7 @@ import account from "./account.js";
 import { campaignsList, campaignDetail } from "./campaigns.js";
 import review from "./review.js";
 import updates from "./updates.js";
+import calendar from "./calendar.js";
 
-register(today, pipeline, account, people, person, signals, reception, campaignsList, campaignDetail, review, updates, settings);
+register(today, pipeline, account, people, person, signals, reception, campaignsList, campaignDetail, review, updates, calendar, settings);
 start();

@@ -661,3 +661,24 @@ func TestUpdatesRoutes(t *testing.T) {
 	}
 	s.mustPost("/api/broadcasts/cancel", map[string]any{"id": id})
 }
+
+func TestContentCalendarRoutes(t *testing.T) {
+	ts, srv := apiServer(t)
+	ctx := context.Background()
+	var id int64
+	if err := srv.S.Pool.QueryRow(ctx, `INSERT INTO content_items (product_id, batch, platform, body) VALUES ('demo', 'v1', 'hn', 'Show HN') RETURNING id`).Scan(&id); err != nil {
+		t.Fatal(err)
+	}
+	s := newSession(t, ts)
+	cal := s.get("/api/content/calendar?product=demo")
+	if cal["total"].(float64) != 1 || cal["posted"].(float64) != 0 {
+		t.Fatalf("calendar: %v", cal)
+	}
+	s.mustPost("/api/content/mark", map[string]any{"id": id, "status": "posted", "url": "https://news.example/1"})
+	if cal = s.get("/api/content/calendar?product=demo"); cal["posted"].(float64) != 1 {
+		t.Fatalf("after posting: %v", cal)
+	}
+	if code, _ := s.post("/api/content", map[string]any{"product": "demo", "batch": "v2", "source": "notes"}); code != http.StatusBadRequest {
+		t.Fatalf("drafting without the Claude API: %d", code)
+	}
+}

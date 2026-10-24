@@ -152,6 +152,7 @@ Rules: use only claims from product_context.claims; never use never_claim phrase
 		register(srv, "simulate_reply", "Sandbox only: play the recipient and reply to an outbox message; runs the real reply handling (sequence stops, reply appears to label).", s.simulateReply)
 		register(srv, "simulate_bounce", "Sandbox only: make an outbox email bounce; the person goes on do-not-contact.", s.simulateBounce)
 	}
+	register(srv, "content_calendar", "Content by day: drafts and posts (launch posts, campaign posting tasks, repurposed release notes) on the day their posting task is due, or the day they were made, for a window (default from 7 days ago, 28 days). Each says whether it is posted (with its URL and clicks), skipped or overdue; counts out of the total.", s.contentCalendar)
 	register(srv, "content_mark", "Mark a content item posted (with its URL) or skipped.", s.contentMark)
 	s.registerPipeline(srv) // account pipeline: pipeline.go
 	s.registerNotes(srv)    // conversation notes: notes.go
@@ -206,6 +207,7 @@ var salesTerms = map[string]string{
 	"log_mention":       "log a brand mention, coverage or press hit",
 	"set_tone":          "tag sentiment of a mention",
 	"content":           "social posts, launch posts, content marketing",
+	"content_calendar":  "editorial calendar, content calendar, social media schedule, posting schedule",
 }
 
 func register[In any](srv *sdk.Server, name, desc string, f func(context.Context, In) (any, error)) {

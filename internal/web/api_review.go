@@ -22,3 +22,11 @@ func (srv *Server) updatesRoutes() []apiRoute {
 		srv.toolRoute("POST /api/broadcasts/cancel", "broadcast_cancel"),
 	}
 }
+
+func (srv *Server) contentRoutes() []apiRoute {
+	return []apiRoute{
+		srv.toolRoute("GET /api/content/calendar", "content_calendar"),
+		srv.toolRoute("POST /api/content/mark", "content_mark"),
+		srv.toolRoute("POST /api/content", "content"),
+	}
+}
