@@ -640,24 +640,30 @@ func Find(ctx context.Context, q store.Q, p *product.Product, ref string) (int64
 		}
 		return id, err
 	}
+	// Exact domain or name matches win over partial ones.
 	rows, err := q.Query(ctx, `
-		SELECT a.id, COALESCE(NULLIF(c.name, ''), c.domain, '') FROM accounts a JOIN companies c ON c.id = a.company_id
+		SELECT a.id, COALESCE(NULLIF(c.name, ''), c.domain, ''), COALESCE(c.domain = $2 OR lower(c.name) = lower($3), false)
+		FROM accounts a JOIN companies c ON c.id = a.company_id
 		WHERE a.product_id = $1 AND (c.domain = $2 OR lower(c.name) = lower($3)
 			OR ($4 AND (c.domain ILIKE '%' || $3 || '%' OR c.name ILIKE '%' || $3 || '%')))
-		ORDER BY (c.domain = $2 OR lower(c.name) = lower($3)) DESC, a.id`, p.ID, NormalizeDomain(ref), ref, len(ref) >= 3)
+		ORDER BY a.id`, p.ID, NormalizeDomain(ref), ref, len(ref) >= 3)
 	if err != nil {
 		return 0, err
 	}
 	type hit struct {
-		id   int64
-		name string
+		id    int64
+		name  string
+		exact bool
 	}
 	hits, err := pgx.CollectRows(rows, func(r pgx.CollectableRow) (hit, error) {
 		var h hit
-		return h, r.Scan(&h.id, &h.name)
+		return h, r.Scan(&h.id, &h.name, &h.exact)
 	})
 	if err != nil {
 		return 0, err
+	}
+	if exact := slices.DeleteFunc(slices.Clone(hits), func(h hit) bool { return !h.exact }); len(exact) > 0 {
+		hits = exact
 	}
 	switch {
 	case len(hits) == 0:

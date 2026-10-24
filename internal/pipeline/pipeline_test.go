@@ -318,6 +318,15 @@ func TestFindAndPeople(t *testing.T) {
 	if _, err := pipeline.Find(ctx, e.pool, e.p, "nope"); !errors.Is(err, pipeline.ErrInvalid) {
 		t.Fatal("unknown account found")
 	}
+	// An exact name wins over a partial one; two partial matches are ambiguous.
+	labs, err := pipeline.Add(ctx, e.pool, e.p, pipeline.AddOpts{Name: "Acme Labs", Evidence: "Asked on HN", NextAction: "Reply", Due: e.now}, e.now)
+	e.must(err)
+	for ref, want := range map[string]int64{"acme": id, "Acme": id, "Acme Labs": labs, "labs": labs} {
+		if got, err := pipeline.Find(ctx, e.pool, e.p, ref); err != nil || got != want {
+			t.Errorf("find %q: %d %v, want %d", ref, got, err, want)
+		}
+	}
+	e.refused(func() error { _, err := pipeline.Find(ctx, e.pool, e.p, "acm"); return err }(), "matches 2 accounts")
 	sam, _ := people.FindByEmail(ctx, e.pool, "sam@acme.example")
 	bo, _ := people.FindByEmail(ctx, e.pool, "bo@acme.example")
 	e.must(pipeline.SetPerson(ctx, e.pool, e.p, id, bo.ID, "user"))
