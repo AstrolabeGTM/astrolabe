@@ -16,9 +16,11 @@ import (
 	"github.com/riverqueue/river"
 	"github.com/riverqueue/river/rivertype"
 
+	"github.com/AstrolabeGTM/astrolabe/internal/counters"
 	"github.com/AstrolabeGTM/astrolabe/internal/github"
 	"github.com/AstrolabeGTM/astrolabe/internal/people"
 	"github.com/AstrolabeGTM/astrolabe/internal/product"
+	"github.com/AstrolabeGTM/astrolabe/internal/reception"
 	"github.com/AstrolabeGTM/astrolabe/internal/score"
 )
 
@@ -96,6 +98,9 @@ func (svc *Service) RunMonitor(ctx context.Context, src *Sources, productID, mon
 	if m == nil {
 		return 0, fmt.Errorf("product %s has no monitor %s", productID, monitorID)
 	}
+	if product.CounterMonitor(m.Type) {
+		return 0, svc.runCounter(ctx, src, productID, m, now)
+	}
 	since := now.Add(-firstLookback)
 	var last time.Time
 	if err := svc.Pool.QueryRow(ctx, `SELECT last_ok_at FROM monitor_runs WHERE product_id = $1 AND monitor_id = $2 AND last_ok_at IS NOT NULL`,
@@ -103,6 +108,11 @@ func (svc *Service) RunMonitor(ctx context.Context, src *Sources, productID, mon
 		since = last.Add(-runOverlap)
 	}
 	sigs, runErr := src.Run(ctx, productID, m, since)
+	if m.Reception {
+		if err := svc.fileMentions(ctx, productID, m, sigs); err != nil {
+			return 0, fmt.Errorf("reception log: %w", err)
+		}
+	}
 	n := 0
 	for i := range sigs {
 		res, err := svc.Ingest(ctx, &sigs[i])
@@ -370,4 +380,59 @@ func repoFacts(ctx context.Context, gh *github.Client, repo string) (map[string]
 		}
 	}
 	return facts, nil
+}
+
+// runCounter takes today's snapshot of a counter monitor's repo. It makes no
+// signals and no people; running it again the same day replaces that day's
+// numbers. Notes (such as skipped discussions) are kept as the run's message.
+func (svc *Service) runCounter(ctx context.Context, src *Sources, productID string, m *product.Monitor, now time.Time) error {
+	snap, runErr := counters.Collect(ctx, src.GitHub, m.Repo)
+	note := ""
+	if runErr == nil {
+		runErr = counters.Store(ctx, svc.Pool, productID, m.ID, m.Repo, now, snap)
+		note = strings.Join(snap.Notes, "; ")
+	}
+	errMsg := note
+	if runErr != nil {
+		errMsg = runErr.Error()
+		slog.Warn("counter monitor failed", "product", productID, "monitor", m.ID, "err", runErr)
+	}
+	_, err := svc.Pool.Exec(ctx, `
+		INSERT INTO monitor_runs (product_id, monitor_id, last_run_at, last_ok_at, last_error, last_count)
+		VALUES ($1, $2, $3::timestamptz, CASE WHEN $5::boolean THEN NULL ELSE $3::timestamptz END, $4, 0)
+		ON CONFLICT (product_id, monitor_id) DO UPDATE SET last_run_at = $3,
+			last_ok_at = CASE WHEN $5::boolean THEN monitor_runs.last_ok_at ELSE $3::timestamptz END,
+			last_error = $4, last_count = 0`, productID, m.ID, now, errMsg, runErr != nil)
+	if runErr != nil {
+		return runErr
+	}
+	return err
+}
+
+// fileMentions adds each result of a reception monitor to the reception log,
+// once per URL. The results still become signals as usual.
+func (svc *Service) fileMentions(ctx context.Context, productID string, m *product.Monitor, sigs []Signal) error {
+	for _, s := range sigs {
+		if s.EvidenceURL == "" {
+			continue
+		}
+		source, _ := s.Data["source"].(string)
+		if source == "" {
+			source = "github"
+			if strings.HasPrefix(s.Type, "community") {
+				source = "community"
+			}
+		}
+		text, _ := s.Data["excerpt"].(string)
+		title := s.Title
+		if title == "" {
+			title = text
+		}
+		if _, _, err := reception.Add(ctx, svc.Pool, reception.Mention{Product: productID, URL: s.EvidenceURL,
+			MentionedAt: s.OccurredAt, Source: source, Title: title,
+			AsksQuestion: reception.LooksLikeQuestion(s.Title, text), FoundBy: "monitor:" + m.ID}); err != nil {
+			return fmt.Errorf("%s: %w", s.EvidenceURL, err)
+		}
+	}
+	return nil
 }

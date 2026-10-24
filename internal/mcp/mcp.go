@@ -106,6 +106,10 @@ Rules: use only claims from product_context.claims; never use never_claim phrase
 	register(srv, "funnel", "Funnel report for the last N days: people per stage, median days between stages, who is stuck, weekly cohorts, what brought people in (first touch and automation), revenue, spend, task outcomes.", s.funnel)
 	register(srv, "experiments", "A/B results per sequence step: sends, replies, reached goal with 95% intervals, and a verdict (says when there is too little data).", s.experiments)
 	register(srv, "digest", "This week's summary per product: what moved, automations, experiments, stuck people, uncontacted A-tier people, biggest drop, and up to three concrete actions.", s.digestNow)
+	register(srv, "counters", "Public counters from github_release monitors: release download counts per asset and in total, plus stars, forks, watchers, open issues and discussions, with the change over the last 7 days against the 7 before (both windows stated). A download count counts downloads of a release file, not installs or people. These numbers are never tied to a person and make no signals. Omit product for all.", s.counters)
+	register(srv, "reception", "The week's public mentions of a product (HN, Stack Overflow, RSS, GitHub, or logged by hand) with counts by tone (positive, mixed, negative, unknown), how many ask a question, and the 7-day window. Monitors with reception: true fill it. Omit product for all.", s.reception)
+	register(srv, "log_mention", "Log a public mention of a product by hand: URL, optional title/excerpt, source (hn, stackoverflow, rss, github, manual, ...), date (YYYY-MM-DD, default today), tone and whether it asks a question. A URL already logged is kept once.", s.logMention)
+	register(srv, "set_tone", "Set the tone of a logged mention by id: positive, mixed, negative or unknown.", s.setTone)
 	register(srv, "content", "Turn release notes or a post into drafts for x, linkedin, hn, reddit, newsletter, producthunt, directories, each with a tracked link. launch=true also adds a posting task per platform.", s.content)
 	register(srv, "content_list", "Recent content drafts and posts with click counts.", s.contentList)
 	if s.Mode == "sandbox" {
@@ -154,6 +158,10 @@ var salesTerms = map[string]string{
 	"funnel":            "pipeline, conversion rates, attribution, revenue, CAC",
 	"experiments":       "A/B tests, message testing",
 	"digest":            "weekly report, pipeline review",
+	"counters":          "download and star metrics, repo traction, adoption numbers",
+	"reception":         "brand mentions, social listening, press and buzz, sentiment",
+	"log_mention":       "log a brand mention, coverage or press hit",
+	"set_tone":          "tag sentiment of a mention",
 	"content":           "social posts, launch campaign, content marketing",
 }
 
