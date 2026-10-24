@@ -82,6 +82,19 @@ func orZero(s string) string {
 	return s
 }
 
+// MarshalJSON writes 12.5 style numbers, so reports and the stored config
+// read as money rather than cents.
+func (m Money) MarshalJSON() ([]byte, error) { return []byte(m.String()), nil }
+
+func (m *Money) UnmarshalJSON(b []byte) error {
+	v, err := ParseMoney(string(b))
+	if err != nil {
+		return err
+	}
+	*m = v
+	return nil
+}
+
 // String formats minor units as 12.50.
 func (m Money) String() string {
 	sign := ""

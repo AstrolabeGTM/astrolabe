@@ -7,47 +7,6 @@ import (
 	"testing"
 )
 
-const testCampaignYAML = `code: launch
-label: Launch week
-goal: Tell people who run CI that Demo exists.
-audience: Developers who maintain CI pipelines.
-channels: [hn, x]
-offer: Try Demo on one pipeline.
-landing: https://demo.example/c/launch
-success_event: installed
-budget: {cap: 200.50, currency: USD}
-start: "2026-12-01"
-end: "2026-12-08"
-stop_rule:
-  text: Stop when half the budget has produced zero installs.
-  when: {spend_pct: 50, max_events: 0}
-gate:
-  - Landing page is live
-  - Claims checked
-tasks:
-  - {id: show-hn, title: Post Show HN, channel: hn, day: 0, body: "Show HN: Demo {{link}}"}
-creatives:
-  - id: card
-    template: creative/card.html
-    sizes: [1200x630, 1080x1080]
-    formats: [png, pdf]
-    copy: {headline: Do one thing}
-    alt: A card that says do one thing.
-`
-
-const testCreativeHTML = `<!doctype html><html><head><link rel="stylesheet" href="creative.css"></head>
-<body style="width:{{width}}px;height:{{height}}px"><h1>{{headline}}</h1><img alt="{{alt}}"></body></html>`
-
-// WriteTestCampaign adds the fixture campaign to a product folder.
-func WriteTestCampaign(t testing.TB, dir string) {
-	t.Helper()
-	os.MkdirAll(filepath.Join(dir, "campaigns"), 0o755)
-	os.MkdirAll(filepath.Join(dir, "creative"), 0o755)
-	os.WriteFile(filepath.Join(dir, "campaigns", "launch-week.yaml"), []byte(testCampaignYAML), 0o644)
-	os.WriteFile(filepath.Join(dir, "creative", "card.html"), []byte(testCreativeHTML), 0o644)
-	os.WriteFile(filepath.Join(dir, "creative", "creative.css"), []byte("h1{font-size:40px}"), 0o644)
-}
-
 func TestCampaignLoads(t *testing.T) {
 	p := TestProduct(t)
 	if len(p.Campaigns) != 0 {
