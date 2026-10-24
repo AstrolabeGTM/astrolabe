@@ -107,7 +107,7 @@ This writes `products/<id>/`:
 
 | File | What goes in it |
 | --- | --- |
-| `product.yaml` | Name, who it's for (`target`), funnel stages, the offer, sender mailboxes, `fit` rules, `auto_approve`, limits, and for b2b an optional account `pipeline` |
+| `product.yaml` | Name, who it's for (`target`), funnel stages, the offer, sender mailboxes, `fit` rules, `auto_approve`, limits, an optional opt-in `updates` list (name, `per_day`, `postal_address`), and for b2b an optional account `pipeline` |
 | `claims.md`, `voice.md` | What's true about the product (drafts may only use this) and how you write. It won't load while they start with `STUB:`. |
 | `sequences/*.yaml` | Timed message steps, `kind: cold` (strangers) or `kind: users` (existing users) |
 | `monitors.yaml` | Where to look for signals: GitHub searches, your repo's stars, issues and discussions, HN/Stack Overflow/RSS keywords, `github_release` counters (release downloads, stars, forks, watchers, discussions; no people), and request forms (`netlify_forms` polled from Netlify, or `form_webhook`). Add `reception: true` to log results as public mentions |
@@ -184,6 +184,8 @@ An event whose `type` matches a funnel stage records that stage. Sending `user_i
 - **No email from GitHub data.** GitHub's Acceptable Use Policies forbid using GitHub information to send unsolicited email, so a person Astrolabe knows only from GitHub (a monitor, an issue, a profile email) is never emailed: enrolment is refused with the reason and the send step checks again. Help them in the issue thread instead. They become emailable once they give an address (signup, reply, your import). A product can opt out with `outreach.email_from_github: true`; `astrolabe doctor` warns when it does.
 - Tracked links are optional: `links.personal: false` keeps the plain offer link in every message.
 - Replies stop the sequence. Bounces, "no" and unsubscribes put the person on the do-not-contact list for every product.
+- **The updates list is double opt-in.** A sign-up (a form automation, or you adding someone who asked in person) is *pending* and gets one confirmation email; they are not on the list until they reply to it (it works with no public address) or open its link (when `ASTROLABE_PUBLIC_URL` is set). Unconfirmed sign-ups expire. Every message carries `List-Unsubscribe` (a `mailto:`, plus one-click https when a public URL is set) and a visible line, and an unsubscribe is honoured before the next send. It leaves only the list: do-not-contact needs a "stop all" or a STOP to outreach.
+- **Broadcasts are approved text, sent once.** You read the exact subject and body and approve it; an edit withdraws the approval and flagged copy (a never-claim, a placeholder) can't be approved. It goes to confirmed subscribers only, one row each, claimed in a transaction, at most `updates.per_day` (default 100) in any 24 hours, and never twice. If the provider's answer is lost the row is marked unknown and not resent. No broadcast is approved or sent without your `updates.postal_address`.
 
 ## Configuration
 
@@ -192,12 +194,12 @@ An event whose `type` matches a funnel stage records that stage. Sending `user_i
 | `ASTROLABE_MODE` | `sandbox` (local outbox) or `live` |
 | `ASTROLABE_PASSWORD` | Web app password; generated and printed on first start if unset |
 | `ASTROLABE_DATABASE_URL` | Postgres 15+ |
-| `ASTROLABE_PUBLIC_URL` | Public https address (tracked links, webhooks) |
+| `ASTROLABE_PUBLIC_URL` | Public https address (tracked links, webhooks, and links to confirm or leave the updates list; without it, replies do that) |
 | `ASTROLABE_GITHUB_TOKEN` | GitHub monitors and enrichment (no scopes needed) |
 | `ASTROLABE_ANTHROPIC_API_KEY` | AI research, drafts, reply sorting, content |
 | `ASTROLABE_EVENTS_SECRET_<PRODUCT>`, `ASTROLABE_STRIPE_SECRET_<PRODUCT>`, `ASTROLABE_FORMS_SECRET_<PRODUCT>` | Webhook signing secrets (product events, Stripe, forms) |
 | `ASTROLABE_NETLIFY_TOKEN` | `netlify_forms` monitors: a Netlify personal access token that reads form submissions |
-| `ASTROLABE_RESEND_API_KEY` | Optional: Resend for email to existing users |
+| `ASTROLABE_RESEND_API_KEY` | Optional: Resend for email to existing users, and for the updates list when `updates.via: resend` |
 | `ASTROLABE_WHATSAPP_*`, `ASTROLABE_NOTIFY_SECRET_<PRODUCT>` | WhatsApp and push/in-app channels |
 | `ASTROLABE_DIGEST_TO`, `ASTROLABE_DIGEST_FROM`, `TZ` | Weekly digest email (Mondays 08:00) |
 | `ASTROLABE_RENDER_URL` | Optional creative renderer, a headless-Chromium sidecar (Gotenberg 8). Start it with `docker compose --profile creative up -d`; the compose files default to `http://gotenberg:3000`. Without it, campaign creatives keep their copy, checks and approval, and rendering says what to start |

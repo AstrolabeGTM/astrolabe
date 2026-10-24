@@ -25,6 +25,7 @@ import (
 	"github.com/AstrolabeGTM/astrolabe/internal/render"
 	"github.com/AstrolabeGTM/astrolabe/internal/score"
 	"github.com/AstrolabeGTM/astrolabe/internal/signal"
+	"github.com/AstrolabeGTM/astrolabe/internal/updates"
 )
 
 type Server struct {
@@ -34,6 +35,7 @@ type Server struct {
 	Writer      *draft.Writer   // nil or disabled without an API key
 	Studio      *content.Studio
 	Render      *render.Client              // optional Chromium sidecar for creatives; nil or unconfigured is fine
+	Updates     *updates.Service            // nil disables the updates list tools
 	Reload      func(context.Context) error // re-read product folders
 	Mode        string                      // sandbox or live
 	ProductsDir string
@@ -64,7 +66,7 @@ Typical session: inbox -> label replies -> handle due tasks -> write or review d
 To find people: top_prospects, then person. To see what's working: funnel, experiments, digest.
 Drafts may already be written by the Claude API (ai_state "done"; "flags" lists problems): show flags.
 If inbox reports mode "sandbox", nothing reaches real people: say "sent to the sandbox outbox", never "sent", and offer simulate_reply to try the rest of the flow.
-Rules: use only claims from product_context.claims; never use never_claim phrases; approve sends exactly the saved text, so never approve without the operator's say-so.` + pipelineInstructions + notesInstructions,
+Rules: use only claims from product_context.claims; never use never_claim phrases; approve sends exactly the saved text, so never approve without the operator's say-so.` + pipelineInstructions + notesInstructions + updatesInstructions,
 	})
 
 	// Products and setup
@@ -127,6 +129,7 @@ Rules: use only claims from product_context.claims; never use never_claim phrase
 	s.registerPipeline(srv) // account pipeline: pipeline.go
 	s.registerNotes(srv)    // conversation notes: notes.go
 	s.registerCampaigns(srv)
+	s.registerUpdates(srv) // updates list: updates.go
 	return srv
 }
 

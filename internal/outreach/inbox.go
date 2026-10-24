@@ -77,6 +77,31 @@ type Inbound struct {
 	// addresses that bounced when the notice says so.
 	Bounce           bool
 	FailedRecipients []string
+	// Auto is set for machine-sent mail (out-of-office and other
+	// auto-replies), which must never count as a person's answer.
+	Auto bool
+}
+
+// Automatic reports whether a message looks machine-sent: flagged by its
+// headers when the mailbox reader could see them, or by a typical subject.
+func (in Inbound) Automatic() bool {
+	if in.Auto {
+		return true
+	}
+	s := strings.ToLower(strings.TrimSpace(in.Subject))
+	s = strings.TrimSpace(strings.TrimPrefix(s, "re:"))
+	for _, p := range []string{"automatic reply", "auto reply", "auto-reply", "autoreply", "auto:", "out of office", "out-of-office", "undeliverable", "delivery status notification"} {
+		if strings.HasPrefix(s, p) {
+			return true
+		}
+	}
+	return false
+}
+
+// PausedFor returns the pause scope that holds a product's sending
+// (global or product-wide), or "".
+func PausedFor(ctx context.Context, q store.Q, productID string) (string, error) {
+	return pausedScope(ctx, q, productID, "")
 }
 
 type Reply struct {
@@ -113,6 +138,13 @@ func (s *Service) RecordReply(ctx context.Context, in Inbound) (bool, error) {
 		}
 		recorded = true
 
+		// Other message streams (the updates list) claim their own replies
+		// first, so they are never mistaken for answers to outreach.
+		if s.OnInbound != nil {
+			if handled, err := s.OnInbound(ctx, tx, in, replyID); err != nil || handled {
+				return err
+			}
+		}
 		a, err := s.matchInbound(ctx, tx, in)
 		if err != nil || a == nil {
 			return err

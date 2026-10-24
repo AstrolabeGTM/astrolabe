@@ -56,7 +56,7 @@ func TestPlayValidation(t *testing.T) {
 		t.Fatal("expected errors")
 	}
 	for _, want := range []string{"exactly one of signal, stage, stage_stuck", `stage_stuck stage "nope"`, "stage_stuck.for",
-		"exactly one of sequence or task", `sequence "missing"`, "min_tier", `not_stage "gone"`} {
+		"exactly one of sequence, task or updates", `sequence "missing"`, "min_tier", `not_stage "gone"`} {
 		if !strings.Contains(err.Error(), want) {
 			t.Errorf("missing %q in %v", want, err)
 		}
@@ -180,5 +180,46 @@ func TestFormMonitorsValidate(t *testing.T) {
 		if _, err := Load(p.Dir); err == nil || !strings.Contains(err.Error(), c.want) {
 			t.Errorf("%s: %v", name, err)
 		}
+	}
+}
+
+func TestUpdatesSectionAndAction(t *testing.T) {
+	p := TestProduct(t)
+	if _, ok := p.UpdatesSettings(); ok {
+		t.Fatal("no updates section, no list")
+	}
+	os.WriteFile(filepath.Join(p.Dir, "product.yaml"), []byte(testProductYAML+"updates: {postal_address: '1 Example Street'}\n"), 0o644)
+	os.WriteFile(filepath.Join(p.Dir, "automations.yaml"), []byte("- {id: list, trigger: {signal: form.updates}, action: {updates: subscribe}}\n"), 0o644)
+	p, err := Load(p.Dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	u, _ := p.UpdatesSettings()
+	if u.Name != "Demo updates" || u.From != "hello@demo.example" || u.Via != "smtp" || u.PerDay != 100 || u.ConfirmWithin != "7d" ||
+		!strings.Contains(u.ConfirmSubject, "{{.List}}") {
+		t.Fatalf("defaults: %+v", u)
+	}
+
+	bad := testProductYAML + "updates: {via: carrier-pigeon, per_day: -1, from: 'Me <x@y.example>', confirm_within: 3x, confirm_body: '{{.Nope}}'}\n"
+	os.WriteFile(filepath.Join(p.Dir, "product.yaml"), []byte(bad), 0o644)
+	os.WriteFile(filepath.Join(p.Dir, "automations.yaml"), []byte(`
+- {id: a, trigger: {signal: s}, action: {updates: unsubscribe}}
+- {id: b, trigger: {signal: s}, action: {updates: subscribe, task: also}}
+`), 0o644)
+	_, err = Load(p.Dir)
+	if err == nil {
+		t.Fatal("expected errors")
+	}
+	for _, want := range []string{"updates.via", "updates.per_day", "updates.from", "updates.confirm_within", "confirm_body template",
+		"action updates must be subscribe", "exactly one of sequence, task or updates"} {
+		if !strings.Contains(err.Error(), want) {
+			t.Errorf("missing %q in:\n%v", want, err)
+		}
+	}
+	// The action needs the section.
+	os.WriteFile(filepath.Join(p.Dir, "product.yaml"), []byte(testProductYAML), 0o644)
+	os.WriteFile(filepath.Join(p.Dir, "automations.yaml"), []byte("- {id: a, trigger: {signal: s}, action: {updates: subscribe}}\n"), 0o644)
+	if _, err := Load(p.Dir); err == nil || !strings.Contains(err.Error(), "needs an updates: section") {
+		t.Fatalf("%v", err)
 	}
 }

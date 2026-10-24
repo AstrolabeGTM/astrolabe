@@ -42,6 +42,8 @@ type Product struct {
 	// Personal tracked links in drafts, and guards on who may be emailed.
 	Links    Links    `yaml:"links" json:"links"`
 	Outreach Outreach `yaml:"outreach" json:"outreach"`
+	// Updates is an opt-in email list with double opt-in (optional).
+	Updates *Updates `yaml:"updates" json:"updates,omitempty"`
 	// Pipeline tracks companies through deal stages (optional, b2b).
 	Pipeline *Pipeline `yaml:"pipeline" json:"pipeline,omitempty"`
 	// Lifecycle channels (optional).
@@ -421,6 +423,7 @@ func (p *Product) validate() []string {
 	bad = append(bad, p.validateFit()...)
 	bad = append(bad, p.validatePipeline()...)
 	bad = append(bad, p.validateMonitors()...)
+	bad = append(bad, p.validateUpdates()...)
 	bad = append(bad, p.validatePlays(seen)...)
 	bad = append(bad, p.validateCampaigns()...)
 

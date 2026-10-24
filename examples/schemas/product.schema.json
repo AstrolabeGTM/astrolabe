@@ -415,6 +415,58 @@
       },
       "type": "object"
     },
+    "updates": {
+      "additionalProperties": false,
+      "description": "Opt-in email list (sales: newsletter, mailing list). Sign-ups are not added until they confirm, by replying to the confirmation email or, with a public URL, by link.",
+      "properties": {
+        "confirm_body": {
+          "description": "Confirmation email text. How to confirm and unsubscribe are added for you.",
+          "type": "string"
+        },
+        "confirm_subject": {
+          "description": "Confirmation email subject; may use {{.List}}, {{.Product}}, {{.Email}}, {{.Expires}}.",
+          "type": "string"
+        },
+        "confirm_within": {
+          "description": "How long an unconfirmed sign-up stays valid, e.g. 7d (default).",
+          "pattern": "^\\d+[dhm]$",
+          "type": "string"
+        },
+        "from": {
+          "description": "Sender address (default sender.users). Replies to it confirm and unsubscribe, so for via: smtp connect this mailbox.",
+          "type": "string"
+        },
+        "name": {
+          "description": "List name as subscribers see it. Default: '\u003cproduct\u003e updates'.",
+          "type": "string"
+        },
+        "per_day": {
+          "description": "Most broadcast emails sent in any 24 hours (default 100), so a personal mailbox is not flooded.",
+          "type": "integer"
+        },
+        "postal_address": {
+          "description": "Your postal address, shown in every message. Commercial email law requires one; no broadcast is sent without it.",
+          "type": "string"
+        },
+        "via": {
+          "description": "smtp (the From mailbox, default) or resend (ASTROLABE_RESEND_API_KEY).",
+          "enum": [
+            "smtp",
+            "resend"
+          ],
+          "type": "string"
+        },
+        "welcome_body": {
+          "description": "Welcome email text.",
+          "type": "string"
+        },
+        "welcome_subject": {
+          "description": "Welcome email subject, sent once after they confirm.",
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
     "url": {
       "description": "Product website.",
       "type": "string"

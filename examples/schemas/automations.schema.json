@@ -6,15 +6,24 @@
     "properties": {
       "action": {
         "additionalProperties": false,
-        "description": "Start a sequence, or create a to-do.",
+        "description": "Start a sequence, create a to-do, or ask the person to join the updates list.",
         "properties": {
           "draft": {
             "type": "boolean"
           },
           "sequence": {
+            "description": "Start this sequence for the person.",
             "type": "string"
           },
           "task": {
+            "description": "Create a to-do with this text.",
+            "type": "string"
+          },
+          "updates": {
+            "description": "subscribe: ask the person to join the product's updates list (needs an updates: section). They are added only after they confirm.",
+            "enum": [
+              "subscribe"
+            ],
             "type": "string"
           }
         },

@@ -77,6 +77,8 @@ func (s *Server) plays(ctx context.Context, a playRunsArg) (any, error) {
 		Enrolled int    `json:"enrolled"`
 		Tasks    int    `json:"tasks"`
 		Skipped  int    `json:"skipped"`
+		// Subscribed: sign-ups to the updates list (action updates: subscribe).
+		Subscribed int `json:"subscribed,omitempty"`
 	}
 	var out []playOut
 	for _, p := range s.Products() {
@@ -86,8 +88,9 @@ func (s *Server) plays(ctx context.Context, a playRunsArg) (any, error) {
 		for _, pl := range p.Plays {
 			o := playOut{Product: p.ID, ID: pl.ID, Trigger: pl.Trigger, When: pl.When, Action: pl.Action, Paused: pl.Paused}
 			s.S.Pool.QueryRow(ctx, `
-				SELECT count(*) FILTER (WHERE outcome = 'enrolled'), count(*) FILTER (WHERE outcome = 'task'), count(*) FILTER (WHERE outcome = 'skipped')
-				FROM play_runs WHERE product_id = $1 AND play_id = $2`, p.ID, pl.ID).Scan(&o.Enrolled, &o.Tasks, &o.Skipped)
+				SELECT count(*) FILTER (WHERE outcome = 'enrolled'), count(*) FILTER (WHERE outcome = 'task'), count(*) FILTER (WHERE outcome = 'skipped'),
+					count(*) FILTER (WHERE outcome = 'subscribed')
+				FROM play_runs WHERE product_id = $1 AND play_id = $2`, p.ID, pl.ID).Scan(&o.Enrolled, &o.Tasks, &o.Skipped, &o.Subscribed)
 			out = append(out, o)
 		}
 	}

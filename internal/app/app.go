@@ -15,6 +15,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/riverqueue/river"
 	"github.com/riverqueue/river/riverdriver/riverpgxv5"
+	"github.com/riverqueue/river/rivertype"
 
 	"github.com/AstrolabeGTM/astrolabe/internal/channel"
 	"github.com/AstrolabeGTM/astrolabe/internal/content"
@@ -36,6 +37,7 @@ import (
 	"github.com/AstrolabeGTM/astrolabe/internal/score"
 	"github.com/AstrolabeGTM/astrolabe/internal/signal"
 	"github.com/AstrolabeGTM/astrolabe/internal/store"
+	"github.com/AstrolabeGTM/astrolabe/internal/updates"
 )
 
 type Config struct {
@@ -98,6 +100,7 @@ type App struct {
 	Studio   *content.Studio
 	Render   *render.Client
 	Mail     *mail.Store
+	Updates  *updates.Service
 }
 
 // Open connects and builds services. With work=true the River client also
@@ -134,6 +137,16 @@ func Open(ctx context.Context, cfg Config, work bool) (*App, error) {
 	a.Studio = &content.Studio{Pool: pool, LLM: a.LLM, Out: a.Outreach, PublicURL: a.Outreach.PublicURL}
 	a.Render = render.New(cfg.RenderURL)
 	a.Outreach.Recheck = a.Plays.Recheck
+	// The updates list: its replies (confirm, unsubscribe) are claimed
+	// before outreach sees them, and a sign-up wakes the sender.
+	a.Updates = &updates.Service{Pool: pool, Senders: a.sender, PublicURL: a.Outreach.PublicURL}
+	a.Updates.Kick = func(ctx context.Context, tx pgx.Tx) error {
+		_, err := a.River.InsertTx(ctx, tx, updates.TickArgs{}, &river.InsertOpts{UniqueOpts: river.UniqueOpts{ByArgs: true,
+			ByState: []rivertype.JobState{rivertype.JobStateAvailable, rivertype.JobStatePending, rivertype.JobStateRetryable, rivertype.JobStateRunning, rivertype.JobStateScheduled}}})
+		return err
+	}
+	a.Outreach.OnInbound = a.Updates.HandleInbound
+	a.Plays.Updates = a.Updates
 	// Enrichment can change fit: re-run plays on the person's recent signals.
 	a.Signals.AfterEnrich = func(ctx context.Context, tx pgx.Tx, personID int64) error {
 		rows, err := tx.Query(ctx, `SELECT id FROM signals WHERE person_id = $1 AND occurred_at > now() - interval '14 days'`, personID)
@@ -162,6 +175,7 @@ func Open(ctx context.Context, cfg Config, work bool) (*App, error) {
 		workers := river.NewWorkers()
 		river.AddWorker(workers, &outreach.SendWorker{S: a.Outreach})
 		river.AddWorker(workers, &outreach.TickWorker{S: a.Outreach})
+		river.AddWorker(workers, &updates.TickWorker{S: a.Updates})
 		if a.Cfg.Mode != sandbox.Sandbox {
 			river.AddWorker(workers, &gmail.PollWorker{Accounts: a.Accounts, S: a.Outreach})
 			river.AddWorker(workers, &mail.PollWorker{Store: a.Mail, S: a.Outreach})
@@ -196,6 +210,10 @@ func Open(ctx context.Context, cfg Config, work bool) (*App, error) {
 				func() (river.JobArgs, *river.InsertOpts) { return outreach.TickArgs{}, nil },
 				&river.PeriodicJobOpts{RunOnStart: true}),
 
+			// Expire old sign-ups and send the list's queued mail.
+			river.NewPeriodicJob(river.PeriodicInterval(time.Minute),
+				func() (river.JobArgs, *river.InsertOpts) { return updates.TickArgs{}, nil },
+				&river.PeriodicJobOpts{RunOnStart: true}),
 			river.NewPeriodicJob(river.PeriodicInterval(5*time.Minute),
 				func() (river.JobArgs, *river.InsertOpts) { return signal.DueArgs{}, nil },
 				&river.PeriodicJobOpts{RunOnStart: true}),
@@ -245,7 +263,13 @@ func (a *App) sender(m channel.Message) (channel.Sender, error) {
 	}
 	switch m.Channel {
 	case "email":
-		if key := os.Getenv("ASTROLABE_RESEND_API_KEY"); m.Kind == "users" && key != "" {
+		key := os.Getenv("ASTROLABE_RESEND_API_KEY")
+		if m.Via == "resend" && key == "" {
+			return nil, errors.New("updates.via is resend but ASTROLABE_RESEND_API_KEY is not set")
+		}
+		// List mail says which provider it wants; other mail uses Resend
+		// for users sequences when a key is set.
+		if m.Via == "resend" || (m.Via == "" && m.Kind == "users" && key != "") {
 			return &channel.Resend{APIKey: key}, nil
 		}
 		// A mailbox set up with SMTP/IMAP (the simple setup), else Gmail OAuth.
@@ -332,6 +356,9 @@ func (a *App) seedDemo(ctx context.Context, products []*product.Product) error {
 			slog.Info("demo people imported", "product", p.ID, "count", len(rows))
 		}
 		f.Close()
+		if err := a.seedDemoUpdates(ctx, p); err != nil {
+			return fmt.Errorf("seed %s updates list: %w", p.ID, err)
+		}
 		if path := filepath.Join(p.Dir, "demo-accounts.yaml"); p.Pipeline != nil {
 			if _, err := os.Stat(path); err == nil {
 				n, err := pipeline.SeedFile(ctx, a.Pool, p, path, time.Now())
@@ -369,4 +396,48 @@ func (a *App) CheckMigrated(ctx context.Context) error {
 		return errors.New("database is not migrated; run `astrolabe migrate`")
 	}
 	return nil
+}
+
+// seedDemoUpdates shows the updates list in the demo: two people confirmed
+// by replying to their confirmation email (through the real reply handling),
+// one still waiting to confirm, and a draft broadcast for you to read and
+// approve. All of it sits in the sandbox outbox; nothing leaves the machine.
+func (a *App) seedDemoUpdates(ctx context.Context, p *product.Product) error {
+	u, ok := p.UpdatesSettings()
+	if !ok {
+		return nil
+	}
+	var n int
+	if err := a.Pool.QueryRow(ctx, `SELECT count(*) FROM updates_subscribers WHERE product_id = $1`, p.ID).Scan(&n); err != nil || n > 0 {
+		return err
+	}
+	who := []struct{ email, name string }{{"sam.lee@acme.example", "Sam Lee"}, {"priya.n@globex.example", "Priya Nair"}, {"tom@initech.example", "Tom Park"}}
+	for _, w := range who {
+		if _, err := a.Updates.AddByEmail(ctx, p.ID, w.email, w.name, "demo"); err != nil {
+			return err
+		}
+	}
+	if _, err := a.Updates.Process(ctx); err != nil {
+		return err
+	}
+	box, err := sandbox.Outbox(ctx, a.Pool, 50)
+	if err != nil {
+		return err
+	}
+	for _, m := range box {
+		if m.To == who[0].email || m.To == who[1].email {
+			if err := sandbox.SimulateReply(ctx, a.Outreach, m.ID, "yes"); err != nil {
+				return err
+			}
+		}
+	}
+	if _, err := a.Updates.Process(ctx); err != nil { // the welcomes
+		return err
+	}
+	_, err = a.Updates.CreateBroadcast(ctx, updates.CreateOpts{Product: p.ID,
+		Subject: u.Name + ": flaky-test report v0.4",
+		Body: "Pipewrench v0.4 groups failures by test, so you can see the three flakiest at a glance.\n\n" +
+			"What changed: a new report, faster parsing of GitHub Actions logs, and a fix for runs with more than 1,000 tests.\n\n" +
+			"Reply to this email if something looks wrong. I read every one."})
+	return err
 }

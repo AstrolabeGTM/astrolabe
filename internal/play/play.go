@@ -21,6 +21,7 @@ import (
 	"github.com/AstrolabeGTM/astrolabe/internal/outreach"
 	"github.com/AstrolabeGTM/astrolabe/internal/product"
 	"github.com/AstrolabeGTM/astrolabe/internal/score"
+	"github.com/AstrolabeGTM/astrolabe/internal/updates"
 )
 
 type Engine struct {
@@ -28,7 +29,9 @@ type Engine struct {
 	Out  *outreach.Service
 	// OnTask runs for a new task whose play asks for an AI draft.
 	OnTask func(ctx context.Context, tx pgx.Tx, taskID int64) error
-	Now    func() time.Time
+	// Updates runs the "updates: subscribe" action (nil: the action is skipped).
+	Updates *updates.Service
+	Now     func() time.Time
 }
 
 func (e *Engine) now() time.Time {
@@ -94,13 +97,34 @@ func (e *Engine) act(ctx context.Context, tx pgx.Tx, p *product.Product, r Run, 
 	if pl.LimitPerDay > 0 {
 		var today int
 		if err := tx.QueryRow(ctx, `
-			SELECT count(*) FROM play_runs WHERE product_id = $1 AND play_id = $2 AND outcome IN ('enrolled', 'task')
+			SELECT count(*) FROM play_runs WHERE product_id = $1 AND play_id = $2 AND outcome IN ('enrolled', 'task', 'subscribed')
 			AND created_at > $3::timestamptz - interval '24 hours'`, p.ID, pl.ID, e.now()).Scan(&today); err != nil {
 			return "", err
 		}
 		if today >= pl.LimitPerDay {
 			return fmt.Sprintf("skipped: daily limit %d reached", pl.LimitPerDay), nil
 		}
+	}
+	// Asking someone to join the updates list is not outreach: they signed
+	// up, so fit, tier and open to-dos do not apply. Do-not-contact and the
+	// email guard still do (they are checked by the list itself).
+	if pl.Action.Updates != "" {
+		if r.PersonID == nil {
+			return "skipped: no identifiable person", nil
+		}
+		if e.Updates == nil {
+			return "skipped: updates list is not set up", nil
+		}
+		res, err := e.Updates.SubscribeTx(ctx, tx, p.ID, *r.PersonID, "automation:"+pl.ID)
+		if errors.Is(err, updates.ErrRefused) {
+			return "skipped: " + strings.TrimPrefix(err.Error(), updates.ErrRefused.Error()+": "), nil
+		} else if err != nil {
+			return "", err
+		}
+		if res.State != "pending" {
+			return "skipped: " + res.State, nil
+		}
+		return "subscribed", nil
 	}
 	if r.PersonID != nil {
 		if reason, err := e.qualifies(ctx, tx, p, pl, *r.PersonID, true); err != nil || reason != "" {

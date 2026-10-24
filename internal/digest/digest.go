@@ -28,6 +28,7 @@ import (
 	"github.com/AstrolabeGTM/astrolabe/internal/product"
 	"github.com/AstrolabeGTM/astrolabe/internal/reception"
 	"github.com/AstrolabeGTM/astrolabe/internal/score"
+	"github.com/AstrolabeGTM/astrolabe/internal/updates"
 )
 
 type ProductDigest struct {
@@ -51,6 +52,9 @@ type ProductDigest struct {
 	Conversations *notes.Section `json:"conversations,omitempty"`
 	// Campaigns that are running now, with spend against the cap and warnings.
 	Campaigns []campaign.Summary `json:"campaigns,omitempty"`
+	// Updates: the updates list's size changes this week and broadcast
+	// status (products with an updates: section).
+	Updates *updates.Summary `json:"updates,omitempty"`
 }
 
 // Moved: people entering a stage this week vs the week before.
@@ -152,6 +156,15 @@ func Build(ctx context.Context, pool *pgxpool.Pool, products []*product.Product,
 		}
 		if len(pd.Campaigns) == 0 {
 			pd.Campaigns = nil // no running campaign: leave the section out
+		}
+		if u, ok := p.UpdatesSettings(); ok {
+			sum, err := updates.WeekSummary(ctx, pool, p.ID, u.Name, now)
+			if err != nil {
+				return nil, err
+			}
+			if !sum.Empty() {
+				pd.Updates = sum
+			}
 		}
 		pd.Actions = actions(p, &pd)
 		d.Products = append(d.Products, pd)
@@ -263,6 +276,9 @@ func (d *Digest) Text() string {
 		}
 		if p.Conversations != nil {
 			b.WriteString(p.Conversations.Text())
+		}
+		if p.Updates != nil {
+			b.WriteString(p.Updates.Text())
 		}
 		if p.Counters != nil {
 			b.WriteString(p.Counters.Text())

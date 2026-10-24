@@ -34,6 +34,7 @@ import (
 	"github.com/AstrolabeGTM/astrolabe/internal/sandbox"
 	"github.com/AstrolabeGTM/astrolabe/internal/score"
 	"github.com/AstrolabeGTM/astrolabe/internal/signal"
+	"github.com/AstrolabeGTM/astrolabe/internal/updates"
 )
 
 //go:embed templates/*.html
@@ -45,7 +46,8 @@ type Server struct {
 	Writer   *draft.Writer // nil or disabled without an API key
 	Hooks    *hooks.Handler
 	Studio   *content.Studio
-	Mode     string // sandbox or live
+	Updates  *updates.Service // public confirm/unsubscribe endpoints when it has a PublicURL
+	Mode     string           // sandbox or live
 	Mail     *mail.Store
 	Accounts *gmail.Accounts
 	Password string
@@ -108,6 +110,12 @@ func (srv *Server) Handler() http.Handler {
 		mux.HandleFunc("GET /hooks/whatsapp", srv.Hooks.WhatsAppVerify)
 		mux.Handle("GET /l/{code}", &hooks.Redirector{Signals: srv.Signals, Out: srv.S})
 		mux.HandleFunc("POST /hooks/whatsapp", srv.Hooks.WhatsApp)
+	}
+
+	// The updates list's confirm and unsubscribe links carry a signed token
+	// instead of a session. They exist only when the server has a public address.
+	if srv.Updates != nil && srv.Updates.PublicURL != "" {
+		srv.Updates.Routes(mux)
 	}
 
 	app := http.NewServeMux()

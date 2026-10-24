@@ -77,7 +77,7 @@ Environment:
   ASTROLABE_EVENTS_SECRET_<PRODUCT> signing secret for POST /hooks/events/<product>
   ASTROLABE_STRIPE_SECRET_<PRODUCT> Stripe endpoint secret (whsec_…) for POST /hooks/stripe/<product>
   ASTROLABE_MODE                  sandbox (local outbox, no accounts needed) or live (default)
-  ASTROLABE_PUBLIC_URL            public https URL of this server (tracked links /l/…, webhooks)
+  ASTROLABE_PUBLIC_URL            public https URL of this server (tracked links /l/…, webhooks, updates-list confirm/unsubscribe links)
   ASTROLABE_RESEND_API_KEY        Resend key for lifecycle email (optional)
   ASTROLABE_WHATSAPP_TOKEN / _APP_SECRET / _VERIFY_TOKEN / _API_VERSION   WhatsApp Cloud API
   ASTROLABE_NOTIFY_SECRET_<PRODUCT> signs push/in-app messages sent to the product's notify.url
@@ -280,7 +280,7 @@ func serve(ctx context.Context, cfg app.Config) error {
 
 	w := &web.Server{S: a.Outreach, Signals: a.Signals, Writer: a.Writer, Accounts: a.Accounts,
 		Hooks:  &hooks.Handler{Signals: a.Signals, Out: a.Outreach, Secret: hooks.EnvSecret, Forms: a.Forms},
-		Studio: a.Studio, Mode: a.Cfg.Mode, Mail: a.Mail, Password: cfg.Password,
+		Studio: a.Studio, Updates: a.Updates, Mode: a.Cfg.Mode, Mail: a.Mail, Password: cfg.Password,
 		Products: func() []*product.Product { return *products.Load() },
 		Reload: func(ctx context.Context) error {
 			list, err := a.LoadProducts(ctx)

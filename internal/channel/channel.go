@@ -11,6 +11,7 @@ import (
 	"mime"
 	"mime/quotedprintable"
 	"net/http"
+	"sort"
 	"strings"
 	"time"
 )
@@ -32,6 +33,12 @@ type Message struct {
 	// a repeated request with the same key.
 	IdempotencyKey string
 	Language       string // WhatsApp template language
+	// Via picks the email provider for list mail: "smtp" (the sender's
+	// mailbox) or "resend". Empty keeps the default for the message's kind.
+	Via string
+	// Headers are extra email headers (List-Unsubscribe, List-Unsubscribe-Post,
+	// Auto-Submitted...). A List-Unsubscribe here replaces the default.
+	Headers map[string]string
 }
 
 type Result struct {
@@ -77,6 +84,11 @@ func BuildMIME(msg Message) ([]byte, error) {
 			return nil, errors.New("header values must not contain line breaks")
 		}
 	}
+	for k, v := range msg.Headers {
+		if strings.ContainsAny(k+v, "\r\n") || strings.ContainsAny(k, ": ") {
+			return nil, errors.New("header names and values must not contain line breaks")
+		}
+	}
 	var b bytes.Buffer
 	h := func(k, v string) { fmt.Fprintf(&b, "%s: %s\r\n", k, v) }
 	h("From", msg.From)
@@ -94,7 +106,17 @@ func BuildMIME(msg Message) ([]byte, error) {
 		h("References", refs)
 	}
 	h("Date", time.Now().UTC().Format(time.RFC1123Z))
-	h("List-Unsubscribe", fmt.Sprintf("<mailto:%s?subject=unsubscribe>", msg.From))
+	if _, ok := msg.Headers["List-Unsubscribe"]; !ok {
+		h("List-Unsubscribe", fmt.Sprintf("<mailto:%s?subject=unsubscribe>", msg.From))
+	}
+	keys := make([]string, 0, len(msg.Headers))
+	for k := range msg.Headers {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	for _, k := range keys {
+		h(k, msg.Headers[k])
+	}
 	h("MIME-Version", "1.0")
 	h("Content-Type", `text/plain; charset="utf-8"`)
 	h("Content-Transfer-Encoding", "quoted-printable")

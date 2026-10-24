@@ -328,6 +328,9 @@ func parse(mailbox string, msg *message) outreach.Inbound {
 		Mailbox: mailbox, ProviderID: msg.ID, ThreadID: msg.ThreadID, From: strings.ToLower(from), MessageID: msg.Payload.header("Message-ID"),
 		Subject: msg.Payload.header("Subject"), Snippet: msg.Snippet, Body: body, ReceivedAt: time.UnixMilli(ms).UTC(),
 	}
+	if as := strings.ToLower(strings.TrimSpace(msg.Payload.header("Auto-Submitted"))); as != "" && as != "no" || msg.Payload.header("X-Autoreply") != "" {
+		in.Auto = true
+	}
 	local := strings.SplitN(in.From, "@", 2)[0]
 	ct := strings.ToLower(msg.Payload.header("Content-Type"))
 	if local == "mailer-daemon" || local == "postmaster" || strings.Contains(ct, "report-type=delivery-status") {

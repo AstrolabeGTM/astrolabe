@@ -22,3 +22,10 @@
 - id: form-request-reply
   trigger: {signal: form.request}
   action: {task: "Reply to the demo request"}
+
+# A form on your site whose submissions arrive as form.updates signals asks
+# the person to join the updates list. They get a confirmation email and are
+# added only after they confirm.
+- id: updates-signup
+  trigger: {signal: form.updates}
+  action: {updates: subscribe}

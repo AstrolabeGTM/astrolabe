@@ -297,7 +297,7 @@ Automation **templates** cover the common moves, so a new product starts with a 
 
 ## 7. Outreach and messaging
 
-Email goes only to people who gave you an address. Someone Astrolabe knows only from GitHub is helped in the thread, never emailed (§15.1).
+Email goes only to people who gave you an address. Someone Astrolabe knows only from GitHub is helped in the thread, never emailed (§15.1). An opt-in newsletter to people who asked for it is a separate thing (§15.8).
 
 **Sequences** are ordered steps with delays. Each step targets a channel:
 
@@ -353,6 +353,7 @@ It must cite the signal it references. Drafts are flagged for a never-claim, a l
 - **Repurpose:** a release note, blog post or changelog becomes drafts for X, LinkedIn, HN, Reddit and a newsletter, each in the product's voice.
 - **Launch checklist per product:** HN, Product Hunt, relevant subreddits, newsletters and directories. Each gets a drafted post and is tracked as a task.
 - **Campaigns** (§15.9) group posts, launch tasks, creatives and a budget into one plan with a report.
+- **Newsletter:** content posted in a period can also be turned into a broadcast to the opt-in updates list (§15.8).
 - **Posting stays manual:** each draft can become a task; you post it and mark it posted with the URL (API posting to X/LinkedIn is not built).
 - Every public link gets a tracked short link (`<ASTROLABE_PUBLIC_URL>/l/<code>`) with UTM tags and `ref=<code>`, so the funnel can attribute it (§9). Outreach drafts get a per-message link too (`{{.Link}}` in templates; AI drafts have the offer URL swapped for it before approval). A click on a personal link is a `link.click` signal and a `site_visit` stage if the funnel has one; mail-scanner clicks are ignored. A signup event carrying `data.ref` credits its first touch to that link.
 
@@ -486,6 +487,7 @@ flowchart LR
 | `briefs`, `llm_calls`, `voice_examples` | AI research, every model call with tokens, your edits of AI drafts |
 | `links`, `clicks`, `assignments`, `content_items`, `digests` | Tracked links and clicks, experiment assignments, content drafts/posts, weekly digests |
 | `mailbox_sync` | Reply polling position per mailbox (Gmail time, IMAP UIDVALIDITY + last UID) |
+| `updates_subscribers`, `updates_broadcasts`, `updates_messages` | The opt-in updates list, its broadcasts, and one row per confirmation, welcome or broadcast delivery (§15.8) |
 | `settings`, `sandbox_outbox` | Instance settings (the fixed sandbox/live mode); messages "sent" in sandbox mode |
 
 **Package layout:**
@@ -502,6 +504,7 @@ astrolabe/
     github/                 # small GitHub REST client
     score/                  # fit/intent/why-now scoring and ranking
     play/                   # triggers → filters → actions, rechecks, stage scans
+    updates/                # opt-in updates list: double opt-in, unsubscribe, broadcasts, public confirm/unsubscribe endpoints
     outreach/               # enrollments, drafts, approvals, send path, replies, tasks, stages, pauses
     channel/                # sender interface; Resend, WhatsApp, product notify
     gmail/                  # Gmail API: OAuth, send, reply/bounce polling, Sent lookup
@@ -849,7 +852,67 @@ Other columns are ignored. Companies are matched by domain, so importing the sam
 
 ### 15.8 Updates list
 
-_In progress._
+**Why.** Some people don't want a conversation, only to hear when something ships. An updates list (sales words: newsletter, mailing list, nurture list) is for them: people who asked, and confirmed, to get an email now and then. It is separate from sequences: nothing here is outreach, and nobody is added by Astrolabe finding them.
+
+**Config.** An `updates:` section in `product.yaml` turns it on:
+
+```yaml
+# products/pipewrench/product.yaml
+updates:
+  name: Pipewrench updates        # default "<product> updates"
+  from: hello@pipewrench.example  # default sender.users
+  via: smtp                       # smtp (the From mailbox) or resend
+  per_day: 100                    # broadcasts sent in any 24 hours; default 100
+  postal_address: "Pipewrench Ltd, 1 Example Street, Exampleville"   # required before any broadcast is sent
+  confirm_within: 7d              # an unconfirmed sign-up expires; default 7d
+  # confirm_subject, confirm_body, welcome_subject, welcome_body: your own words;
+  # templates may use {{.List}}, {{.Product}}, {{.Email}}, {{.Expires}}
+```
+
+| Key | Default | Meaning |
+| --- | --- | --- |
+| `name` | `<product> updates` | List name, shown to subscribers |
+| `from` | `sender.users` | Sender. Replies to it confirm and unsubscribe, so for `via: smtp` it must be a mailbox Astrolabe reads (`astrolabe mailbox add`) |
+| `via` | `smtp` | `smtp` sends from the mailbox; `resend` uses `ASTROLABE_RESEND_API_KEY` |
+| `per_day` | 100 | Daily cap for broadcasts, so a personal mailbox is not flooded. Confirmations and welcomes are not counted |
+| `postal_address` | none | In every message. Commercial email law (CAN-SPAM and others) requires one; approval and sending refuse without it |
+| `confirm_within` | `7d` | How long a sign-up can wait for confirmation |
+| `confirm_*`, `welcome_*` | short plain texts | Subject and body. How to confirm and how to unsubscribe are added by Astrolabe and cannot be edited out |
+
+**Sign-up is double opt-in.** A sign-up is a *pending* row and nobody receives a broadcast until they confirm. Ways to start one:
+- *Automation* `action: {updates: subscribe}`, for example on `signal: form.updates`. It subscribes that signal's person, using the email they submitted (an identity with source `form`; the form-intake feature, §15.5, produces such signals). It skips fit, tier and open-to-do filters (they asked) but not do-not-contact, and an automation that follows an account trigger is refused at load time because it has no person. Outcome `subscribed` (a confirmation was queued) or `skipped: <reason>` in `automation_runs`.
+- *By hand:* `updates_add` (MCP), for someone who asked in person. It finds or creates the person by email and sends the same confirmation.
+
+**Confirming works without a public address.** Astrolabe usually runs on a laptop with no URL, so the mechanism is a reply:
+1. The confirmation email says *reply to this email to confirm*. The reply is read by the same IMAP polling as any reply and matched by our Message-ID in `In-Reply-To`/`References`; any answer confirms unless it starts with *no*, *stop*, *unsubscribe*, *cancel* or *remove*.
+2. It does not confirm if it comes from a different address, is an auto-reply (`Auto-Submitted`, out-of-office subjects; the confirmation itself is marked `Auto-Submitted: auto-generated`), or arrives after the request expired.
+3. With `ASTROLABE_PUBLIC_URL` set, the email also has a link `/updates/confirm/<token>`. The token is an HMAC of the subscriber id with a random key kept in `settings`, so it is unguessable, and a confirm token cannot unsubscribe. A GET shows one button (mail scanners open every link); the POST confirms.
+
+An unconfirmed sign-up expires after `confirm_within` (status `expired`; an unsent confirmation is dropped). They may ask again later, which needs a new confirmation. Confirming queues one welcome email. The sandbox demo seeds exactly this: two people confirmed by a simulated reply, one waiting, and a draft broadcast.
+
+**Unsubscribe is honoured before the next send.** Every message has:
+- `List-Unsubscribe: <mailto:FROM?subject=unsubscribe …token>` (works with no public URL; a mail client sends a new message whose subject carries a signed token, which the IMAP polling reads), plus, with a public URL, `<https://…/updates/unsubscribe/<token>>` and `List-Unsubscribe-Post: List-Unsubscribe=One-Click` (RFC 8058: the mailbox provider POSTs it);
+- a visible line in the body: reply "unsubscribe", or open the link.
+
+A reply to any list message saying *unsubscribe* or *stop* also leaves the list. Unsubscribing drops anything queued for that person in the same transaction, and the send transaction rechecks the subscriber's status, so a message already queued is skipped (`skipped: not subscribed`).
+
+**Unsubscribe is not do-not-contact.** Leaving the list means "no more newsletters", not "never contact me", and the same person may be a user you rightly help or a conversation in progress. So unsubscribing touches only the list. They go on the global do-not-contact list only if they ask for everything: a reply of exactly *stop all* or *unsubscribe all*, or a STOP/UNSUBSCRIBE reply to outreach (existing semantics, §7). In the other direction, anyone already on do-not-contact is never added or mailed. A bounce marks the address `bounced` and stops sends to it.
+
+**Broadcasts.** A broadcast is one email to the confirmed list:
+1. *Draft.* `broadcast_create` takes a subject and text, or a `period` (`this-month`, `last-month`, `YYYY-MM`, `30d`) and builds the text from the content items marked posted in that period (§8; if any are `newsletter` items, only those). Nothing calls the Claude API.
+2. *Edit.* `broadcast_edit`. Flags are recomputed with the claims check from `internal/draft` (a never-claim, a leftover placeholder; length is ignored because a newsletter is long).
+3. *Approve.* `broadcast_approve` approves the exact sender, list name, postal address, subject and body (a hash). Copy with flags is refused until fixed, and so is a product without `postal_address`. There is no auto-approve for broadcasts. Approval queues one row per subscriber confirmed *at that moment*; later joiners get the next one. Editing withdraws the approval and removes what was queued; once any message has been claimed the broadcast can only be cancelled (`broadcast_cancel`).
+4. *Send.* Under the same advisory lock as outreach, one transaction per message rechecks: broadcast still approved and unchanged (including the postal address), subscriber still confirmed, not on do-not-contact, `outreach.MayEmail` (the GitHub-only guard, §15.1, reused rather than copied), no pause, `postal_address` set, and fewer than `per_day` broadcasts claimed in the last 24 hours. Then it marks the row `sending`, calls the provider, and records `sent`, `failed` (certainly not sent: tried again up to 3 times) or `unknown` (the answer was lost: never resent; check the mailbox). A row left `sending` for 10 minutes becomes `unknown`. `UNIQUE (broadcast_id, subscriber_id)` is the final guard: nobody receives a broadcast twice, across restarts and concurrent workers.
+
+The footer is added at send time: why they get it, the unsubscribe line, and the postal address. Sandbox mode sends everything to the local outbox, so `simulate_reply` can confirm or unsubscribe a simulated person through the real reply handling.
+
+**Tools** (`docs/mcp-tools.md`): `updates_subscribers` (counts: pending, confirmed, unsubscribed, expired, bounced, and the list), `updates_add`, `updates_unsubscribe`, `broadcast_create`, `broadcast_edit`, `broadcast_approve`, `broadcast_cancel`, `broadcast_status` (state, sent/queued/unknown/failed/skipped, and what is holding it), `updates_export` (confirmed subscribers as CSV; cells that start like a formula are quoted).
+
+**Digest.** Each product with a list gets a line: confirmed subscribers, new this week, unsubscribed this week, waiting to confirm, and the status of recent broadcasts.
+
+**Tables** (migration 0012): `updates_subscribers` (one per person per product: status `pending`, `confirmed`, `unsubscribed`, `expired`, `bounced`; source, how it was confirmed), `updates_broadcasts` (text, status `draft`/`approved`/`cancelled`, approval hash, content items used), `updates_messages` (every confirmation, welcome and broadcast delivery; status `queued`, `sending`, `sent`, `failed`, `unknown`, `skipped`). Replies that confirm or leave a list are labelled `list` or `unsubscribe` and never reach the outreach matcher. Code: `internal/updates` (`Service`: `AddByEmail`, `SubscribeTx`, `Confirm`, `Unsubscribe`, `CreateBroadcast`, `EditBroadcast`, `ApproveBroadcast`, `Process`, `HandleInbound`, `Routes`, `WeekSummary`), so any page can reuse it.
+
+**Limits.** With `via: resend` and no public URL, nobody can confirm or unsubscribe by reply, because Resend does not deliver replies to Astrolabe; `astrolabe doctor` warns. Opening links and bounces from providers other than the polled mailbox are not seen. There is no resolve step for `unknown` list messages yet; look in the Sent folder.
 
 ### 15.9 Campaigns and creative
 

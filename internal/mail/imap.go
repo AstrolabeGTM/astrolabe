@@ -209,6 +209,10 @@ func Parse(mailbox string, raw []byte) (outreach.Inbound, error) {
 	if len(in.References) > 0 {
 		in.ThreadID = in.References[0]
 	}
+	if as := strings.ToLower(strings.TrimSpace(h.Get("Auto-Submitted"))); (as != "" && as != "no") || h.Get("X-Autoreply") != "" || h.Get("X-Autorespond") != "" ||
+		strings.Contains(strings.ToLower(h.Get("Precedence")), "auto_reply") {
+		in.Auto = true
+	}
 	body, report := textParts(h.Get("Content-Type"), h.Get("Content-Transfer-Encoding"), msg.Body)
 	in.Body = strings.TrimSpace(body)
 	snippet := in.Body
