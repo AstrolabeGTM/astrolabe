@@ -84,7 +84,7 @@ export default {
     if (state.product) mons.monitors = mons.monitors.filter(m => m.product === state.product);
     return { signals, monitors: mons, reviews: revs };
   },
-  render: (d, params) => pageHead("Signals", "A signal is an event about a person (an issue they opened, a star, a Hacker News post, a signup) that raises their intent score. Monitors look for them on a schedule; nothing is sent because of a signal unless an automation says so.")
+  render: (d, params) => pageHead("Signals", "A signal is something a person did (opened an issue, starred a repo, signed up) that raises their intent score; monitors find them on a schedule.")
     + reviews(d) + feed(d, params) + monitors(d),
   pageActions: () => state.boot?.products.length ? `<button type="button" class="btn btn-sm" data-action="add-signal">Add a signal by hand</button>` : "",
   actions: {

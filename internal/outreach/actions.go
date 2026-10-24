@@ -141,7 +141,8 @@ func (s *Service) Edit(ctx context.Context, id int64, subject, body string) erro
 		// actions still marked pending.
 		_, err = tx.Exec(ctx, `
 			UPDATE actions SET subject = $2, body = $3, status = 'draft', approved_hash = '', approved_at = NULL, updated_at = $4,
-				ai_state = CASE WHEN ai_state = 'pending' THEN '' ELSE ai_state END
+				ai_state = CASE WHEN ai_state = 'pending' THEN '' ELSE ai_state END,
+				error = CASE WHEN error LIKE 'held: %' THEN '' ELSE error END
 			WHERE id = $1`, id, subject, body, s.now())
 		return err
 	})
@@ -346,7 +347,9 @@ func (s *Service) Skip(ctx context.Context, id int64) error {
 		if a.Status != "draft" && a.Status != "approved" && a.Status != "blocked" && a.Status != "failed" {
 			return invalid("action %d is %s and cannot be skipped", id, a.Status)
 		}
-		if _, err := tx.Exec(ctx, `UPDATE actions SET status = 'skipped', updated_at = $2 WHERE id = $1`, id, s.now()); err != nil {
+		// A hold reason no longer applies to a message that will not be sent.
+		if _, err := tx.Exec(ctx, `UPDATE actions SET status = 'skipped', updated_at = $2,
+			error = CASE WHEN error LIKE 'held: %' THEN '' ELSE error END WHERE id = $1`, id, s.now()); err != nil {
 			return err
 		}
 		return s.advance(ctx, tx, a.EnrollmentID, a.Step)

@@ -202,6 +202,21 @@ func TestPauseAndLimitsDelayButDoNotDrop(t *testing.T) {
 	if held, _ = w.s.Action(ctx, drafts[0].ID); held.Error != "" {
 		t.Fatalf("hold reason after resume: %q", held.Error)
 	}
+	// Editing or skipping a held message drops its hold reason too.
+	w.must(w.s.Pause(ctx, "global"))
+	w.send(drafts[0].ID)
+	w.must(w.s.Edit(ctx, drafts[0].ID, drafts[0].Subject, "Edited while held."))
+	if held, _ = w.s.Action(ctx, drafts[0].ID); held.Error != "" || held.Status != "draft" {
+		t.Fatalf("after editing a held send: %s %q", held.Status, held.Error)
+	}
+	w.must(w.s.Approve(ctx, drafts[0].ID))
+	w.send(drafts[0].ID)
+	w.must(w.s.Skip(ctx, drafts[0].ID))
+	if held, _ = w.s.Action(ctx, drafts[0].ID); held.Error != "" {
+		t.Fatalf("after skipping a held send: %q", held.Error)
+	}
+	w.must(w.s.Resume(ctx, "global"))
+	drafts = drafts[1:]
 
 	// Daily limit is 3: the fourth waits.
 	for i, d := range drafts[:4] {

@@ -29,7 +29,7 @@ function row(p) {
 
 function render(d) {
   const p = currentProduct({ required: true });
-  const head = pageHead("People", `People in a product, best priority first. Priority A to D ranks who to contact (A is 70 or more out of 100, from fit, intent and why now); it never allows contact on its own. “Not emailed” is the outreach guard: people known only from GitHub get no email.`);
+  const head = pageHead("People", `A product's people, best priority first: priority A to D (A is 70+ of 100) ranks who to contact but never allows it; “Not emailed” means known only from GitHub.`);
   if (!p) return head + empty("No products are loaded", `Add a product folder (<code>astrolabe init</code>), then check <a href="#settings">Settings</a> for problems.`);
   const toolbar = `<form class="toolbar" data-form="people-search" role="search">
       ${state.boot.products.length > 1 ? field("product", "Product", { kind: "select", options: productOptions(p.id), attrs: 'data-change="people-product"' }) : ""}
