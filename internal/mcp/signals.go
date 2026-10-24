@@ -68,24 +68,15 @@ func (s *Server) hot(ctx context.Context, a hotArg) (any, error) {
 }
 
 func (s *Server) addSignal(ctx context.Context, a addSignalArg) (any, error) {
-	sub := signal.Subject{}
-	if strings.Contains(a.Who, "@") {
-		sub.Email = a.Who
-	} else {
-		sub.GitHub = a.Who
+	if _, err := s.find(a.Product); err != nil {
+		return nil, err
 	}
-	res, err := s.Signals.Ingest(ctx, &signal.Signal{Product: a.Product, Type: "manual." + strings.TrimPrefix(a.Type, "manual."),
-		OccurredAt: time.Now(), Strength: a.Strength, WhyNow: a.WhyNow, Title: a.Note, EvidenceURL: a.URL, Subject: sub,
-		DedupeKey: fmt.Sprintf("manual:%d", time.Now().UnixNano())})
+	res, err := s.Signals.AddManual(ctx, signal.Manual{Product: a.Product, Who: a.Who, Type: a.Type, Strength: a.Strength,
+		WhyNow: a.WhyNow, Note: a.Note, URL: a.URL}, time.Now())
 	if err != nil {
 		return nil, err
 	}
-	if res.PersonID != nil {
-		if _, err := score.Recompute(ctx, s.S.Pool, a.Product, *res.PersonID, time.Now()); err != nil {
-			return nil, err
-		}
-	}
-	return map[string]any{"signal_id": res.SignalID, "person_id": res.PersonID}, nil
+	return map[string]any{"signal_id": res.SignalID, "person_id": res.PersonID, "ambiguous": res.Ambiguous}, nil
 }
 
 func (s *Server) monitors(ctx context.Context, _ noArgs) (any, error) {

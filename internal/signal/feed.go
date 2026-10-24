@@ -54,6 +54,8 @@ type Feed struct {
 	Total   int       `json:"total"`
 	Days    int       `json:"days"`
 	Since   time.Time `json:"since"`
+	// Types are all signal types seen so far, for filtering.
+	Types []string `json:"types"`
 }
 
 // Recent lists signals from the last f.Days days. The MCP tool signals, the
@@ -102,9 +104,13 @@ func Recent(ctx context.Context, q store.Q, f Filter, now time.Time) (*Feed, err
 		}
 		return it, err
 	})
+	if err != nil {
+		return nil, err
+	}
 	if feed.Signals == nil {
 		feed.Signals = []Item{}
 	}
+	feed.Types, err = Types(ctx, q)
 	return feed, err
 }
 
@@ -228,4 +234,46 @@ func Monitors(ctx context.Context, q store.Q, products []*product.Product, now t
 		}
 	}
 	return out, nil
+}
+
+// Manual is a signal the operator records by hand: "Bo referred Ana",
+// "met Sam at a conference".
+type Manual struct {
+	Product string
+	// Who is an email address or a GitHub login (or profile URL).
+	Who      string
+	Type     string // stored as manual.<type>
+	Strength int    // 0-100
+	WhyNow   bool
+	Note     string
+	URL      string
+}
+
+// AddManual records a signal by hand about the person with that email or
+// GitHub login (created if new) and rescores them, so automations and
+// lists see it at once. The browser app and the MCP tool add_signal use it.
+func (svc *Service) AddManual(ctx context.Context, m Manual, now time.Time) (Result, error) {
+	who := strings.TrimSpace(m.Who)
+	typ := strings.TrimPrefix(strings.TrimSpace(m.Type), "manual.")
+	switch {
+	case who == "":
+		return Result{}, errors.New("say who it is about: an email address or a GitHub login")
+	case typ == "":
+		return Result{}, errors.New("give the signal a type, e.g. referral")
+	}
+	sub := Subject{}
+	if strings.Contains(who, "@") {
+		if sub.Email = people.NormalizeEmail(who); sub.Email == "" {
+			return Result{}, fmt.Errorf("%q is not an email address", who)
+		}
+	} else {
+		sub.GitHub = people.NormalizeGitHub(who)
+	}
+	res, err := svc.Ingest(ctx, &Signal{Product: m.Product, Type: "manual." + typ, OccurredAt: now, Strength: m.Strength, WhyNow: m.WhyNow,
+		Title: strings.TrimSpace(m.Note), EvidenceURL: strings.TrimSpace(m.URL), Subject: sub, DedupeKey: fmt.Sprintf("manual:%d", now.UnixNano())})
+	if err != nil || res.PersonID == nil {
+		return res, err
+	}
+	_, err = score.Recompute(ctx, svc.Pool, m.Product, *res.PersonID, now)
+	return res, err
 }

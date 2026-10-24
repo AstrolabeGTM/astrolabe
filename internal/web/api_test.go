@@ -407,3 +407,39 @@ func TestPeopleAPI(t *testing.T) {
 		t.Fatalf("company import: %v", comp)
 	}
 }
+
+func TestSignalsAPI(t *testing.T) {
+	ts, _ := apiServer(t)
+	s := newSession(t, ts)
+	if code, body := s.post("/api/signals", map[string]any{"product": "demo", "who": "", "type": "referral", "strength": 30}); code != http.StatusBadRequest {
+		t.Fatalf("a signal about nobody: %d %v", code, body)
+	}
+	if code, _ := s.post("/api/signals", map[string]any{"product": "demo", "who": "ana@acme.example", "type": "referral", "strength": 300}); code != http.StatusBadRequest {
+		t.Fatalf("strength over 100: %d", code)
+	}
+	res := s.mustPost("/api/signals", map[string]any{"product": "demo", "who": "Ana@Acme.example", "type": "referral", "strength": 30, "note": "Bo introduced us"})
+	if res["person_id"] == nil {
+		t.Fatalf("add signal: %v", res)
+	}
+	feed := s.get("/api/signals?days=7")
+	if feed["total"].(float64) != 1 {
+		t.Fatalf("feed: %v", feed)
+	}
+	sig := feed["signals"].([]any)[0].(map[string]any)
+	if sig["type"] != "manual.referral" || sig["person_id"] == nil || sig["tier"] == "" {
+		t.Fatalf("the signal should be about a scored person: %v", sig)
+	}
+	if types := feed["types"].([]any); len(types) != 1 {
+		t.Fatalf("types: %v", types)
+	}
+	if f := s.get("/api/signals?type=github.star"); f["total"].(float64) != 0 {
+		t.Fatalf("type filter: %v", f)
+	}
+	if r := s.get("/api/reviews"); r["total"].(float64) != 0 {
+		t.Fatalf("reviews: %v", r)
+	}
+	s.get("/api/monitors")
+	if code, _ := s.post("/api/monitors/run", map[string]string{"product": "demo", "monitor": "nope"}); code != http.StatusBadRequest {
+		t.Fatalf("running a missing monitor: %d", code)
+	}
+}
