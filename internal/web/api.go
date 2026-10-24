@@ -8,6 +8,7 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -28,11 +29,12 @@ type apiRoute struct {
 
 // apiRoutes is the whole JSON API.
 func (srv *Server) apiRoutes() []apiRoute {
-	return []apiRoute{
+	routes := []apiRoute{
 		{"GET /api/bootstrap", "status", srv.apiBootstrap},
 		{"POST /api/pause", "pause", srv.apiPause},
 		{"POST /api/resume", "resume", srv.apiResume},
 	}
+	return slices.Concat(routes, srv.todayRoutes())
 }
 
 func (srv *Server) apiMux() http.Handler {
@@ -136,6 +138,17 @@ func readJSON(w http.ResponseWriter, r *http.Request, v any) bool {
 	return true
 }
 
+// idAndJSON reads the {id} path value and the JSON body; on failure it has
+// answered.
+func idAndJSON(w http.ResponseWriter, r *http.Request, v any) (int64, bool) {
+	id, err := idParam(r)
+	if err != nil {
+		apiFail(w, err)
+		return 0, false
+	}
+	return id, readJSON(w, r, v)
+}
+
 func idParam(r *http.Request) (int64, error) {
 	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
 	if err != nil || id <= 0 {
@@ -180,7 +193,7 @@ func (srv *Server) apiPause(w http.ResponseWriter, r *http.Request) {
 	if !readJSON(w, r, &req) {
 		return
 	}
-	respond(w, map[string]string{"status": "paused " + req.Scope}, srv.S.Pause(r.Context(), req.Scope))
+	respond(w, status("Paused "+req.Scope+". Held sends wait; nothing is dropped."), srv.S.Pause(r.Context(), req.Scope))
 }
 
 func (srv *Server) apiResume(w http.ResponseWriter, r *http.Request) {
@@ -188,5 +201,5 @@ func (srv *Server) apiResume(w http.ResponseWriter, r *http.Request) {
 	if !readJSON(w, r, &req) {
 		return
 	}
-	respond(w, map[string]string{"status": "resumed " + req.Scope}, srv.S.Resume(r.Context(), req.Scope))
+	respond(w, status("Resumed "+req.Scope+"."), srv.S.Resume(r.Context(), req.Scope))
 }

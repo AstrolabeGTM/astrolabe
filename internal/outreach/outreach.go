@@ -441,6 +441,12 @@ func (s *Service) advance(ctx context.Context, tx pgx.Tx, enrollmentID int64, fi
 	return err
 }
 
+// ContentHash is the hash approval covers, for text that is about to be
+// saved (see Action.ContentHash).
+func ContentHash(channel, sender, recipient, subject, body string) string {
+	return approvalHash(channel, sender, recipient, subject, body)
+}
+
 // approvalHash covers exactly what is approved: changing any part of it
 // requires approval again.
 func approvalHash(channel, sender, recipient, subject, body string) string {

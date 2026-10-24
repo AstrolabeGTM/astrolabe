@@ -8,6 +8,7 @@ package views
 import (
 	"context"
 	"slices"
+	"strconv"
 	"strings"
 
 	"github.com/AstrolabeGTM/astrolabe/internal/outreach"
@@ -112,3 +113,5 @@ func LoadProblems(err error) []string {
 	walk(err)
 	return out
 }
+
+func itoa(n int64) string { return strconv.FormatInt(n, 10) }

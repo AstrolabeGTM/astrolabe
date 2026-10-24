@@ -192,7 +192,16 @@ func TestPauseAndLimitsDelayButDoNotDrop(t *testing.T) {
 	if out.Retry == 0 || len(w.sender.sent) != 0 || w.status(drafts[0].ID) != "approved" {
 		t.Fatalf("paused send: %+v", out)
 	}
+	// The hold is written down where the inbox can show it, and resuming
+	// clears it.
+	held, _ := w.s.Action(ctx, drafts[0].ID)
+	if held.Error != "held: paused: sequence:demo/intro" {
+		t.Fatalf("hold reason: %q", held.Error)
+	}
 	w.must(w.s.Resume(ctx, "sequence:demo/intro"))
+	if held, _ = w.s.Action(ctx, drafts[0].ID); held.Error != "" {
+		t.Fatalf("hold reason after resume: %q", held.Error)
+	}
 
 	// Daily limit is 3: the fourth waits.
 	for i, d := range drafts[:4] {
@@ -202,9 +211,39 @@ func TestPauseAndLimitsDelayButDoNotDrop(t *testing.T) {
 			t.Fatalf("send %d: %+v", i, out)
 		}
 	}
+	if held, _ := w.s.Action(ctx, drafts[3].ID); held.Error != "held: daily limit of 3 reached" {
+		t.Fatalf("limit hold reason: %q", held.Error)
+	}
 	w.now = w.now.Add(25 * time.Hour)
 	if out = w.send(drafts[3].ID); out.Status != "sent" {
 		t.Fatalf("after a day: %+v", out)
+	}
+	if sent, _ := w.s.Action(ctx, drafts[3].ID); sent.Error != "" {
+		t.Fatalf("a sent message keeps its hold reason: %q", sent.Error)
+	}
+}
+
+// TestApproveSeenRefusesAChangedDraft: approval covers the version the
+// operator saw, not whatever the row holds by the time they click.
+func TestApproveSeenRefusesAChangedDraft(t *testing.T) {
+	w := newWorld(t, 1)
+	ctx := context.Background()
+	d := w.enrollAndDraft()[0]
+	seen := d.ContentHash
+	w.must(w.s.Edit(ctx, d.ID, d.Subject, "A different text, saved meanwhile."))
+	if err := w.s.ApproveSeen(ctx, d.ID, seen); !errors.Is(err, outreach.ErrStale) {
+		t.Fatalf("approving a changed draft: %v", err)
+	}
+	if w.status(d.ID) != "draft" {
+		t.Fatal("the changed draft was approved")
+	}
+	now, _ := w.s.Action(ctx, d.ID)
+	if now.ContentHash == seen {
+		t.Fatal("the content hash did not change with the text")
+	}
+	w.must(w.s.ApproveSeen(ctx, d.ID, now.ContentHash))
+	if w.status(d.ID) != "approved" {
+		t.Fatal("approving the version shown failed")
 	}
 }
 

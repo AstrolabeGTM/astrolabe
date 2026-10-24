@@ -48,7 +48,8 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .skip-link:focus { transform: none; }
 
 /* ---- shell ---- */
-.app-shell { display: grid; grid-template-columns: 228px minmax(0, 1fr); min-height: 100vh; }
+.app-shell { display: grid; grid-template-columns: 228px minmax(0, 1fr); min-height: 100vh;
+  background: linear-gradient(to right, var(--night) 228px, transparent 228px); }
 .sidebar { background: var(--night); color: var(--night-ink); position: sticky; top: 0; height: 100vh;
   display: flex; flex-direction: column; padding: 18px 12px; overflow-y: auto; }
 .sidebar-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
@@ -138,6 +139,7 @@ main:focus { outline: none; }
   cursor: pointer; text-decoration: none; line-height: 1.4; white-space: nowrap; }
 .btn:hover:not(:disabled) { background: var(--surface-2); }
 .btn:disabled { opacity: .55; cursor: not-allowed; }
+.btn[aria-busy="true"], form[aria-busy="true"] .btn { opacity: .65; cursor: progress; }
 .btn-primary { background: var(--primary); border-color: var(--primary); color: var(--primary-ink); }
 .btn-primary:hover:not(:disabled) { background: var(--primary-hover); }
 .btn-danger { color: var(--bad); }
@@ -218,7 +220,7 @@ dialog::backdrop { background: rgb(8 11 20 / 50%); }
 
 /* ---- narrow screens ---- */
 @media (max-width: 860px) {
-  .app-shell { grid-template-columns: minmax(0, 1fr); }
+  .app-shell { grid-template-columns: minmax(0, 1fr); background: none; }
   .sidebar { position: static; height: auto; padding: 10px 16px; }
   .brand { padding: 4px 0; }
   .menu-toggle { display: inline-flex; background: none; border: 1px solid var(--night-2); color: var(--night-ink);

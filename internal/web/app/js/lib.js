@@ -71,9 +71,10 @@ export const words = s => String(s ?? "").replace(/_/g, " ");
 // span says a duration in seconds in plain words.
 export function span(seconds) {
   const s = Math.abs(Math.round(seconds));
-  if (s < 90) return "a minute";
+  if (s < 60) return "under a minute";
   const m = Math.round(s / 60);
-  if (m < 60) return `${m} minutes`;
+  if (m < 60) return m === 1 ? "1 minute" : `${m} minutes`;
+  if (s % 86400 === 0) return s === 86400 ? "1 day" : `${s / 86400} days`;
   const h = Math.round(s / 3600);
   if (h < 48) return h === 1 ? "1 hour" : `${h} hours`;
   const d = Math.round(s / 86400);
@@ -194,8 +195,15 @@ export function openDialog({ title, description = "", body, wide = false }) {
   return d;
 }
 
-export function closeDialog() {
+let restoreOnClose = true;
+
+// dialogOpener is the element that opened the open dialog.
+export const dialogOpener = () => ($("#dialog").open ? lastFocus : null);
+
+// closeDialog shuts the dialog; restore=false leaves focus to the caller.
+export function closeDialog(restore = true) {
   const d = $("#dialog");
+  restoreOnClose = restore;
   if (d.open) d.close();
 }
 
@@ -203,8 +211,11 @@ export function initDialog() {
   const d = $("#dialog");
   d.addEventListener("close", () => {
     d.innerHTML = "";
-    if (lastFocus?.isConnected) lastFocus.focus();
-    else $("#main").focus();
+    if (restoreOnClose) {
+      if (lastFocus?.isConnected) lastFocus.focus();
+      else $("#main").focus({ preventScroll: true });
+    }
+    restoreOnClose = true;
     lastFocus = null;
   });
   d.addEventListener("click", ev => {

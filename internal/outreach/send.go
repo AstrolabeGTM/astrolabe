@@ -66,6 +66,13 @@ func (s *Service) SendAction(ctx context.Context, id int64) (SendOutcome, error)
 			_, err := tx.Exec(ctx, `UPDATE actions SET status = $2, error = $3, updated_at = $4 WHERE id = $1`, id, status, reason, now)
 			return err
 		}
+		// hold leaves the message approved for a later try, and writes down
+		// why it is waiting so the inbox can say so.
+		hold := func(retry time.Duration, reason string) error {
+			out.Retry, out.Reason = retry, reason
+			_, err := tx.Exec(ctx, `UPDATE actions SET error = $2 WHERE id = $1 AND error IS DISTINCT FROM $2`, id, "held: "+reason)
+			return err
+		}
 
 		if approvalHash(a.Channel, a.Sender, a.Recipient, a.Subject, a.Body) != a.ApprovedHash {
 			if _, err := tx.Exec(ctx, `UPDATE actions SET approved_hash = '', approved_at = NULL WHERE id = $1`, id); err != nil {
@@ -106,8 +113,7 @@ func (s *Service) SendAction(ctx context.Context, id int64) (SendOutcome, error)
 		if scope, err := pausedScope(ctx, tx, a.ProductID, a.SequenceID); err != nil {
 			return err
 		} else if scope != "" {
-			out.Retry, out.Reason = pausedRetry, "paused: "+scope
-			return nil
+			return hold(pausedRetry, "paused: "+scope)
 		}
 		prod, err := product.Get(ctx, tx, a.ProductID)
 		if err != nil {
@@ -157,12 +163,10 @@ func (s *Service) SendAction(ctx context.Context, id int64) (SendOutcome, error)
 			today = 0
 		}
 		if today >= prod.Limits.ColdPerDay {
-			out.Retry, out.Reason = limitedRetry, fmt.Sprintf("daily limit of %d reached", prod.Limits.ColdPerDay)
-			return nil
+			return hold(limitedRetry, fmt.Sprintf("daily limit of %d reached", prod.Limits.ColdPerDay))
 		}
 		if week >= prod.Limits.TouchesPerPersonPerWeek {
-			out.Retry, out.Reason = limitedRetry, fmt.Sprintf("weekly touch limit of %d for this person reached", prod.Limits.TouchesPerPersonPerWeek)
-			return nil
+			return hold(limitedRetry, fmt.Sprintf("weekly touch limit of %d for this person reached", prod.Limits.TouchesPerPersonPerWeek))
 		}
 
 		if a.Channel == "email" {

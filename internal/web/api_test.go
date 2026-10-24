@@ -3,6 +3,7 @@ package web
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -20,6 +21,7 @@ import (
 	"github.com/AstrolabeGTM/astrolabe/internal/llm"
 	"github.com/AstrolabeGTM/astrolabe/internal/mcp"
 	"github.com/AstrolabeGTM/astrolabe/internal/outreach"
+	"github.com/AstrolabeGTM/astrolabe/internal/people"
 	"github.com/AstrolabeGTM/astrolabe/internal/product"
 	"github.com/AstrolabeGTM/astrolabe/internal/signal"
 	"github.com/AstrolabeGTM/astrolabe/internal/store"
@@ -217,5 +219,117 @@ func TestEveryAPIRouteIsAnMCPTool(t *testing.T) {
 		} else if !have[rt.Tool] {
 			t.Errorf("%s maps to MCP tool %q, which is not registered", rt.Pattern, rt.Tool)
 		}
+	}
+}
+
+// session is a signed-in client with its CSRF token.
+type session struct {
+	t     *testing.T
+	c     *http.Client
+	base  string
+	token string
+}
+
+func newSession(t *testing.T, ts *httptest.Server) *session {
+	c := signIn(t, ts)
+	_, boot := do(t, c, "GET", ts.URL+"/api/bootstrap", "", nil)
+	return &session{t, c, ts.URL, boot["csrf_token"].(string)}
+}
+
+func (s *session) get(path string) map[string]any {
+	s.t.Helper()
+	code, body := do(s.t, s.c, "GET", s.base+path, "", nil)
+	if code != http.StatusOK {
+		s.t.Fatalf("GET %s: %d %v", path, code, body)
+	}
+	return body
+}
+
+func (s *session) post(path string, v any) (int, map[string]any) {
+	s.t.Helper()
+	b, _ := json.Marshal(v)
+	return do(s.t, s.c, "POST", s.base+path, string(b), map[string]string{"X-CSRF-Token": s.token, "Origin": s.base, "Content-Type": "application/json"})
+}
+
+func (s *session) mustPost(path string, v any) map[string]any {
+	s.t.Helper()
+	code, body := s.post(path, v)
+	if code != http.StatusOK {
+		s.t.Fatalf("POST %s: %d %v", path, code, body)
+	}
+	return body
+}
+
+func count(today map[string]any, kind string) float64 {
+	return today["counts"].(map[string]any)[kind].(map[string]any)["total"].(float64)
+}
+
+func TestTodayAPI(t *testing.T) {
+	ts, srv := apiServer(t)
+	ctx := context.Background()
+	if _, err := people.Import(ctx, srv.S.Pool, "demo", []people.Row{{Email: "ana@acme.example", Name: "Ana"}}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := srv.S.Enroll(ctx, "demo", "intro", []int64{1}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := srv.S.Tick(ctx); err != nil {
+		t.Fatal(err)
+	}
+	s := newSession(t, ts)
+	today := s.get("/api/today")
+	if count(today, "approval") != 1 {
+		t.Fatalf("today: %v", today)
+	}
+	item := today["items"].([]any)[0].(map[string]any)
+	a := item["action"].(map[string]any)
+	id := fmt.Sprint(a["id"])
+	if item["kind"] != "approval" || a["content_hash"] == "" || a["sender"] == nil || item["target_seconds"].(float64) != 86400 {
+		t.Fatalf("approval item: %v", item)
+	}
+
+	// A draft that changed since it was shown is not approved.
+	if code, body := s.post("/api/actions/"+id+"/approve", map[string]string{"content_hash": "stale"}); code != http.StatusConflict {
+		t.Fatalf("stale approve: %d %v", code, body)
+	}
+	if code, body := s.post("/api/actions/"+id+"/edit", map[string]any{"body": "Results guaranteed.", "approve": true}); code != http.StatusBadRequest ||
+		!strings.Contains(body["error"].(string), "never allows") {
+		t.Fatalf("a never-claim was approved: %d %v", code, body)
+	}
+	s.mustPost("/api/actions/"+id+"/edit", map[string]any{"body": "Hi Ana, want to try it on one repo?", "approve": true})
+	today = s.get("/api/today")
+	if count(today, "approval") != 0 || count(today, "queued") != 1 {
+		t.Fatalf("after approving: %v", today["counts"])
+	}
+
+	// A reply from someone we never wrote to can still be labelled.
+	if _, err := srv.S.Pool.Exec(ctx, `INSERT INTO replies (provider_message_id, mailbox, from_addr, subject, body, received_at)
+		VALUES ('m1', 'demo@x.example', 'bo@else.example', 'Hi', 'Hello?', now() - interval '3 hours')`); err != nil {
+		t.Fatal(err)
+	}
+	today = s.get("/api/today")
+	first := today["items"].([]any)[0].(map[string]any)
+	if first["kind"] != "reply" || first["state"] != "past" {
+		t.Fatalf("a reply 3 hours old should be first and past its 2-hour target: %v", first)
+	}
+	if code, _ := s.post("/api/replies/1/label", map[string]string{"class": "maybe"}); code != http.StatusBadRequest {
+		t.Fatalf("unknown label accepted: %d", code)
+	}
+	s.mustPost("/api/replies/1/label", map[string]string{"class": "question"})
+
+	task := s.mustPost("/api/tasks", map[string]any{"product": "demo", "next_action": "Send Ana the guide", "person_id": 1})
+	if count(s.get("/api/today"), "task") != 1 {
+		t.Fatal("the task is not due today")
+	}
+	if code, _ := s.post(fmt.Sprintf("/api/tasks/%v/close", task["task_id"]), map[string]any{"outcome": ""}); code != http.StatusBadRequest {
+		t.Fatalf("closing without an outcome: %d", code)
+	}
+	s.mustPost(fmt.Sprintf("/api/tasks/%v/close", task["task_id"]), map[string]any{"outcome": "later", "minutes": 5})
+	today = s.get("/api/today")
+	if count(today, "task") != 0 || count(today, "reply") != 0 {
+		t.Fatalf("after closing: %v", today["counts"])
+	}
+	if code, _ := s.post("/api/actions/999/skip", nil); code != http.StatusBadRequest {
+		t.Fatalf("skipping a missing action: %d", code)
 	}
 }

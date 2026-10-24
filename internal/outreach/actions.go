@@ -46,7 +46,15 @@ type Action struct {
 	Variant      string     `json:"variant,omitempty"`
 	LinkCode     *string    `json:"link_code,omitempty"`
 	CreatedAt    time.Time  `json:"created_at"`
+	UpdatedAt    time.Time  `json:"updated_at"`
 	SentAt       *time.Time `json:"sent_at,omitempty"`
+	// ContentHash identifies exactly what approval would cover (channel,
+	// sender, recipient, subject, body). Pass it back to ApproveSeen to
+	// approve only the version that was shown.
+	ContentHash string `json:"content_hash"`
+	// SubjectLocked is true for a follow-up in an email thread: it keeps the
+	// thread's subject.
+	SubjectLocked bool `json:"subject_locked,omitempty"`
 }
 
 const actionSelect = `
@@ -54,7 +62,7 @@ const actionSelect = `
 		COALESCE(NULLIF(p.name, ''), a.recipient), COALESCE(NULLIF(c.name, ''), c.domain, ''),
 		a.channel, a.sender, a.recipient, a.subject, a.body, a.goal, a.status, a.error,
 		a.thread_id, a.in_reply_to, a.message_id, a.approved_hash, a.kind, a.reply_id, a.ai_state, a.ai_body, a.flags,
-		a.variant, a.link_code, a.created_at, a.sent_at
+		a.variant, a.link_code, a.created_at, a.updated_at, a.sent_at
 	FROM actions a
 	JOIN enrollments e ON e.id = a.enrollment_id
 	JOIN people p ON p.id = a.person_id
@@ -65,7 +73,9 @@ func scanAction(row pgx.Row) (*Action, error) {
 	err := row.Scan(&a.ID, &a.EnrollmentID, &a.Step, &a.SequenceID, &a.ProductID, &a.PersonID,
 		&a.PersonName, &a.Company, &a.Channel, &a.Sender, &a.Recipient, &a.Subject, &a.Body, &a.Goal,
 		&a.Status, &a.Error, &a.ThreadID, &a.InReplyTo, &a.MessageID, &a.ApprovedHash, &a.Kind, &a.ReplyID, &a.AIState, &a.AIBody, &a.Flags,
-		&a.Variant, &a.LinkCode, &a.CreatedAt, &a.SentAt)
+		&a.Variant, &a.LinkCode, &a.CreatedAt, &a.UpdatedAt, &a.SentAt)
+	a.ContentHash = approvalHash(a.Channel, a.Sender, a.Recipient, a.Subject, a.Body)
+	a.SubjectLocked = a.Channel == "email" && a.Step > 0 && a.ThreadID != ""
 	return a, err
 }
 
@@ -254,10 +264,21 @@ func (SendArgs) InsertOpts() river.InsertOpts {
 // Approve approves exactly the message as it stands. Email is queued for
 // sending in the same transaction; a manual task is marked done.
 func (s *Service) Approve(ctx context.Context, id int64) error {
+	return s.ApproveSeen(ctx, id, "")
+}
+
+// ApproveSeen is Approve for a draft the operator was shown: seen is the
+// ContentHash they saw, and if the draft changed since (an AI draft landed,
+// someone edited it), approval is refused with ErrStale. An empty seen
+// approves the current version.
+func (s *Service) ApproveSeen(ctx context.Context, id int64, seen string) error {
 	return pgx.BeginFunc(ctx, s.Pool, func(tx pgx.Tx) error {
 		a, err := getAction(ctx, tx, id, true)
 		if err != nil {
 			return err
+		}
+		if seen != "" && seen != a.ContentHash {
+			return fmt.Errorf("%w: action %d changed since it was shown (status %s); look at it again before approving", ErrStale, id, a.Status)
 		}
 		if a.Status == "approved" {
 			return nil

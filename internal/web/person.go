@@ -146,15 +146,10 @@ func (srv *Server) replyAnswer(w http.ResponseWriter, r *http.Request) {
 
 // actionAIDraft asks Claude to (re)write a draft now.
 func (srv *Server) actionAIDraft(w http.ResponseWriter, r *http.Request) {
-	if srv.Writer == nil || !srv.Writer.LLM.Enabled() {
+	if srv.Writer == nil {
 		done(w, r, "", "", fmt.Errorf("%w: set ASTROLABE_ANTHROPIC_API_KEY for AI drafts", outreach.ErrInvalid))
 		return
 	}
 	id := pathID(r)
-	if _, err := srv.S.Pool.Exec(r.Context(), `UPDATE actions SET ai_state = 'pending' WHERE id = $1 AND status = 'draft'`, id); err != nil {
-		done(w, r, "", "", err)
-		return
-	}
-	err := srv.Writer.DraftAction(r.Context(), id)
-	done(w, r, "", fmt.Sprintf("Claude drafted #%d", id), err)
+	done(w, r, "", fmt.Sprintf("Claude drafted #%d", id), srv.Writer.Redraft(r.Context(), id))
 }

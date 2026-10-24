@@ -152,7 +152,7 @@ func run(ctx context.Context, args []string, out io.Writer) error {
 		}
 		products := loadProducts(ctx, a)
 		srv := &mcp.Server{S: a.Outreach, Signals: a.Signals, Sources: a.Sources, Writer: a.Writer, Studio: a.Studio, ProductsDir: cfg.ProductsDir, Mode: a.Cfg.Mode,
-			Products: products.Products, Reload: products.Reload, LoadErrors: products.Errors}
+			Products: products.Products, Reload: products.Reload, LoadErrors: products.Errors, Mail: a.Mail, Accounts: a.Accounts}
 		return srv.Run(ctx, version)
 	case "monitor":
 		if len(args) != 4 || args[1] != "run" {

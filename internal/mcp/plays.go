@@ -52,10 +52,7 @@ func (s *Server) aiDraft(ctx context.Context, a actionArg) (any, error) {
 	if err := s.aiEnabled(); err != nil {
 		return nil, err
 	}
-	if _, err := s.S.Pool.Exec(ctx, `UPDATE actions SET ai_state = 'pending' WHERE id = $1 AND status = 'draft'`, a.ActionID); err != nil {
-		return nil, err
-	}
-	if err := s.Writer.DraftAction(ctx, a.ActionID); err != nil {
+	if err := s.Writer.Redraft(ctx, a.ActionID); err != nil {
 		return nil, err
 	}
 	return s.S.Action(ctx, a.ActionID)

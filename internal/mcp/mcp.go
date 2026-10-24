@@ -18,11 +18,15 @@ import (
 	"github.com/AstrolabeGTM/astrolabe/internal/content"
 	"github.com/AstrolabeGTM/astrolabe/internal/draft"
 	"github.com/AstrolabeGTM/astrolabe/internal/funnel"
+	"github.com/AstrolabeGTM/astrolabe/internal/gmail"
+	"github.com/AstrolabeGTM/astrolabe/internal/mail"
 	"github.com/AstrolabeGTM/astrolabe/internal/outreach"
 	"github.com/AstrolabeGTM/astrolabe/internal/people"
 	"github.com/AstrolabeGTM/astrolabe/internal/product"
 	"github.com/AstrolabeGTM/astrolabe/internal/score"
+	"github.com/AstrolabeGTM/astrolabe/internal/sentmail"
 	"github.com/AstrolabeGTM/astrolabe/internal/signal"
+	"github.com/AstrolabeGTM/astrolabe/internal/views"
 )
 
 type Server struct {
@@ -37,6 +41,9 @@ type Server struct {
 	Products    func() []*product.Product
 	// LoadErrors lists product folders that failed to load, in plain words.
 	LoadErrors func() []string
+	// Mail and Accounts are the sending mailboxes (for check_sent).
+	Mail     *mail.Store
+	Accounts *gmail.Accounts
 }
 
 // Run serves MCP over stdin/stdout until the client disconnects.
@@ -91,9 +98,11 @@ Rules: use only claims from product_context.claims; never use never_claim phrase
 	// Sequences and messages
 	register(srv, "start_sequence", "Start a sequence for people (by id). One active sequence per person per product; the first draft appears immediately. A person known only from GitHub is refused for any sequence with an email step (GitHub's Acceptable Use Policies); the reason is in `skipped`.", s.enroll)
 	register(srv, "inbox", "Everything waiting on the operator: sends needing a decision, replies to label, due tasks, drafts, and queued sends.", s.inbox)
+	register(srv, "today", "What is waiting on the operator, most urgent first: replies to label, drafts to approve (exact sender, recipient, text and flags), held, blocked, failed or unknown sends with their reason, and tasks due today. Each item has its age and its response target (replies 2 hours, drafts and held sends 1 day, tasks their due time) and whether it is past or near it; counts are complete even when the list is capped. Same as the browser app's Today screen.", s.today)
+	register(srv, "check_sent", "For a send whose delivery is unknown: look for it in the sending mailbox's Sent folder by Message-ID. If found it is recorded as sent; otherwise nothing changes and the result says what to check by hand.", s.checkSent)
 	register(srv, "write_draft", "Set a draft's text (email subject/body, or the note for a manual LinkedIn/X task). Any earlier approval is withdrawn.", s.writeDraft)
 	register(srv, "ai_draft", "Have the Claude API write a draft now from claims, voice, research and the triggering signal. Returns it with flags; never sends.", s.aiDraft)
-	register(srv, "approve", "Approve drafts exactly as saved. Emails queue for sending (still checked against do-not-contact, limits and pauses); manual tasks are marked done.", s.approve)
+	register(srv, "approve", "Approve drafts exactly as saved. Emails queue for sending (still checked against do-not-contact, limits and pauses); manual tasks are marked done. Pass content_hashes (from inbox/today, one per id) to refuse a draft that changed after the operator saw it.", s.approve)
 	register(srv, "skip", "Skip drafts; the sequence moves on to its next step.", s.skip)
 	register(srv, "resolve_send", "For a send whose delivery is unknown or failed: sent=true records it as sent; sent=false puts it back in drafts for a fresh approval. Nothing is ever re-sent automatically.", s.resolve)
 	register(srv, "label_reply", "Label a reply: interested, question, not_now, no, out_of_office, unsubscribe. no/unsubscribe add the person to do-not-contact; interested/question create a task; not_now creates a reminder (remind_on, default 30 days).", s.classify)
@@ -225,6 +234,13 @@ type draftArg struct {
 
 type idsArg struct {
 	ActionIDs []int64 `json:"action_ids"`
+}
+
+type approveArg struct {
+	ActionIDs []int64 `json:"action_ids"`
+	// ContentHashes, if given, holds one content_hash per action id: the
+	// version the operator saw.
+	ContentHashes []string `json:"content_hashes,omitempty" jsonschema:"optional: the content_hash of each draft as the operator saw it, in the order of action_ids; a draft that changed since is refused"`
 }
 
 type resolveArg struct {
@@ -479,6 +495,22 @@ func (s *Server) inbox(ctx context.Context, a inboxArg) (any, error) {
 		"drafts": drafts, "queued": queued, "paused": pauses}, nil
 }
 
+func (s *Server) today(ctx context.Context, a inboxArg) (any, error) {
+	t, err := views.GetToday(ctx, s.S, a.Product, time.Now())
+	if err != nil {
+		return nil, err
+	}
+	mode := s.Mode
+	if mode == "" {
+		mode = "live"
+	}
+	return map[string]any{"mode": mode, "today": t}, nil
+}
+
+func (s *Server) checkSent(ctx context.Context, a actionArg) (any, error) {
+	return sentmail.Check(ctx, s.S, s.Mail, s.Accounts, a.ActionID)
+}
+
 func (s *Server) writeDraft(ctx context.Context, a draftArg) (any, error) {
 	cur, err := s.S.Action(ctx, a.ActionID)
 	if err != nil {
@@ -494,8 +526,15 @@ func (s *Server) writeDraft(ctx context.Context, a draftArg) (any, error) {
 	return s.S.Action(ctx, a.ActionID)
 }
 
-func (s *Server) approve(ctx context.Context, a idsArg) (any, error) {
-	res, err := each(a.ActionIDs, func(id int64) error { return s.S.Approve(ctx, id) })
+func (s *Server) approve(ctx context.Context, a approveArg) (any, error) {
+	if len(a.ContentHashes) > 0 && len(a.ContentHashes) != len(a.ActionIDs) {
+		return nil, errors.New("content_hashes must have one entry per action id")
+	}
+	seen := map[int64]string{}
+	for i, h := range a.ContentHashes {
+		seen[a.ActionIDs[i]] = h
+	}
+	res, err := each(a.ActionIDs, func(id int64) error { return s.S.ApproveSeen(ctx, id, seen[id]) })
 	if m, ok := res.(map[string]any); ok && s.Mode == "sandbox" {
 		m["note"] = "Sandbox mode: approved messages go to the local outbox, not to real people."
 	}

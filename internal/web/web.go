@@ -20,7 +20,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/AstrolabeGTM/astrolabe/internal/channel"
 	"github.com/AstrolabeGTM/astrolabe/internal/content"
 	"github.com/AstrolabeGTM/astrolabe/internal/draft"
 	"github.com/AstrolabeGTM/astrolabe/internal/experiment"
@@ -33,6 +32,7 @@ import (
 	"github.com/AstrolabeGTM/astrolabe/internal/product"
 	"github.com/AstrolabeGTM/astrolabe/internal/sandbox"
 	"github.com/AstrolabeGTM/astrolabe/internal/score"
+	"github.com/AstrolabeGTM/astrolabe/internal/sentmail"
 	"github.com/AstrolabeGTM/astrolabe/internal/signal"
 )
 
@@ -437,62 +437,8 @@ func (srv *Server) actionResolve(w http.ResponseWriter, r *http.Request) {
 
 // actionCheck looks for an uncertain send in the mailbox's Sent folder.
 func (srv *Server) actionCheck(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-	a, err := srv.S.Action(ctx, pathID(r))
-	if err != nil {
-		done(w, r, "", "", err)
-		return
-	}
-	if a.MessageID == "" {
-		done(w, r, "", "", fmt.Errorf("%w: no Message-ID recorded; check the mailbox by hand", outreach.ErrInvalid))
-		return
-	}
-	if acct, _ := srv.mailStore().Get(a.Sender); acct != nil {
-		found, err := mail.FindSent(acct, a.MessageID)
-		if err != nil {
-			done(w, r, "", "", err)
-			return
-		}
-		if found {
-			done(w, r, "", fmt.Sprintf("Found #%d in %s; recorded as sent", a.ID, acct.SentFolder), srv.S.Resolve(ctx, a.ID, true, &channel.Result{ProviderID: a.MessageID, ThreadID: a.MessageID}))
-			return
-		}
-		note := ""
-		if !acct.SavesSent {
-			note = " This provider doesn't file SMTP sends in Sent by itself, so a missing copy isn't proof; check with the recipient if it matters."
-		}
-		done(w, r, "", fmt.Sprintf("#%d is not in %s.%s", a.ID, acct.SentFolder, note), nil)
-		return
-	}
-	mb, err := srv.Accounts.Mailbox(a.Sender)
-	if err != nil {
-		done(w, r, "", "", err)
-		return
-	}
-	found, err := mb.FindSent(ctx, a.MessageID)
-	if err != nil {
-		done(w, r, "", "", err)
-		return
-	}
-	if found.ProviderID != "" {
-		done(w, r, "", fmt.Sprintf("Found #%d in Sent mail; recorded as sent", a.ID), srv.S.Resolve(ctx, a.ID, true, &found))
-		return
-	}
-	// Not found by Message-ID. Gmail may not keep the id we set, so this is
-	// not proof it wasn't sent: show what was sent to them around then.
-	since := a.CreatedAt.Add(-time.Hour)
-	subjects, err := mb.SentTo(ctx, a.Recipient, since)
-	if err != nil {
-		done(w, r, "", "", err)
-		return
-	}
-	msg := fmt.Sprintf("#%d was not found by Message-ID. Nothing else was sent to %s since %s either, so it most likely did not go out; check by hand before returning it to drafts.",
-		a.ID, a.Recipient, since.Local().Format("2 Jan 15:04"))
-	if len(subjects) > 0 {
-		msg = fmt.Sprintf("#%d was not found by Message-ID, but Sent mail has %d message(s) to %s since %s: %q. If one is this message, choose \"It was sent\".",
-			a.ID, len(subjects), a.Recipient, since.Local().Format("2 Jan 15:04"), subjects)
-	}
-	done(w, r, "", msg, nil)
+	res, err := sentmail.Check(r.Context(), srv.S, srv.mailStore(), srv.Accounts, pathID(r))
+	done(w, r, "", res.Message, err)
 }
 
 func (srv *Server) replyClassify(w http.ResponseWriter, r *http.Request) {

@@ -2,7 +2,7 @@
 // Each screen is a module with load(), render() and its actions; this file
 // renders the chrome (navigation, breadcrumbs, mode and pause badges) and
 // runs every button and form through the same error handling.
-import { $, $$, e, api, state, icon, toast, initDialog, closeDialog, showFormError, plural } from "./lib.js";
+import { $, $$, e, api, state, icon, toast, initDialog, closeDialog, dialogOpener, showFormError, plural } from "./lib.js";
 
 const screens = [];
 
@@ -84,16 +84,22 @@ function context() {
   return { data: current.data, params: current.params, done, refresh: () => show({ keepFocus: true }) };
 }
 
-// done finishes an action: close any dialog, reload, and say what happened.
+// done finishes an action: close any dialog, reload, say what happened, and
+// put focus back where the operator was (or on the next item).
 async function done(message, kind = "ok") {
-  closeDialog();
-  await Promise.all([refreshBoot(), show({ keepFocus: true })]);
+  const target = describe(dialogOpener() || document.activeElement);
+  closeDialog(false);
+  await Promise.all([refreshBoot(), show({ keepFocus: true, target })]);
   if (message) toast(message, kind);
 }
 
-function focusTarget() {
-  const a = document.activeElement;
-  if (!a || a === document.body || !$("#main").contains(a)) return null;
+// describe remembers an element well enough to find it, or its successor,
+// after the screen is rendered again.
+function describe(a) {
+  if (!a || a === document.body) return null;
+  if (!$("#main").contains(a)) {
+    return a.dataset?.action ? { selector: `[data-action="${CSS.escape(a.dataset.action)}"]` } : null;
+  }
   const item = a.closest("[data-key]");
   const items = $$("[data-key]", $("#main"));
   return { key: item?.dataset.key, index: item ? items.indexOf(item) : -1, action: a.dataset.action, id: a.id };
@@ -102,7 +108,8 @@ function focusTarget() {
 function restoreFocus(t) {
   const main = $("#main");
   if (!t) return;
-  let el = t.id && document.getElementById(t.id);
+  let el = t.selector && document.querySelector(t.selector);
+  if (!el && t.id) el = document.getElementById(t.id);
   if (!el && t.key) {
     const item = main.querySelector(`[data-key="${CSS.escape(t.key)}"]`);
     el = item && (item.querySelector(`[data-action="${CSS.escape(t.action || "")}"]`) || item.querySelector("button, a, input, select, textarea"));
@@ -112,14 +119,15 @@ function restoreFocus(t) {
       el = next?.querySelector("button, a, input, select, textarea");
     }
   }
-  (el || main.querySelector("h1") || main).focus?.({ preventScroll: !!el });
+  if (el) el.focus();
+  else main.focus({ preventScroll: true });
 }
 
-async function show({ keepFocus = false } = {}) {
+async function show({ keepFocus = false, target } = {}) {
   const { id, params } = parseHash();
   const screen = screens.find(s => s.id === id);
   const changed = screen !== current.screen || JSON.stringify(params) !== JSON.stringify(current.params);
-  const focus = keepFocus && !changed ? focusTarget() : null;
+  const focus = keepFocus && !changed ? (target === undefined ? describe(document.activeElement) : target) : null;
   const scroll = window.scrollY;
   current = { screen, params, data: changed ? null : current.data };
   const main = $("#main");
@@ -168,10 +176,11 @@ const GLOBAL = {
   forms: {},
 };
 
+// Busy controls are marked aria-busy rather than disabled: disabling the
+// focused button would throw keyboard focus back to the top of the page.
 async function runAction(btn, name = btn.dataset.action) {
   const fn = handlerFor("actions", name);
-  if (!fn) return;
-  btn.disabled = true;
+  if (!fn || btn.getAttribute("aria-busy") === "true") return;
   btn.setAttribute("aria-busy", "true");
   try {
     await fn(btn, context());
@@ -180,15 +189,14 @@ async function runAction(btn, name = btn.dataset.action) {
     if (form && $("#dialog").contains(form)) showFormError(form, err.message);
     else toast(err.message, "error");
   } finally {
-    if (btn.isConnected) { btn.disabled = false; btn.removeAttribute("aria-busy"); }
+    btn.removeAttribute("aria-busy");
   }
 }
 
 async function runForm(form, submitter) {
   const fn = handlerFor("forms", form.dataset.form);
-  if (!fn) return;
-  const buttons = $$("button", form);
-  buttons.forEach(b => { b.disabled = true; });
+  if (!fn || form.getAttribute("aria-busy") === "true") return;
+  form.setAttribute("aria-busy", "true");
   showFormError(form, "");
   try {
     await fn(form, context(), submitter);
@@ -196,7 +204,7 @@ async function runForm(form, submitter) {
     showFormError(form, err.message);
     form.querySelector(".form-error")?.scrollIntoView({ block: "nearest" });
   } finally {
-    buttons.forEach(b => { if (b.isConnected) b.disabled = false; });
+    form.removeAttribute("aria-busy");
   }
 }
 
@@ -204,7 +212,7 @@ function wire() {
   initDialog();
   document.addEventListener("click", ev => {
     const btn = ev.target.closest("[data-action]");
-    if (btn && !btn.disabled) { ev.preventDefault(); runAction(btn); }
+    if (btn && !btn.disabled) { if (btn.tagName !== "A") ev.preventDefault(); runAction(btn); }
   });
   document.addEventListener("submit", ev => {
     const form = ev.target.closest("form[data-form]");
