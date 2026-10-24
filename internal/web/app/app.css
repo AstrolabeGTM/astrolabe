@@ -117,6 +117,9 @@ main:focus { outline: none; }
 .kv dd { margin: 0; overflow-wrap: anywhere; }
 
 .person-grid { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 8px 28px; align-items: start; }
+.person-grid > * { min-width: 0; }
+.qual-table td:last-child { width: 55%; }
+.qual-table input[type=text] { width: 100%; }
 .person-grid aside .section:first-child, .person-grid > div > .section:first-child { margin-top: 12px; }
 .score-parts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin: 12px 0 0; }
 .score-parts dt { font-weight: 600; }
@@ -206,7 +209,7 @@ details > summary { cursor: pointer; color: var(--info); font-size: 14px; }
 details[open] > summary { margin-bottom: 6px; }
 
 /* ---- tables ---- */
-.table-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); }
+.table-wrap { position: relative; overflow-x: auto; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); }
 table { width: 100%; border-collapse: collapse; font-size: 14px; }
 th, td { text-align: left; padding: 9px 12px; border-bottom: 1px solid var(--line); vertical-align: top; }
 tbody tr:last-child > * { border-bottom: 0; }
@@ -245,8 +248,12 @@ table th[scope=row] { font-size: 14px; font-weight: 600; color: var(--ink); text
 .notice p { margin: 0; }
 .notice + .notice, .notice + .table-wrap { margin-top: 10px; }
 
+.note .kv { margin-top: 8px; font-size: 14px; }
+.note q { font-style: italic; }
+.note .row { gap: 6px 10px; }
+
 /* ---- boards (pipeline) ---- */
-.board { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(180px, 1fr); gap: 12px; overflow-x: auto; padding-bottom: 8px; }
+.board { position: relative; display: grid; grid-auto-flow: column; grid-auto-columns: minmax(180px, 1fr); gap: 12px; overflow-x: auto; padding-bottom: 8px; }
 .board:focus-visible { outline-offset: 4px; }
 .column { background: var(--surface-2); border-radius: var(--radius); padding: 10px; min-width: 0; }
 .column h3 { font-size: 14px; margin: 2px 4px 10px; }

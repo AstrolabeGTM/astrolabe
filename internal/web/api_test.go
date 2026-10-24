@@ -562,7 +562,7 @@ func TestToolRoutes(t *testing.T) {
 }
 
 func TestPipelineAPI(t *testing.T) {
-	ts, _ := apiServer(t)
+	ts, srv := apiServer(t)
 	s := newSession(t, ts)
 	a := s.mustPost("/api/accounts/add", map[string]any{"product": "demo", "company": "acme.example", "evidence": "Sam asked for help", "next_action": "Reply to Sam"})
 	id := fmt.Sprint(a["id"])
@@ -588,6 +588,17 @@ func TestPipelineAPI(t *testing.T) {
 	detail := s.get("/api/account?product=demo&account=" + id)
 	if detail["signals"] == nil || detail["messages"] == nil || detail["conversations"] == nil {
 		t.Fatalf("account: %v", detail)
+	}
+	if _, err := people.Import(context.Background(), srv.S.Pool, "demo", []people.Row{{Email: "sam@acme.example", Name: "Sam"}}); err != nil {
+		t.Fatal(err)
+	}
+	s.mustPost("/api/conversations", map[string]any{"product": "demo", "person": "sam@acme.example", "account": id, "channel": "call",
+		"summary": "Walked through a report", "their_words": "We lose a morning a week", "pricing_feedback": []map[string]string{{"offer": "Team $29", "reaction": "fine"}}})
+	if d := s.get("/api/account?product=demo&account=" + id); len(d["conversations"].([]any)) != 1 {
+		t.Fatalf("the conversation is not on the account: %v", d["conversations"])
+	}
+	if code, _ := s.post("/api/conversations", map[string]any{"product": "demo", "person": "sam@acme.example", "channel": "call"}); code != http.StatusBadRequest {
+		t.Fatalf("an empty note was accepted: %d", code)
 	}
 	if csv := s.get("/api/pipeline/export?product=demo"); !strings.Contains(csv["csv"].(string), "acme") {
 		t.Fatalf("export: %v", csv)

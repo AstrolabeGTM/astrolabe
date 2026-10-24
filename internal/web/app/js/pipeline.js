@@ -74,7 +74,7 @@ function stageOptions(b, current) {
   return b.stages.map(s => `<option value="${e(s.stage)}"${s.stage === current ? " selected" : ""}>${e(words(s.stage))}</option>`).join("");
 }
 
-function moveDialog(a, b, reopen = false) {
+export function moveDialog(a, b, reopen = false) {
   const idx = b.stages.findIndex(s => s.stage === a.stage);
   const next = reopen ? a.stage : (b.stages[idx + 1]?.stage || a.stage);
   const tomorrow = new Date(Date.now() + 86400e3).toISOString().slice(0, 10);
@@ -93,7 +93,7 @@ function moveDialog(a, b, reopen = false) {
 }
 
 // gateHint warns before a move into a gated stage while checks aren't yes.
-function gateHint(sel, a, b) {
+export function gateHint(sel, a, b) {
   const box = $("#gate-hint");
   if (!box) return;
   const gi = b.stages.findIndex(s => s.stage === b.gate);
@@ -103,7 +103,7 @@ function gateHint(sel, a, b) {
   box.textContent = box.hidden ? "" : `${words(sel.value)} needs every gating check answered yes. Still open: ${failing.map(c => `${c} (${a.answers?.[c] || "unknown"})`).join(", ")}. Record the answers on the account page first; this move will be refused.`;
 }
 
-function closeDialog_(a, b) {
+export function pauseDialog(a, b) {
   const later = new Date(Date.now() + 30 * 86400e3).toISOString().slice(0, 10);
   openDialog({
     title: `Pause or lose ${a.company}`,
@@ -153,7 +153,7 @@ export default {
   actions: {
     move: (b, ctx) => moveDialog(find(ctx, b.dataset.id), ctx.data.board),
     reopen: (b, ctx) => moveDialog(find(ctx, b.dataset.id), ctx.data.board, true),
-    close: (b, ctx) => closeDialog_(find(ctx, b.dataset.id), ctx.data.board),
+    close: (b, ctx) => pauseDialog(find(ctx, b.dataset.id), ctx.data.board),
     "gate-hint": (el, ctx) => gateHint(el, find(ctx, el.form.dataset.id), ctx.data.board),
     "add-account": (b, ctx) => addDialog(ctx.data.product.id),
     export: async (b, ctx) => {

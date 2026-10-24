@@ -2,6 +2,7 @@
 import { e, api, post, state, pageHead, empty, ago, day, dateTime, ext, productName, field, formData, openDialog, words, plural } from "./lib.js";
 import { startSequenceDialog, actions as seqActions, forms as seqForms } from "./sequences.js";
 import { taskDialog } from "./today.js";
+import { conversationDialog, submitConversation, notesList } from "./conversation.js";
 
 const SOURCE = {
   github: "found through GitHub", event: "from your product's events", stripe: "from a Stripe payment", reply: "they wrote from it",
@@ -97,6 +98,7 @@ function render(v) {
     ? `<p class="notice bad"><strong>Do not contact</strong> since ${e(day(v.do_not_contact.since))}: ${e(words(v.do_not_contact.reason))}${v.do_not_contact.detail ? ` (${e(v.do_not_contact.detail)})` : ""}. No product will message them.</p>` : "";
   return `${pageHead(nameOf(p), "One person across your products. Score is 0.4 × fit + 0.4 × intent + 0.2 × why now, out of 100; priority A is 70 or more. Scores rank people; they never allow contact on their own.")}
     <p class="item-meta">${sub}${v.products.length ? ` · in ${v.products.map(x => e(productName(x))).join(", ")}` : ""}</p>
+    ${(v.reported_source || []).map(r => `<p class="item-meta">Said they came from: <q>${e(r.self_reported)}</q> (${e(productName(r.product))}; first touch: ${e(r.first_touch || "unknown")})</p>`).join("")}
     ${p.notes ? `<p>${e(p.notes)}</p>` : ""}${dnc}
     <div class="person-grid"><div>
       ${section("p-email", "Email", emailPolicy(v), `<p class="muted">The outreach guard, per product</p>`)}
@@ -104,6 +106,7 @@ function render(v) {
       ${section("p-seq", "Sequences", enrollments(v))}
       ${section("p-msg", "Messages", messages(v), `<p class="muted">Newest first</p>`)}
       ${section("p-rep", "Replies", replies(v))}
+      ${section("p-notes", "Conversations", notesList(v.conversations, { showPerson: false, showCompany: true }))}
       ${section("p-sig", "Signals", signals(v))}
     </div><aside aria-label="Identities, facts and notes">${aside(v)}</aside></div>`;
 }
@@ -113,7 +116,8 @@ export default {
   load: params => api(`/api/people/${encodeURIComponent(params.id || "")}`),
   render,
   crumbs: v => [{ label: "People", href: "#people" }, { label: v ? nameOf(v.person) : "Person" }],
-  pageActions: v => v ? `<button type="button" class="btn btn-sm" data-action="person-start">Start a sequence</button>
+  pageActions: v => v ? `<button type="button" class="btn btn-sm btn-primary" data-action="person-log">Log a conversation</button>
+    <button type="button" class="btn btn-sm" data-action="person-start">Start a sequence</button>
     <button type="button" class="btn btn-sm" data-action="person-task">Add a task</button>
     ${v.do_not_contact ? `<button type="button" class="btn btn-sm" data-action="person-allow">Allow contact again</button>`
       : `<button type="button" class="btn btn-sm btn-danger" data-action="person-dnc">Do not contact</button>`}` : "",
@@ -122,6 +126,7 @@ export default {
     "person-start": (b, ctx) => startSequenceDialog([ctx.data.person.id], { productId: ctx.data.products[0] || state.boot.products[0]?.id,
       who: nameOf(ctx.data.person), names: { [ctx.data.person.id]: nameOf(ctx.data.person) } }),
     "person-task": (b, ctx) => taskDialog(ctx.data.person.id),
+    "person-log": (b, ctx) => conversationDialog({ product: ctx.data.products.length === 1 ? ctx.data.products[0] : "", person: String(ctx.data.person.id), personName: nameOf(ctx.data.person) }),
     "person-dnc": (b, ctx) => openDialog({
       title: `Do not contact ${nameOf(ctx.data.person)}?`,
       description: "No product will message them again: sequences stop and unsent messages are held. You can undo this.",
@@ -132,6 +137,7 @@ export default {
   },
   forms: {
     ...seqForms,
+    "log-conversation": async (f, ctx) => { await submitConversation(f); await ctx.done("Conversation saved."); },
     facts: async (f, ctx) => ctx.done((await post(`/api/people/${ctx.data.person.id}/facts`, { facts: formData(f).facts })).status),
     research: async (f, ctx) => ctx.done((await post(`/api/people/${ctx.data.person.id}/research`, { product: formData(f).product })).status),
     "person-dnc": async (f, ctx) => ctx.done((await post(`/api/people/${ctx.data.person.id}/do-not-contact`, { reason: formData(f).reason })).status),
