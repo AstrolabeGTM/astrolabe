@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"io/fs"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -167,7 +168,17 @@ func TestAppNeedsLogin(t *testing.T) {
 	}
 
 	c := signIn(t, ts)
-	for _, path := range []string{"/app/", "/app/app.css", "/app/js/main.js", "/app/js/app.js", "/app/js/lib.js"} {
+	paths := []string{"/app/"}
+	fs.WalkDir(appFS, "app", func(p string, d fs.DirEntry, err error) error {
+		if err == nil && !d.IsDir() {
+			paths = append(paths, "/"+p)
+		}
+		return err
+	})
+	if len(paths) < 10 {
+		t.Fatalf("the app's files are not embedded: %v", paths)
+	}
+	for _, path := range paths {
 		resp, err := c.Get(ts.URL + path)
 		if err != nil {
 			t.Fatal(err)
