@@ -200,27 +200,22 @@ func (c *Client) Releases(ctx context.Context, repo string) ([]Release, error) {
 	return all, nil
 }
 
-// DiscussionCount returns the repository's discussion count through GraphQL,
-// which needs a token.
-func (c *Client) DiscussionCount(ctx context.Context, repo string) (int64, error) {
+// ErrNoToken is returned by GraphQL calls made without a token.
+var ErrNoToken = fmt.Errorf("no GitHub token configured")
+
+// graphql posts a GraphQL query; GitHub's GraphQL API always needs a token.
+func (c *Client) graphql(ctx context.Context, query string, vars map[string]any, data any) error {
 	if c.Token == "" {
-		return 0, fmt.Errorf("no GitHub token configured")
+		return ErrNoToken
 	}
-	owner, name, ok := strings.Cut(repo, "/")
-	if !ok {
-		return 0, fmt.Errorf("repo %q must be owner/name", repo)
-	}
-	body, _ := json.Marshal(map[string]any{
-		"query":     "query($owner:String!,$name:String!){repository(owner:$owner,name:$name){discussions{totalCount}}}",
-		"variables": map[string]string{"owner": owner, "name": name},
-	})
+	body, _ := json.Marshal(map[string]any{"query": query, "variables": vars})
 	base := c.Base
 	if base == "" {
 		base = "https://api.github.com"
 	}
 	req, err := http.NewRequestWithContext(ctx, "POST", base+"/graphql", strings.NewReader(string(body)))
 	if err != nil {
-		return 0, err
+		return err
 	}
 	req.Header.Set("Authorization", "Bearer "+c.Token)
 	req.Header.Set("Content-Type", "application/json")
@@ -230,33 +225,119 @@ func (c *Client) DiscussionCount(ctx context.Context, repo string) (int64, error
 	}
 	resp, err := hc.Do(req)
 	if err != nil {
-		return 0, err
+		return err
 	}
 	defer resp.Body.Close()
-	b, _ := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
+	b, _ := io.ReadAll(io.LimitReader(resp.Body, 10<<20))
 	if resp.StatusCode != 200 {
-		return 0, fmt.Errorf("github graphql: %d %s", resp.StatusCode, strings.TrimSpace(string(b)))
+		return fmt.Errorf("github graphql: %d %s", resp.StatusCode, strings.TrimSpace(string(b)))
 	}
 	var r struct {
-		Data struct {
-			Repository *struct {
-				Discussions struct {
-					TotalCount int64 `json:"totalCount"`
-				} `json:"discussions"`
-			} `json:"repository"`
-		} `json:"data"`
+		Data   json.RawMessage `json:"data"`
 		Errors []struct {
 			Message string `json:"message"`
 		} `json:"errors"`
 	}
 	if err := json.Unmarshal(b, &r); err != nil {
-		return 0, err
+		return err
 	}
 	if len(r.Errors) > 0 {
-		return 0, fmt.Errorf("github graphql: %s", r.Errors[0].Message)
+		return fmt.Errorf("github graphql: %s", r.Errors[0].Message)
 	}
-	if r.Data.Repository == nil {
+	return json.Unmarshal(r.Data, data)
+}
+
+// DiscussionCount returns the repository's discussion count through GraphQL,
+// which needs a token.
+func (c *Client) DiscussionCount(ctx context.Context, repo string) (int64, error) {
+	owner, name, ok := strings.Cut(repo, "/")
+	if !ok {
+		return 0, fmt.Errorf("repo %q must be owner/name", repo)
+	}
+	var r struct {
+		Repository *struct {
+			Discussions struct {
+				TotalCount int64 `json:"totalCount"`
+			} `json:"discussions"`
+		} `json:"repository"`
+	}
+	if err := c.graphql(ctx, "query($owner:String!,$name:String!){repository(owner:$owner,name:$name){discussions{totalCount}}}",
+		map[string]any{"owner": owner, "name": name}, &r); err != nil {
+		return 0, err
+	}
+	if r.Repository == nil {
 		return 0, ErrNotFound
 	}
-	return r.Data.Repository.Discussions.TotalCount, nil
+	return r.Repository.Discussions.TotalCount, nil
+}
+
+// Discussion is a GitHub Discussions thread. Author is empty for a deleted account.
+type Discussion struct {
+	Number    int
+	Title     string
+	URL       string
+	CreatedAt time.Time
+	Author    string
+	Bot       bool
+	Category  string
+}
+
+// Discussions returns discussions created at or after since, newest first,
+// through GraphQL (which needs a token), up to 500.
+func (c *Client) Discussions(ctx context.Context, repo string, since time.Time) ([]Discussion, error) {
+	owner, name, ok := strings.Cut(repo, "/")
+	if !ok {
+		return nil, fmt.Errorf("repo %q must be owner/name", repo)
+	}
+	const q = `query($owner:String!,$name:String!,$after:String){repository(owner:$owner,name:$name){discussions(first:100,after:$after,orderBy:{field:CREATED_AT,direction:DESC}){pageInfo{hasNextPage endCursor} nodes{number title url createdAt author{login __typename} category{name}}}}}`
+	var out []Discussion
+	var after *string
+	for page := 0; page < 5; page++ {
+		var r struct {
+			Repository *struct {
+				Discussions struct {
+					PageInfo struct {
+						HasNextPage bool   `json:"hasNextPage"`
+						EndCursor   string `json:"endCursor"`
+					} `json:"pageInfo"`
+					Nodes []struct {
+						Number    int       `json:"number"`
+						Title     string    `json:"title"`
+						URL       string    `json:"url"`
+						CreatedAt time.Time `json:"createdAt"`
+						Author    *struct {
+							Login    string `json:"login"`
+							Typename string `json:"__typename"`
+						} `json:"author"`
+						Category struct {
+							Name string `json:"name"`
+						} `json:"category"`
+					} `json:"nodes"`
+				} `json:"discussions"`
+			} `json:"repository"`
+		}
+		if err := c.graphql(ctx, q, map[string]any{"owner": owner, "name": name, "after": after}, &r); err != nil {
+			return out, err
+		}
+		if r.Repository == nil {
+			return out, ErrNotFound
+		}
+		d := r.Repository.Discussions
+		for _, n := range d.Nodes {
+			if n.CreatedAt.Before(since) {
+				return out, nil
+			}
+			x := Discussion{Number: n.Number, Title: n.Title, URL: n.URL, CreatedAt: n.CreatedAt, Category: n.Category.Name}
+			if n.Author != nil {
+				x.Author, x.Bot = n.Author.Login, n.Author.Typename == "Bot"
+			}
+			out = append(out, x)
+		}
+		if !d.PageInfo.HasNextPage {
+			break
+		}
+		cur := d.PageInfo.EndCursor
+		after = &cur
+	}
+	return out, nil
 }

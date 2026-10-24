@@ -40,11 +40,12 @@
             "type": "boolean"
           },
           "channel": {
-            "description": "email, linkedin_task, x_task (you send by hand); whatsapp, push, in_app, webhook for kind: users.",
+            "description": "email; linkedin_task, x_task (you send by hand); task (a to-do for you, such as a weekly check-in reminder; the draft text is the note, nothing is sent); whatsapp, push, in_app, webhook for kind: users.",
             "enum": [
               "email",
               "linkedin_task",
               "x_task",
+              "task",
               "whatsapp",
               "push",
               "in_app",

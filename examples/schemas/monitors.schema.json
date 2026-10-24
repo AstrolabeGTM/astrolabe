@@ -5,6 +5,7 @@
     "additionalProperties": false,
     "properties": {
       "events": {
+        "description": "For github_repo: star, fork, issue, discussion (discussion needs ASTROLABE_GITHUB_TOKEN).",
         "items": {
           "type": "string"
         },

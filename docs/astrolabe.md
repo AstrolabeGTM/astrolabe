@@ -160,7 +160,7 @@ A **monitor** produces signals. Monitors are either scheduled (polling) or event
 | Monitor | Type | Example signals | Products it suits |
 | --- | --- | --- | --- |
 | `github_search` | Scheduled, hourly | Issues/PRs mentioning "flaky test", "fails intermittently"; repos adding a test runner | Dev tools |
-| `github_repo` | Scheduled | Stars, forks and issues on your repos or a competitor's | Dev tools |
+| `github_repo` | Scheduled | Stars, forks, issues and discussions on your repos or a competitor's (`events: [star, fork, issue, discussion]`) | Dev tools |
 | `github_release` | Scheduled, daily is enough | No signals: daily counts of release downloads, stars, forks, watchers, open issues and discussions (section 15.3) | Dev tools with releases |
 | `community` | Scheduled, hourly | HN, Reddit, Lobsters, Stack Overflow, RSS keyword matches | All |
 | `product_events` | Webhook | signup, activated, stalled, limit hit, invited teammate | All (your apps send these) |
@@ -168,6 +168,8 @@ A **monitor** produces signals. Monitors are either scheduled (polling) or event
 | `stripe` | Webhook | Trial, upgrade, failed payment, churn | All paid products |
 | `inbox` | Webhook | Replies, bounces, unsubscribes | All |
 | `manual` | Chat or CSV | "Add these 30 people", a forwarded email | All |
+
+The `discussion` event of `github_repo` reads GitHub Discussions through GraphQL, which needs `ASTROLABE_GITHUB_TOKEN`. Each new discussion (author login, title, URL, category) becomes a `<signal>.discussion` signal for its author, identified by GitHub login like an issue. Without a token that event reports a clear error in the monitor's last run while the monitor's other events still run.
 
 Monitors are configured in `monitors.yaml`:
 
@@ -312,6 +314,7 @@ stop_on: [replied, unsubscribed, bounced, installed]
 | `whatsapp` | Meta WhatsApp Cloud API with approved templates (Parlo). The step names the template, language and parameters; the draft shows the template as its subject and one parameter per line. Needs `whatsapp.phone_number_id` in `product.yaml` and an explicit WhatsApp opt-in from product events. Replies arrive at `/hooks/whatsapp` (Meta signature); "STOP" unsubscribes |
 | `push` / `in_app` | A product webhook: Astrolabe posts a signed `{id, channel, user_id, title, body}` to `notify.url`, and the product's own notification service delivers it (Parlo). `id` is stable per message for dedupe |
 | `linkedin_task`, `x_task` | A task in your inbox with the text ready; you send it by hand and mark it done |
+| `task` | A to-do in your inbox that is not tied to a network, for example a weekly check-in reminder during a customer evaluation. Nothing is sent; the draft text is the task note, and marking it done completes the step. Allowed in cold and users sequences, with the same rules as the other manual channels |
 | `webhook` | Any product-specific action |
 
 Sequences have a `kind`: `cold` (people who don't know you; counts toward `limits.cold_per_day`) or `users` (existing users; WhatsApp, push, in-app and webhook are users-only, and a channel the user declined in product events is never used). The weekly touch cap covers both.

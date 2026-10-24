@@ -252,7 +252,7 @@ func (w *Writer) DraftAction(ctx context.Context, actionID int64) error {
 	case a.Channel == "push" || a.Channel == "in_app" || a.Channel == "webhook":
 		task.WriteString("\nThis is an in-app/push notification body for an existing user. Under 120 characters, specific, no urgency about money. Reply with the text only.")
 	case product.ManualChannel(a.Channel):
-		task.WriteString("\nThis is a note I will send by hand (LinkedIn/X). Under 300 characters. Reply with the note text only.")
+		task.WriteString("\nThis is a note for me: a message I will send by hand (LinkedIn/X) or a to-do reminder, depending on the channel. Under 300 characters. Reply with the note text only.")
 	case needSubject:
 		task.WriteString("\nPlain-text email under 120 words, no links except the offer destination if needed. Reply exactly as:\nSubject: <subject, under 8 words, lowercase is fine>\n\n<body, signed with just my first name>")
 	default:

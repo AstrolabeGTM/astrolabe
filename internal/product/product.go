@@ -178,15 +178,16 @@ func Render(text string, d TemplateData) (string, error) {
 
 // Channels a step can use. whatsapp, push, in_app and webhook are for
 // users sequences (existing users) only.
-var Channels = []string{"email", "linkedin_task", "x_task", "whatsapp", "push", "in_app", "webhook"}
+var Channels = []string{"email", "linkedin_task", "x_task", "task", "whatsapp", "push", "in_app", "webhook"}
 
 // LifecycleOnly reports channels that must not be used for cold outreach.
 func LifecycleOnly(c string) bool {
 	return c == "whatsapp" || c == "push" || c == "in_app" || c == "webhook"
 }
 
-// ManualChannel reports whether a step is a task I do by hand.
-func ManualChannel(c string) bool { return strings.HasSuffix(c, "_task") }
+// ManualChannel reports whether a step is a task I do by hand: a network task
+// (linkedin_task, x_task) or the generic task, a to-do that sends nothing.
+func ManualChannel(c string) bool { return c == "task" || strings.HasSuffix(c, "_task") }
 
 // Stop reasons recorded by the system, usable in stop_on alongside funnel stages.
 var systemStops = []string{"replied", "unsubscribed", "bounced"}

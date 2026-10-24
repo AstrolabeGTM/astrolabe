@@ -137,3 +137,18 @@ func TestAfterDuration(t *testing.T) {
 		t.Error("3w should be rejected")
 	}
 }
+
+func TestTaskChannelAndDiscussionEventValidate(t *testing.T) {
+	p := TestProduct(t)
+	write := func(name, s string) { os.WriteFile(filepath.Join(p.Dir, name), []byte(s), 0o644) }
+	write("sequences/checkin.yaml", "steps:\n  - {channel: task, after: 0d, goal: kickoff, body: 'Hi {{.FirstName}}'}\n  - {channel: task, after: 7d, goal: check in}\nstop_on: [replied]\n")
+	write("sequences/lifecycle.yaml", "kind: users\nsteps:\n  - {channel: task, after: 1d, goal: nudge}\nstop_on: [replied]\n")
+	write("monitors.yaml", "- {id: repo, type: github_repo, repo: me/tool, events: [star, fork, issue, discussion], signal: github.repo, strength: 10, every: 1h}\n")
+	if _, err := Load(p.Dir); err != nil {
+		t.Fatalf("task steps and the discussion event should validate: %v", err)
+	}
+	write("sequences/checkin.yaml", "steps:\n  - {channel: task, after: 2d, goal: a}\n  - {channel: task, after: 1d, goal: b, subject: nope}\nstop_on: [replied]\n")
+	if _, err := Load(p.Dir); err == nil || !strings.Contains(err.Error(), "earlier than the previous step") {
+		t.Fatalf("task steps follow the same ordering rules: %v", err)
+	}
+}
