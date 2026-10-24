@@ -18,6 +18,7 @@ import (
 	"github.com/AstrolabeGTM/astrolabe/internal/content"
 	"github.com/AstrolabeGTM/astrolabe/internal/draft"
 	"github.com/AstrolabeGTM/astrolabe/internal/funnel"
+	"github.com/AstrolabeGTM/astrolabe/internal/notes"
 	"github.com/AstrolabeGTM/astrolabe/internal/outreach"
 	"github.com/AstrolabeGTM/astrolabe/internal/people"
 	"github.com/AstrolabeGTM/astrolabe/internal/product"
@@ -61,7 +62,7 @@ Typical session: inbox -> label replies -> handle due tasks -> write or review d
 To find people: top_prospects, then person. To see what's working: funnel, experiments, digest.
 Drafts may already be written by the Claude API (ai_state "done"; "flags" lists problems): show flags.
 If inbox reports mode "sandbox", nothing reaches real people: say "sent to the sandbox outbox", never "sent", and offer simulate_reply to try the rest of the flow.
-Rules: use only claims from product_context.claims; never use never_claim phrases; approve sends exactly the saved text, so never approve without the operator's say-so.` + pipelineInstructions,
+Rules: use only claims from product_context.claims; never use never_claim phrases; approve sends exactly the saved text, so never approve without the operator's say-so.` + pipelineInstructions + notesInstructions,
 	})
 
 	// Products and setup
@@ -121,6 +122,7 @@ Rules: use only claims from product_context.claims; never use never_claim phrase
 	}
 	register(srv, "content_mark", "Mark a content item posted (with its URL) or skipped.", s.contentMark)
 	s.registerPipeline(srv) // account pipeline: pipeline.go
+	s.registerNotes(srv)    // conversation notes: notes.go
 	return srv
 }
 
@@ -419,7 +421,11 @@ func (s *Server) person(ctx context.Context, a personArg) (any, error) {
 		}
 	}
 	facts, _ := people.Facts(ctx, s.S.Pool, p.ID)
-	return map[string]any{"person": p, "facts": facts, "scores": scores, "briefs": briefs, "enrollments": enrolls, "messages": msgs, "replies": replies}, nil
+	convos, err := notes.List(ctx, s.S.Pool, notes.ListOpts{PersonID: p.ID}, time.Now())
+	if err != nil {
+		return nil, err
+	}
+	return map[string]any{"person": p, "facts": facts, "conversations": convos, "scores": scores, "briefs": briefs, "enrollments": enrolls, "messages": msgs, "replies": replies}, nil
 }
 
 func (s *Server) importPeople(ctx context.Context, a importArg) (any, error) {

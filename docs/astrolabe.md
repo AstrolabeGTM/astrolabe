@@ -726,7 +726,41 @@ _In progress._
 
 ### 15.6 Conversation notes
 
-_In progress._
+After a call, email thread or chat, write down what was said. It takes five minutes, and it is where most of what you learn about the product comes from. A note is about one person and, optionally, their account. It holds:
+
+| Field | Meaning |
+| --- | --- |
+| Date, channel, duration | When it happened; `call`, `email`, `chat`, `in_person` or `other`; minutes (optional) |
+| Assisted | Whether you coached them through using the product. Assisted sessions are counted apart and never as unassisted first use |
+| `summary` | What happened |
+| `their_words` | Exact quotes. They become marketing copy, so never paraphrase |
+| `problem` | The problem, in their terms |
+| `current_approach` | What they do today: the baseline a result will be judged against |
+| `next_step` | What happens next |
+
+**Optional extras, in the same call** (all or nothing: if any part is refused, nothing is saved):
+
+- **Qualification answers** for the account. They go through the same rules as `qualify` (§15.2), and each answer's evidence line gets the note's date and number added.
+- **A new next action with a due date.** It replaces the account's one next action. With no account it becomes a task for the person.
+- **The survey answer** (sales: Sean Ellis test): "How would you feel if you could no longer use the product?" `very_disappointed`, `somewhat_disappointed` or `not_disappointed`, plus "what would you use instead?" and "who else would benefit?", word for word. Only people who used the product two weeks or more are asked; you record `used_two_weeks` as given, and answers marked false are listed but left out of the counts.
+- **Pricing statements** (sales: willingness to pay, budget): the offer named, what it would replace (the comparison), who would approve it, how they buy (`card`, `invoice` or `procurement`) and their reaction. They are what people said, not commitments.
+
+**Where you see it:**
+
+| Where | What |
+| --- | --- |
+| MCP `log_conversation` | Writes a note and all of the extras in one call; returns the note and the updated account |
+| MCP `conversations` | Notes, newest first, filtered by product, person, account, last N days and assisted (true or false), with assisted and unassisted counts |
+| MCP `person`, `account` | Each also lists its notes under `conversations` |
+| MCP `pmf_survey` | People per answer, with the total answers, the people behind them and the window. Never a percentage without the counts: read each count against the total |
+| MCP `pricing_feedback` | For a window: counts by offer, by comparison and by buying process, with every statement and quote |
+| MCP prompt `weekly_themes`, tool `week_notes` | Gathers an ISO week's notes (their words, problems, current approaches, survey answers, pricing reactions) and asks the model to group them into themes with exact quotes and counts. Prompts need client support; `week_notes` returns the same material and instructions as a tool |
+| MCP `save_themes`, `themes` | Store and read the week's themes for a product, as text with optional items (theme, count, quotes, note), keyed by product and ISO week such as `2026-W43`. Saving again replaces them. A weekly review page reads them from here |
+| Weekly digest | Notes logged in the last 7 days (assisted and unassisted counts), the survey answers so far (a count per answer and the total), and the saved themes of this ISO week, or last week's if this week has none yet |
+
+In sandbox mode the demo loads three example notes from `demo-conversations.yaml`: two with survey answers, one of them an assisted session.
+
+Data: `conversations`, `pmf_answers`, `pricing_feedback` and `weekly_themes`. Code: `internal/notes`, plain Go functions (`Log`, `List`, `Count`, `PMFSurvey`, `PricingFeedback`, `Gather`, `SaveThemes`, `GetThemes`, `DigestSection`, `ISOWeek`, `WeekBounds`) that the browser app can call.
 
 ### 15.7 Hand-set facts
 

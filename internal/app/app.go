@@ -24,6 +24,7 @@ import (
 	"github.com/AstrolabeGTM/astrolabe/internal/gmail"
 	"github.com/AstrolabeGTM/astrolabe/internal/llm"
 	"github.com/AstrolabeGTM/astrolabe/internal/mail"
+	"github.com/AstrolabeGTM/astrolabe/internal/notes"
 	"github.com/AstrolabeGTM/astrolabe/internal/outreach"
 	"github.com/AstrolabeGTM/astrolabe/internal/people"
 	"github.com/AstrolabeGTM/astrolabe/internal/pipeline"
@@ -326,6 +327,18 @@ func (a *App) seedDemo(ctx context.Context, products []*product.Product) error {
 				}
 				if n > 0 {
 					slog.Info("demo accounts added", "product", p.ID, "count", n)
+				}
+			}
+		}
+		{
+			path := filepath.Join(p.Dir, "demo-conversations.yaml")
+			if _, err := os.Stat(path); err == nil {
+				n, err := notes.SeedFile(ctx, a.Pool, p, path, time.Now())
+				if err != nil {
+					return fmt.Errorf("seed %s conversations: %w", p.ID, err)
+				}
+				if n > 0 {
+					slog.Info("demo conversations added", "product", p.ID, "count", n)
 				}
 			}
 		}
