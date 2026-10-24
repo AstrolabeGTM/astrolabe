@@ -53,6 +53,9 @@ type Action struct {
 	Sequence string `yaml:"sequence" json:"sequence,omitempty"`
 	Task     string `yaml:"task" json:"task,omitempty"`
 	Draft    bool   `yaml:"draft" json:"draft,omitempty"` // AI drafts text for the task
+	// Updates: "subscribe" asks the person to join the product's updates
+	// list (a confirmation email; they are not added until they confirm).
+	Updates string `yaml:"updates" json:"updates,omitempty"`
 }
 
 type Success struct {
@@ -128,8 +131,25 @@ func (p *Product) validatePlays(stages map[string]bool) []string {
 		if n != 1 {
 			add("trigger needs exactly one of signal, stage, stage_stuck, account_stage, account_stuck")
 		}
-		if (pl.Action.Sequence == "") == (pl.Action.Task == "") {
-			add("action needs exactly one of sequence or task")
+		kinds := 0
+		for _, v := range []string{pl.Action.Sequence, pl.Action.Task, pl.Action.Updates} {
+			if v != "" {
+				kinds++
+			}
+		}
+		if kinds != 1 {
+			add("action needs exactly one of sequence, task or updates")
+		}
+		if pl.Action.Updates != "" {
+			if pl.Action.Updates != "subscribe" {
+				add("action updates must be subscribe")
+			}
+			if _, ok := p.UpdatesSettings(); !ok {
+				add("action updates needs an updates: section in product.yaml")
+			}
+			if pl.Trigger.AccountStage != "" || pl.Trigger.AccountStuck != nil {
+				add("action updates needs a person, so it cannot follow an account trigger")
+			}
 		}
 		if pl.Action.Sequence != "" && p.Sequences[pl.Action.Sequence] == nil {
 			add(fmt.Sprintf("sequence %q does not exist in sequences/", pl.Action.Sequence))

@@ -58,3 +58,13 @@ pipeline:
     checks: [pain, champion, timing]
     record: [budget]
   stuck_after: 14d
+
+# An opt-in updates list (sales: newsletter). A sign-up is not added until
+# the person confirms: by replying to the confirmation email, or, with
+# ASTROLABE_PUBLIC_URL set, by a link. postal_address is required before any
+# broadcast is sent. In sandbox mode the demo shows its confirmation emails
+# in the outbox and a draft broadcast waiting for you to approve.
+updates:
+  name: Pipewrench updates
+  per_day: 100
+  postal_address: "Pipewrench Demo Ltd, 1 Example Street, Exampleville EX1 1AA"

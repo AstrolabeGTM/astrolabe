@@ -35,8 +35,14 @@ func (r *Resend) Send(ctx context.Context, m Message) (Result, error) {
 	if base == "" {
 		base = "https://api.resend.com"
 	}
-	body, _ := json.Marshal(map[string]any{"from": m.From, "to": []string{m.To}, "subject": m.Subject, "text": m.Body,
-		"headers": map[string]string{"List-Unsubscribe": "<mailto:" + m.From + "?subject=unsubscribe>"}})
+	headers := map[string]string{"List-Unsubscribe": "<mailto:" + m.From + "?subject=unsubscribe>"}
+	for k, v := range m.Headers {
+		if strings.ContainsAny(k+v, "\r\n") {
+			return Result{}, NotSent("header values must not contain line breaks")
+		}
+		headers[k] = v
+	}
+	body, _ := json.Marshal(map[string]any{"from": m.From, "to": []string{m.To}, "subject": m.Subject, "text": m.Body, "headers": headers})
 	req, err := http.NewRequestWithContext(ctx, "POST", base+"/emails", bytes.NewReader(body))
 	if err != nil {
 		return Result{}, NotSent("%v", err)

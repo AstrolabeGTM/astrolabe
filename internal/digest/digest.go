@@ -26,6 +26,7 @@ import (
 	"github.com/AstrolabeGTM/astrolabe/internal/product"
 	"github.com/AstrolabeGTM/astrolabe/internal/reception"
 	"github.com/AstrolabeGTM/astrolabe/internal/score"
+	"github.com/AstrolabeGTM/astrolabe/internal/updates"
 )
 
 type ProductDigest struct {
@@ -44,6 +45,9 @@ type ProductDigest struct {
 	// Pipeline: accounts per stage, stuck accounts and overdue next actions
 	// (products with a pipeline).
 	Pipeline *pipeline.Board `json:"pipeline,omitempty"`
+	// Updates: the updates list's size changes this week and broadcast
+	// status (products with an updates: section).
+	Updates *updates.Summary `json:"updates,omitempty"`
 }
 
 // Moved: people entering a stage this week vs the week before.
@@ -136,6 +140,15 @@ func Build(ctx context.Context, pool *pgxpool.Pool, products []*product.Product,
 				return nil, err
 			}
 			pd.Pipeline = b.Summary()
+		}
+		if u, ok := p.UpdatesSettings(); ok {
+			sum, err := updates.WeekSummary(ctx, pool, p.ID, u.Name, now)
+			if err != nil {
+				return nil, err
+			}
+			if !sum.Empty() {
+				pd.Updates = sum
+			}
 		}
 		pd.Actions = actions(p, &pd)
 		d.Products = append(d.Products, pd)
@@ -237,6 +250,9 @@ func (d *Digest) Text() string {
 		}
 		if p.Pipeline != nil {
 			b.WriteString(p.Pipeline.Text())
+		}
+		if p.Updates != nil {
+			b.WriteString(p.Updates.Text())
 		}
 		if p.Counters != nil {
 			b.WriteString(p.Counters.Text())

@@ -43,6 +43,10 @@ type Service struct {
 	Recheck func(ctx context.Context, tx pgx.Tx, enrollmentID int64) (string, error)
 	// OnReply runs for a new reply matched to outreach (to queue classification).
 	OnReply func(ctx context.Context, tx pgx.Tx, replyID int64) error
+	// OnInbound runs for every new inbound message before it is matched to
+	// outreach, inside the same transaction. When it reports handled, the
+	// message is not matched to a sequence at all.
+	OnInbound func(ctx context.Context, tx pgx.Tx, in Inbound, replyID int64) (handled bool, err error)
 }
 
 func (s *Service) now() time.Time {

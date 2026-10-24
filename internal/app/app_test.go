@@ -44,6 +44,27 @@ func TestDemoPipelineInSandbox(t *testing.T) {
 	p := products[0]
 	now := time.Now()
 
+	// The demo shows the updates list: two confirmed by replying to their
+	// confirmation email, one still waiting, and a draft broadcast.
+	c, err := a.Updates.Counts(ctx, p.ID)
+	if err != nil || c.Confirmed != 2 || c.Pending != 1 {
+		t.Fatalf("demo updates list: %+v %v", c, err)
+	}
+	bcs, err := a.Updates.Broadcasts(ctx, p.ID, 5)
+	if err != nil || len(bcs) != 1 || bcs[0].State != "draft" {
+		t.Fatalf("demo broadcast: %+v %v", bcs, err)
+	}
+	box, _ := sandbox.Outbox(ctx, a.Pool, 50)
+	confirms := 0
+	for _, m := range box {
+		if strings.HasPrefix(m.Subject, "Confirm:") {
+			confirms++
+		}
+	}
+	if confirms != 3 {
+		t.Fatalf("the demo outbox shows the confirmations: %d", confirms)
+	}
+
 	b, err := pipeline.BuildBoard(ctx, a.Pool, p, now)
 	if err != nil {
 		t.Fatal(err)

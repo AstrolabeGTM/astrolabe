@@ -171,6 +171,24 @@ func channels(ctx context.Context, in Input, products []*product.Product) []Chec
 		if uses["email"] && kinds["users"] && in.Getenv("ASTROLABE_RESEND_API_KEY") == "" {
 			addrs = append(addrs, p.Sender.Users)
 		}
+		// The updates list: replies to its sender confirm and unsubscribe, so
+		// via: smtp needs that mailbox connected for IMAP too.
+		if u, ok := p.UpdatesSettings(); ok {
+			if u.Via == "resend" {
+				if in.Getenv("ASTROLABE_RESEND_API_KEY") == "" {
+					add("updates", Fail, p.ID+": updates.via is resend but ASTROLABE_RESEND_API_KEY is not set", "Set it, or use via: smtp.")
+				}
+				if in.Getenv("ASTROLABE_PUBLIC_URL") == "" {
+					add("updates", Warn, p.ID+": updates.via is resend and there is no ASTROLABE_PUBLIC_URL, so replies to "+u.From+" are the only way to confirm or unsubscribe; Resend does not deliver replies to Astrolabe",
+						"Set ASTROLABE_PUBLIC_URL, or use via: smtp with "+u.From+" connected.")
+				}
+			} else {
+				addrs = append(addrs, u.From)
+			}
+			if u.PostalAddress == "" {
+				add("updates", Warn, p.ID+": updates.postal_address is not set, so no broadcast will be sent", "Add your postal address to the updates section of product.yaml.")
+			}
+		}
 		for _, addr := range addrs {
 			addr = strings.ToLower(addr)
 			if checked[addr] {

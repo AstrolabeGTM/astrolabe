@@ -44,9 +44,21 @@ var descriptions = map[string]string{
 	"Product.demo":                       "Demo data: only loads in sandbox mode.",
 	"Product.links":                      "Tracked links in drafts.",
 	"Product.outreach":                   "Guards on who may be emailed.",
+	"Product.updates":                    "Opt-in email list (sales: newsletter, mailing list). Sign-ups are not added until they confirm, by replying to the confirmation email or, with a public URL, by link.",
 	"Product.pipeline":                   "Companies (accounts) through deal stages, beside the per-person funnel (sales: deal pipeline). b2b only.",
 	"Links.personal":                     "Swap the offer link in each draft for a personal tracked link (default true). false keeps the plain link.",
 	"Outreach.email_from_github":         "Allow email to people known only through GitHub (default false). GitHub's Acceptable Use Policies forbid using GitHub data to send unsolicited email.",
+	"Updates.name":                       "List name as subscribers see it. Default: '<product> updates'.",
+	"Updates.from":                       "Sender address (default sender.users). Replies to it confirm and unsubscribe, so for via: smtp connect this mailbox.",
+	"Updates.via":                        "smtp (the From mailbox, default) or resend (ASTROLABE_RESEND_API_KEY).",
+	"Updates.per_day":                    "Most broadcast emails sent in any 24 hours (default 100), so a personal mailbox is not flooded.",
+	"Updates.postal_address":             "Your postal address, shown in every message. Commercial email law requires one; no broadcast is sent without it.",
+	"Updates.confirm_within":             "How long an unconfirmed sign-up stays valid, e.g. 7d (default).",
+	"Updates.confirm_subject":            "Confirmation email subject; may use {{.List}}, {{.Product}}, {{.Email}}, {{.Expires}}.",
+	"Updates.confirm_body":               "Confirmation email text. How to confirm and unsubscribe are added for you.",
+	"Updates.welcome_subject":            "Welcome email subject, sent once after they confirm.",
+	"Updates.welcome_body":               "Welcome email text.",
+	"Action.updates":                     "subscribe: ask the person to join the product's updates list (needs an updates: section). They are added only after they confirm.",
 	"Pipeline.stages":                    "Ordered account stages, e.g. identified, contacted, qualified, evaluation, won. Paused and lost are built in.",
 	"Pipeline.qualify":                   "Checks that gate a stage (sales: BANT, MEDDIC), answered yes, no or unknown with evidence.",
 	"Pipeline.reasons":                   "Reasons an account is paused or lost, e.g. no_timing, no_reply.",
@@ -63,6 +75,8 @@ var descriptions = map[string]string{
 	"Offer.window":                       "How long to wait for success before judging, e.g. 14d.",
 	"Claims.allowed":                     "Markdown file listing true claims with proof links; drafts may only use these.",
 	"Claims.never":                       "Phrases a draft may never contain.",
+	"Action.sequence":                    "Start this sequence for the person.",
+	"Action.task":                        "Create a to-do with this text.",
 	"Sender.cold":                        "Mailbox for cold email (sales: outbound), ideally on a separate domain.",
 	"Sender.users":                       "Mailbox for email to existing users (sales: lifecycle).",
 	"AutoApprove.cold":                   "none | follow_ups | all (sales: manual | first_step | auto).",
@@ -92,7 +106,7 @@ var descriptions = map[string]string{
 	"Trigger.account_stuck":              "An account sat in a pipeline stage for this long.",
 	"Play.when":                          "Filters: who it applies to.",
 	"Play.delay":                         "Wait before the first step; conditions are rechecked.",
-	"Play.action":                        "Start a sequence, or create a to-do.",
+	"Play.action":                        "Start a sequence, create a to-do, or ask the person to join the updates list.",
 	"Play.success":                       "Stage that counts as success (default: the offer's).",
 	"Play.limit_per_day":                 "Most runs per day.",
 	"Play.notes":                         "Audience, offer and effort budget, written before starting.",
@@ -123,6 +137,8 @@ var enums = map[string][]string{
 	"Step.channel":             {"email", "linkedin_task", "x_task", "task", "whatsapp", "push", "in_app", "webhook"},
 	"When.min_tier":            {"A", "B", "C", "D"},
 	"Monitor.type":             {"github_search", "github_repo", "community", "github_release"},
+	"Updates.via":              {"smtp", "resend"},
+	"Action.updates":           {"subscribe"},
 }
 
 // schemaAliases adds sales-vocabulary keys: struct.alias -> canonical key.
@@ -139,6 +155,7 @@ var patterns = map[string]string{
 	"Step.after": durationPatternJS, "Play.delay": durationPatternJS, "Offer.window": durationPatternJS,
 	"Monitor.every": durationPatternJS, "When.not_contacted_within": durationPatternJS,
 	"Product.id": `^[a-z0-9][a-z0-9-]*$`, "Pipeline.stuck_after": durationPatternJS,
+	"Updates.confirm_within": durationPatternJS,
 }
 
 func schemaFor(t reflect.Type) map[string]any {

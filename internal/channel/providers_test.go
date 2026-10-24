@@ -61,3 +61,28 @@ func TestProviders(t *testing.T) {
 		}
 	}
 }
+
+func TestListHeaders(t *testing.T) {
+	m := Message{From: "hello@demo.example", To: "a@x.example", Subject: "Hi", MessageID: "<1@demo.example>", Body: "b",
+		Headers: map[string]string{"List-Unsubscribe": "<mailto:hello@demo.example?subject=unsubscribe%201.ab>, <https://x.example/u/1>",
+			"List-Unsubscribe-Post": "List-Unsubscribe=One-Click", "Auto-Submitted": "auto-generated"}}
+	raw, err := BuildMIME(m)
+	if err != nil {
+		t.Fatal(err)
+	}
+	s := string(raw)
+	if strings.Count(s, "List-Unsubscribe:") != 1 || !strings.Contains(s, "https://x.example/u/1") ||
+		!strings.Contains(s, "List-Unsubscribe-Post: List-Unsubscribe=One-Click") || !strings.Contains(s, "Auto-Submitted: auto-generated") {
+		t.Fatalf("headers:\n%s", s)
+	}
+	m.Headers = map[string]string{"X-Evil": "a\r\nBcc: x@y.example"}
+	if _, err := BuildMIME(m); err == nil {
+		t.Fatal("header injection")
+	}
+	// Without extra headers the default mailto header stays.
+	m.Headers = nil
+	raw, _ = BuildMIME(m)
+	if !strings.Contains(string(raw), "List-Unsubscribe: <mailto:hello@demo.example?subject=unsubscribe>") {
+		t.Fatal("default header lost")
+	}
+}
