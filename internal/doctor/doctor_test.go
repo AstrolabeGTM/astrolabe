@@ -102,3 +102,24 @@ func TestDoctor(t *testing.T) {
 		t.Fatal("unreachable database should fail")
 	}
 }
+
+func TestDoctorNetlifyToken(t *testing.T) {
+	ctx := context.Background()
+	_, url := store.TestDBURL(t)
+	env := map[string]string{}
+	ws := t.TempDir()
+	starter.Init(starter.Options{Dir: ws, Template: "devtool", Name: "Hook Check", SenderCold: "me@try-hook.example"})
+	pdir := filepath.Join(ws, "products", "hook-check")
+	os.WriteFile(filepath.Join(pdir, "claims.md"), []byte("- It works"), 0o644)
+	os.WriteFile(filepath.Join(pdir, "voice.md"), []byte("Plain."), 0o644)
+	os.WriteFile(filepath.Join(pdir, "monitors.yaml"), []byte("- {id: requests, type: netlify_forms, site: hook-check.netlify.app, form: request, signal: form.request, strength: 40, every: 1h}\n"), 0o644)
+	in := Input{DatabaseURL: url, ProductsDir: filepath.Join(ws, "products"), SecretsDir: t.TempDir(), Mode: "sandbox",
+		Password: "long-enough-password", Getenv: func(k string) string { return env[k] }}
+	if !find(Run(ctx, in), "netlify", Fail, "ASTROLABE_NETLIFY_TOKEN") {
+		t.Fatal("a netlify_forms monitor without a token should fail with the fix")
+	}
+	env["ASTROLABE_NETLIFY_TOKEN"] = "nfp_test"
+	if find(Run(ctx, in), "netlify", Fail, "") || !find(Run(ctx, in), "netlify", OK, "token set") {
+		t.Fatal("with a token set, the netlify check passes without -connect")
+	}
+}

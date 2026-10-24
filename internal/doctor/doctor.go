@@ -8,9 +8,11 @@ import (
 	"io"
 	"net"
 	"net/http"
+	neturl "net/url"
 	"os"
 	"path/filepath"
 	"slices"
+	"sort"
 	"strings"
 	"time"
 
@@ -277,6 +279,44 @@ func integrations(ctx context.Context, in Input, products []*product.Product) []
 				add("webhooks", Warn, fmt.Sprintf("%s: %s webhook is off", p.ID, what),
 					fmt.Sprintf("Set ASTROLABE_%s_SECRET_%s to turn it on.", strings.ToUpper(kind), strings.ToUpper(strings.ReplaceAll(p.ID, "-", "_"))))
 			}
+		}
+	}
+	// netlify_forms monitors pull form submissions with a Netlify token.
+	netlifySites := map[string][]string{}
+	for _, p := range products {
+		for _, m := range p.Monitors {
+			if m.Type == "netlify_forms" {
+				netlifySites[m.Site] = append(netlifySites[m.Site], p.ID+"/"+m.ID)
+			}
+		}
+	}
+	if len(netlifySites) > 0 {
+		nt := in.Getenv("ASTROLABE_NETLIFY_TOKEN")
+		sites := make([]string, 0, len(netlifySites))
+		for site := range netlifySites {
+			sites = append(sites, site)
+		}
+		sort.Strings(sites)
+		switch {
+		case nt == "":
+			var mons []string
+			for _, site := range sites {
+				mons = append(mons, netlifySites[site]...)
+			}
+			add("netlify", Fail, fmt.Sprintf("no Netlify token, so form submissions are never pulled (%s)", strings.Join(mons, ", ")),
+				"Create a Netlify personal access token and set ASTROLABE_NETLIFY_TOKEN.")
+		case in.Connect:
+			for _, site := range sites {
+				code, err := get(ctx, in.HTTP, "https://api.netlify.com/api/v1/sites/"+neturl.PathEscape(site), map[string]string{"Authorization": "Bearer " + nt})
+				if err != nil || code != 200 {
+					add("netlify", Fail, fmt.Sprintf("site %q not readable with the token (%d %v)", site, code, err),
+						"Check the token, and use the site's API ID or its netlify.app name as site:.")
+				} else {
+					add("netlify", OK, "site "+site+" readable", "")
+				}
+			}
+		default:
+			add("netlify", OK, "token set (add -connect to test it)", "")
 		}
 	}
 	token := in.Getenv("ASTROLABE_GITHUB_TOKEN")
