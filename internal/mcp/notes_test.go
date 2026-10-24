@@ -118,7 +118,11 @@ func TestConversationTools(t *testing.T) {
 		t.Fatal("bad week accepted")
 	}
 	prompts, _ := cs.ListPrompts(ctx, nil)
-	if len(prompts.Prompts) != 1 || prompts.Prompts[0].Name != "weekly_themes" {
+	names := map[string]bool{}
+	for _, pr := range prompts.Prompts {
+		names[pr.Name] = true
+	}
+	if len(prompts.Prompts) != 2 || !names["weekly_themes"] || !names["friday_review"] {
 		t.Fatalf("prompts: %+v", prompts.Prompts)
 	}
 }

@@ -47,5 +47,6 @@ var Indirect = map[string]string{
 	"form_submissions":       "also by the address inside fields, for submissions not matched to a person",
 	"replies":                "also by from_addr",
 	"payments":               "also by email",
+	"weekly_reviews":         "no person column; strings in snapshot, answers and decisions that name them are replaced (jsonScrubs in run.go)",
 	"accounts and companies": "free text naming them is overwritten (see scrubs in run.go); the rows stay",
 }

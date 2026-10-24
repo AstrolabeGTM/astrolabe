@@ -2,6 +2,7 @@ package forget
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strconv"
@@ -376,6 +377,16 @@ func erase(ctx context.Context, tx pgx.Tx, w who, rep *Report, now time.Time) er
 		}
 	}
 
+	for _, j := range jsonScrubs {
+		n, err := scrubJSON(ctx, tx, j.table, j.col, terms)
+		if err != nil {
+			return fmt.Errorf("forget %s.%s: %w", j.table, j.col, err)
+		}
+		if n > 0 {
+			rep.Scrubbed[j.table+"."+j.col] += n
+		}
+	}
+
 	// ---- the tombstone ----
 	if e.err == nil {
 		for _, id := range t.idents {
@@ -422,6 +433,75 @@ var scrubs = []struct {
 	{"conversations", []string{"summary", "their_words", "problem", "current_approach", "next_step"}},
 	{"weekly_themes", []string{"body"}},
 	{"digests", []string{"body"}},
+}
+
+// jsonScrubs are jsonb documents of records that stay (saved weekly reviews
+// hold advocate names, mention labels and request labels inside snapshot,
+// answers and decisions). Every string in them that contains a term is
+// replaced by the marker.
+var jsonScrubs = []struct{ table, col string }{
+	{"weekly_reviews", "snapshot"},
+	{"weekly_reviews", "answers"},
+	{"weekly_reviews", "decisions"},
+	{"weekly_themes", "items"},
+	{"digests", "data"},
+	{"pipeline_snapshots", "checks"},
+}
+
+func scrubJSON(ctx context.Context, tx pgx.Tx, table, col string, terms []string) (int, error) {
+	rows, err := tx.Query(ctx, fmt.Sprintf(`SELECT ctid::text, %[2]s FROM %[1]s WHERE EXISTS (
+		SELECT 1 FROM unnest($1::text[]) x WHERE strpos(lower(%[2]s::text), x) > 0)`, table, col), terms)
+	if err != nil {
+		return 0, err
+	}
+	type hit struct {
+		ctid string
+		doc  any
+	}
+	var hits []hit
+	for rows.Next() {
+		var h hit
+		if err := rows.Scan(&h.ctid, &h.doc); err != nil {
+			rows.Close()
+			return 0, err
+		}
+		hits = append(hits, h)
+	}
+	rows.Close()
+	if err := rows.Err(); err != nil {
+		return 0, err
+	}
+	for _, h := range hits {
+		doc, err := json.Marshal(redact(h.doc, terms))
+		if err != nil {
+			return 0, err
+		}
+		if _, err := tx.Exec(ctx, fmt.Sprintf(`UPDATE %s SET %s = $1::jsonb WHERE ctid = $2::tid`, table, col), string(doc), h.ctid); err != nil {
+			return 0, err
+		}
+	}
+	return len(hits), nil
+}
+
+func redact(v any, terms []string) any {
+	switch x := v.(type) {
+	case string:
+		l := strings.ToLower(x)
+		for _, t := range terms {
+			if strings.Contains(l, t) {
+				return Marker
+			}
+		}
+	case []any:
+		for i := range x {
+			x[i] = redact(x[i], terms)
+		}
+	case map[string]any:
+		for k, e := range x {
+			x[k] = redact(e, terms)
+		}
+	}
+	return v
 }
 
 // reviewThemes lists saved weekly themes written from weeks in which the

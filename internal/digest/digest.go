@@ -27,6 +27,7 @@ import (
 	"github.com/AstrolabeGTM/astrolabe/internal/pipeline"
 	"github.com/AstrolabeGTM/astrolabe/internal/product"
 	"github.com/AstrolabeGTM/astrolabe/internal/reception"
+	"github.com/AstrolabeGTM/astrolabe/internal/review"
 	"github.com/AstrolabeGTM/astrolabe/internal/score"
 	"github.com/AstrolabeGTM/astrolabe/internal/updates"
 )
@@ -55,6 +56,9 @@ type ProductDigest struct {
 	// Updates: the updates list's size changes this week and broadcast
 	// status (products with an updates: section).
 	Updates *updates.Summary `json:"updates,omitempty"`
+	// Review: whether this week's review is saved and how many questions
+	// are still unanswered.
+	Review *review.Status `json:"weekly_review,omitempty"`
 }
 
 // Moved: people entering a stage this week vs the week before.
@@ -165,6 +169,9 @@ func Build(ctx context.Context, pool *pgxpool.Pool, products []*product.Product,
 			if !sum.Empty() {
 				pd.Updates = sum
 			}
+		}
+		if pd.Review, err = review.WeekStatus(ctx, pool, p, now); err != nil {
+			return nil, err
 		}
 		pd.Actions = actions(p, &pd)
 		d.Products = append(d.Products, pd)
@@ -291,6 +298,9 @@ func (d *Digest) Text() string {
 			for _, w := range c.Warnings {
 				fmt.Fprintf(&b, "  WARNING: %s\n", w)
 			}
+		}
+		if p.Review != nil {
+			b.WriteString(p.Review.Text())
 		}
 		if p.Drop != "" {
 			fmt.Fprintf(&b, "Biggest drop (30d): %s\n", p.Drop)

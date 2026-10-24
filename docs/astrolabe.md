@@ -1001,7 +1001,50 @@ Each entry is exactly `code` and `label`. Codes must be unique across the produc
 
 ### 15.10 Weekly review
 
-_In progress._
+One page of numbers that answers the Friday questions (sales: pipeline review, forecast call, QBR-lite). `review.Build` assembles it for an ISO week from the summaries the digest already uses; nothing is computed twice. Every figure is a count with its denominator and window, and there are no bare percentages. The week is Monday to Sunday (UTC); in the current week the window says `partial` and covers the days so far.
+
+| Section | What it holds |
+| --- | --- |
+| **Spread** | Public counters' change over the 7 days to the end of the window against the 7 before (§15.3). The updates list's size and week changes (§15.8). Mentions by tone with how many ask a question (§15.4). Form requests this week by the source people reported, with the total and how many left it blank (§15.5, §9). New signals this week by type. |
+| **Users** | People entering each funnel stage this week (and the week before). A fixed four-week cohort: people whose first event fell in the four weeks ending with this one, and for each stage how many reached it of how many reached the one before. The funnel's weekly cohorts for the same weeks. The PMF survey counts so far (§15.6). Activation this week split into assisted and unassisted: a person counts as assisted when a note marks a session with them as assisted; the week's notes are counted apart beside it. |
+| **Accounts** (products with a pipeline) | Accounts entering each stage this week, including paused and lost. Median days in each stage, with the number of visits behind it. The board's stuck accounts and overdue next actions (§15.2). Paused and lost reasons, counted, for this week and for now. Advocates: people with the `advocate` role on an account. |
+| **Response times** | Inbound items that arrived this week: form requests, replies labelled `interested` or `question`, and new GitHub issues and discussions. For each, the time from arrival to the first response: a message sent to that person, or the related task closed (the task made from that reply, or a task for that person or their account created after the item arrived). Per kind: total, answered, **within** target, **over** target (answered late, or still unanswered past the target) and **waiting** (unanswered, still inside the target); the three add up to the total. The five slowest items follow. Clocks are wall-clock hours, nights and weekends included. |
+| **Themes** | The week's saved themes (§15.6) and the pricing-feedback summary for its days. |
+| **Campaigns** | Running campaigns' summaries (§15.9). |
+| **Experiments** | Each experiment on a step that still has variants, with its current verdict (§9). |
+| **Questions** | The review's questions, each with its saved answer. |
+
+Trimmed shape of the JSON:
+
+```json
+{
+  "product": "pipewrench-demo", "week": "2026-W43", "review_day": "friday",
+  "window": {"from": "2026-10-19", "to": "2026-10-23", "partial": true},
+  "spread": {"requests_by_reported_source": {"total": 3, "unanswered": 1, "sources": [{"source": "hn", "requests": 2, "percent_of_total": 66}]},
+             "mentions": {"total": 3, "by_tone": {"positive": 1, "negative": 1, "mixed": 0, "unknown": 1}},
+             "new_signals": {"total": 5, "by_type": [{"name": "github.repo.issue", "count": 1}]}},
+  "users": {"stages": [{"stage": "activated", "entered_this_week": 2, "entered_previous_week": 0, "activation": true}],
+            "four_week_cohort": {"people": 4, "stages": [{"stage": "activated", "reached": 2, "of_previous_stage": 3, "percent_of_previous": 66}]},
+            "activation": {"activated_this_week": 2, "assisted": 1, "unassisted": 1}},
+  "accounts": {"open_accounts": 2, "median_days_in_stage": [{"stage": "identified", "median_days": 2, "visits": 3}],
+               "paused_and_lost_this_week": [{"status": "lost", "reason": "no_budget", "accounts": 1}]},
+  "response_times": {"by_kind": [{"kind": "request", "target": "2h", "total": 3, "answered": 2, "within_target": 1, "over_target": 2, "waiting_inside_target": 0}],
+                     "slowest": [{"kind": "issue", "label": "...", "hours": 58, "status": "over"}]},
+  "questions": [{"number": 1, "question": "How many reached activation, and what did they say?", "answered": false}]
+}
+```
+
+**Config.** An optional `review:` section in `product.yaml`: `questions` (a list of strings; default the five below), `targets` (`requests` and `replies` default `2h`; `issues` and `discussions` default `24h`; durations like `90m`, `2h`, `1d`) and `weekday` (default `friday`). The default questions: how many reached activation and what did they say; what changed in reach and where did new people say they came from; how many accounts moved and where are they stuck; what did people say that surprised us; what is the single biggest blocker to the next activation. Validation refuses empty or repeated questions, more than 12, a bad weekday and non-positive targets. Code: `product.Review`, `Product.ReviewSettings()`.
+
+**Saving.** `review.Save` stores the operator's answers (by question number or exact text; an empty answer clears one), one decision per running experiment and campaign (`keep`, `change` or `stop`, with a note; the target must be running in that review), and a frozen JSON snapshot of the review as built at the **first** save. Later saves merge answers and decisions into what is there and leave the snapshot alone, so a saved week reloads unchanged however much data arrives afterwards; `refresh_snapshot` rebuilds it on purpose. Answers are kept with the question text they answered, so editing the questions in `product.yaml` does not lose them.
+
+**Tools and prompt** (`docs/mcp-tools.md`): `weekly_review` (this week or a given week; a saved week returns the frozen snapshot with its answers and decisions, plus a fresh build with `fresh: true`), `save_review`, `reviews` (past weeks) and the MCP prompt `friday_review`, which walks the operator through the numbers, the questions and the keep, change or stop decisions, then calls `save_review`.
+
+**Digest.** Each product gets one line: whether this week's review is saved and how many questions are unanswered.
+
+**Table** (migration 0018): `weekly_reviews`, keyed by product and ISO week: `answers`, `decisions`, `snapshot`, `created_at`, `saved_at`. Code: `internal/review` (`Build`, `BuildAt`, `Save`, `Get`, `List`, `WeekStatus`), plain functions the browser app can call.
+
+**Limits.** The stuck and overdue lists and the stage median are read from the pipeline as it is now, so for a week already past, an unsaved review shows today's board; a saved one shows the board as it was. The counters, mentions and updates figures cover the 7 days up to the end of the window, as their own reports do. Replies are matched to a response by the person and by the task made from the reply; a reply answered from outside Astrolabe is not seen. A request with no person (no email in the form) can only be answered by a task for its account.
 
 ### 15.11 The browser app
 
@@ -1015,7 +1058,7 @@ An operator who tells people "write to us and we delete your submission and any 
 
 **What is deleted, in one transaction.** The person, their identities (every address, GitHub login, phone, product user id, Stripe id) and product memberships; signals about them, including signals that only name their address and identity reviews that list them; scores and research notes (with the logged LLM call behind a note, and any logged call whose text contains their address, login or full name); enrollments, every draft and sent message to them, replies from them (also from a second address of theirs), sandbox outbox rows and draft-edit examples; tasks about them; conversation notes with their survey answer and pricing statements; account memberships (the account and company stay); form submissions; list subscriptions and list messages; funnel events, tracked links and their clicks, A/B assignments, channel permissions, do-not-contact entries and payment rows; and queued background jobs that name them. The table-by-table counts are in the answer.
 
-**What is kept, scrubbed.** Two things stay because a limit counts them, with every personal field removed. A cold message sent to them in the last 24 hours leaves one anonymous `erased_sends` row (product, which cap, when), so erasing it cannot free room under `limits.cold_per_day`; the same for a broadcast under `updates.per_day`. Rows are pruned after two days. An automation run inside the 24 hours of a play's `limit_per_day` stays with person, signal, enrollment and detail cleared. Free text elsewhere that contains their address, GitHub login or full name (an account's evidence or next action, a company note, a conversation note about someone else, a weekly digest) is overwritten with `[removed on request]`; the account and company stay. Weekly themes cannot be matched (quotes carry no names), so the answer lists the saved themes written from weeks with their conversations for you to read.
+**What is kept, scrubbed.** Two things stay because a limit counts them, with every personal field removed. A cold message sent to them in the last 24 hours leaves one anonymous `erased_sends` row (product, which cap, when), so erasing it cannot free room under `limits.cold_per_day`; the same for a broadcast under `updates.per_day`. Rows are pruned after two days. An automation run inside the 24 hours of a play's `limit_per_day` stays with person, signal, enrollment and detail cleared. Free text elsewhere that contains their address, GitHub login or full name (an account's evidence or next action, a company note, a conversation note about someone else, a weekly digest, and any string inside a saved weekly review's snapshot, answers and decisions) is overwritten with `[removed on request]`; the account and company stay. Weekly themes cannot be matched (quotes carry no names), so the answer lists the saved themes written from weeks with their conversations for you to read.
 
 **The tombstone.** Their identities are stored in `forgotten` as `sha256(salt, kind + ":" + value)`, so the table can say "this exact value was erased" but not what it was. The salt is random, per install, in the `settings` table (`forget_salt`): it travels with the database in a backup or move, so tombstones keep working after a restore, which a salt in the secrets volume could not promise. Anyone who can read the whole database can test a guessed address against it; the table adds nothing to what they could already read. All identity kinds are covered, not only email and GitHub. After that, the same address or login is dropped, not created, and never contacted, from every door: a monitor or product event or payment webhook (the signal is not stored), a form or webhook submission, a CSV import (the row is skipped), a reply or bounce naming the address (not stored), and the operator adding them to the updates list (refused). `people.LinkIdentity`, the single path for identities, returns `ErrForgotten` as a last guard. If they submit a form again, intake still drops it and opens one task, "A forgotten person wrote again via the <form> form (<source> submission <id>); decide whether to accept"; it holds no personal data, and the id is how to delete that new submission at Netlify. To accept them again, delete their rows from `forgotten` by hand (there is no tool for it on purpose).
 

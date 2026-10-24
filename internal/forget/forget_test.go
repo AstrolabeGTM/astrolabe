@@ -241,6 +241,9 @@ func (w *world) seedEverything() int64 {
 		Pricing: []notes.Pricing{{Offer: "Team plan", Reaction: "fine"}}}, w.now)
 	w.must(err)
 	w.exec(`INSERT INTO weekly_themes (product_id, iso_week, body) VALUES ('demo', to_char(now(), 'IYYY"-W"IW'), 'Flaky CI is the theme')`)
+	w.exec(`INSERT INTO weekly_reviews (product_id, iso_week, answers, decisions, snapshot) VALUES ('demo', '2026-W43',
+		'[{"question":"Who helped?","answer":"Ana Lee wrote the best reply"}]', '[{"kind":"campaign","id":"launch","decision":"keep","note":"ana@pipewrench.example liked it"}]',
+		'{"advocates":[{"name":"Ana Lee","email":"ana@pipewrench.example"},{"name":"Bo Park"}],"mentions":[{"label":"analee-dev on HN"}]}')`)
 	w.exec(`INSERT INTO digests (week, body, data) VALUES (current_date, 'This week Ana Lee asked for a demo', '{}')`)
 
 	// Updates list: confirmation sent, and a broadcast message inside the 24h cap.
@@ -376,7 +379,7 @@ func TestForgetErasesEverythingAndKeepsTheRest(t *testing.T) {
 	if rep.Scrubbed["erased_sends"] < 2 {
 		t.Errorf("sends inside the cap windows were not kept as anonymous counts: %v", rep.Scrubbed)
 	}
-	for _, k := range []string{"play_runs", "account_stages.evidence", "companies.notes", "digests.body"} {
+	for _, k := range []string{"play_runs", "account_stages.evidence", "companies.notes", "digests.body", "weekly_reviews.snapshot", "weekly_reviews.answers", "weekly_reviews.decisions"} {
 		if rep.Scrubbed[k] == 0 {
 			t.Errorf("%s not scrubbed: %v", k, rep.Scrubbed)
 		}
@@ -397,6 +400,9 @@ func TestForgetErasesEverythingAndKeepsTheRest(t *testing.T) {
 	}
 	if w.count(`SELECT count(*) FROM people WHERE id = $1`, anaID) != 0 {
 		t.Fatal("person row remains")
+	}
+	if w.count(`SELECT count(*) FROM weekly_reviews WHERE snapshot::text LIKE '%Bo Park%'`) != 1 {
+		t.Fatal("the saved review lost its other entries")
 	}
 	// The bystander and the company stay.
 	if _, err := people.FindByEmail(ctx, w.pool, "bo@gmail.example"); err != nil {
