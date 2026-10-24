@@ -1,5 +1,6 @@
 // Package play turns triggers into actions: a signal, a stage entry or a
-// stall starts a sequence or a task for the people a play's filter allows.
+// stall (of a person, or of an account in the pipeline) starts a sequence
+// or a task for the people a play's filter allows.
 // Each trigger fires a play at most once (play_runs), and plays started by
 // a trigger are rechecked before every step.
 package play
@@ -42,8 +43,11 @@ type Run struct {
 	Play     *product.Play
 	PersonID *int64
 	SignalID *int64
-	Key      string // unique per play: the trigger identity
-	Title    string // for task text
+	// AccountID: the pipeline account an account trigger fired for; its
+	// tasks are linked to the account.
+	AccountID *int64
+	Key       string // unique per play: the trigger identity
+	Title     string // for task text
 }
 
 // Fire applies a play's filter and action once per trigger key and returns
@@ -53,9 +57,9 @@ func (e *Engine) Fire(ctx context.Context, p *product.Product, r Run) (string, e
 	err := pgx.BeginFunc(ctx, e.Pool, func(tx pgx.Tx) error {
 		var runID int64
 		err := tx.QueryRow(ctx, `
-			INSERT INTO play_runs (product_id, play_id, person_id, signal_id, trigger_key, outcome)
-			VALUES ($1, $2, $3, $4, $5, 'pending') ON CONFLICT DO NOTHING RETURNING id`,
-			p.ID, r.Play.ID, r.PersonID, r.SignalID, r.Key).Scan(&runID)
+			INSERT INTO play_runs (product_id, play_id, person_id, signal_id, trigger_key, outcome, account_id)
+			VALUES ($1, $2, $3, $4, $5, 'pending', $6) ON CONFLICT DO NOTHING RETURNING id`,
+			p.ID, r.Play.ID, r.PersonID, r.SignalID, r.Key, r.AccountID).Scan(&runID)
 		if errors.Is(err, pgx.ErrNoRows) {
 			// Already handled. A skip for a score threshold may be re-evaluated
 			// (enrichment can raise fit later); anything else stays final.
@@ -116,6 +120,11 @@ func (e *Engine) act(ctx context.Context, tx pgx.Tx, p *product.Product, r Run, 
 		}
 		if _, err := tx.Exec(ctx, `UPDATE play_runs SET task_id = $2 WHERE id = $1`, runID, id); err != nil {
 			return "", err
+		}
+		if r.AccountID != nil {
+			if _, err := tx.Exec(ctx, `UPDATE tasks SET account_id = $2 WHERE id = $1`, id, *r.AccountID); err != nil {
+				return "", err
+			}
 		}
 		if pl.Action.Draft && e.OnTask != nil {
 			if err := e.OnTask(ctx, tx, id); err != nil {
@@ -239,6 +248,19 @@ func (e *Engine) Recheck(ctx context.Context, tx pgx.Tx, enrollmentID int64) (st
 	if pl == nil {
 		return "", nil // play removed from the file: let the sequence finish
 	}
+	if st := pl.Trigger.AccountStuck; st != nil {
+		// Still in the same stay in that stage, or the account moved on.
+		var still bool
+		if err := tx.QueryRow(ctx, `
+			SELECT EXISTS (SELECT 1 FROM play_runs r JOIN accounts a ON a.id = r.account_id
+				WHERE r.enrollment_id = $1 AND a.status = 'open' AND a.stage = $2 AND a.entered_at <= $3)`,
+			enrollmentID, st.Stage, started).Scan(&still); err != nil {
+			return "", err
+		}
+		if !still {
+			return "account moved past " + st.Stage, nil
+		}
+	}
 	if st := pl.Trigger.StageStuck; st != nil {
 		var later int
 		if err := tx.QueryRow(ctx, `
@@ -293,12 +315,18 @@ func (e *Engine) OnSignal(ctx context.Context, signalID int64) error {
 	return nil
 }
 
-// Scan fires stage and stage_stuck plays for everyone who matches now.
+// Scan fires stage and stage_stuck plays for everyone who matches now,
+// and account_stage and account_stuck plays for pipeline accounts.
 func (e *Engine) Scan(ctx context.Context, p *product.Product) error {
 	for _, pl := range p.Plays {
 		var q string
 		var args []any
 		switch {
+		case pl.Trigger.AccountStage != "" || pl.Trigger.AccountStuck != nil:
+			if err := e.scanAccounts(ctx, p, pl); err != nil {
+				return fmt.Errorf("play %s: %w", pl.ID, err)
+			}
+			continue
 		case pl.Trigger.StageStuck != nil:
 			d, _ := product.AfterDuration(pl.Trigger.StageStuck.For)
 			// Furthest stage is the stuck stage, entered at least d ago, and no
@@ -346,6 +374,59 @@ func (e *Engine) Scan(ctx context.Context, p *product.Product) error {
 			if _, err := e.Fire(ctx, p, Run{Play: pl, PersonID: &person, Key: h.key}); err != nil {
 				return fmt.Errorf("play %s: %w", pl.ID, err)
 			}
+		}
+	}
+	return nil
+}
+
+// scanAccounts fires an account_stage or account_stuck play. The trigger
+// key is the account's current stay in the stage (its latest stage-history
+// row): a play fires once per stay, stays quiet once the account moves on,
+// and can fire again if the account later re-enters the stage. A task is
+// about the account; a sequence starts for its champion (or first person).
+func (e *Engine) scanAccounts(ctx context.Context, p *product.Product, pl *product.Play) error {
+	kind, stage, cond := "account_stage", pl.Trigger.AccountStage, `a.entered_at > $3`
+	since := e.now().Add(-7 * 24 * time.Hour) // like stage plays: recent entries only
+	if st := pl.Trigger.AccountStuck; st != nil {
+		d, _ := product.AfterDuration(st.For)
+		kind, stage, cond, since = "account_stuck", st.Stage, `a.entered_at <= $3`, e.now().Add(-d)
+	}
+	rows, err := e.Pool.Query(ctx, `
+		SELECT a.id, a.entered_at, COALESCE(NULLIF(c.name, ''), c.domain, '#' || c.id),
+			COALESCE((SELECT max(h.id) FROM account_stages h WHERE h.account_id = a.id), 0),
+			(SELECT ap.person_id FROM account_people ap WHERE ap.account_id = a.id
+				ORDER BY ap.role = 'champion' DESC, ap.added_at, ap.person_id LIMIT 1)
+		FROM accounts a JOIN companies c ON c.id = a.company_id
+		WHERE a.product_id = $1 AND a.status = 'open' AND a.stage = $2 AND `+cond+`
+		ORDER BY a.id`, p.ID, stage, since)
+	if err != nil {
+		return err
+	}
+	type hit struct {
+		account, stay int64
+		entered       time.Time
+		name          string
+		person        *int64
+	}
+	hits, err := pgx.CollectRows(rows, func(r pgx.CollectableRow) (hit, error) {
+		var h hit
+		return h, r.Scan(&h.account, &h.entered, &h.name, &h.stay, &h.person)
+	})
+	if err != nil {
+		return err
+	}
+	for _, h := range hits {
+		account := h.account
+		r := Run{Play: pl, AccountID: &account, Key: fmt.Sprintf("%s:%s:%d:%d", kind, stage, h.account, h.stay),
+			Title: h.name + " entered " + stage}
+		if kind == "account_stuck" {
+			r.Title = fmt.Sprintf("%s in %s for %d days", h.name, stage, int(e.now().Sub(h.entered).Hours()/24))
+		}
+		if pl.Action.Sequence != "" {
+			r.PersonID = h.person
+		}
+		if _, err := e.Fire(ctx, p, r); err != nil {
+			return err
 		}
 	}
 	return nil
