@@ -40,8 +40,8 @@ function funnelRender(d) {
   const revenue = r.revenue.length ? table(["Currency", { t: "Payments", num: 1 }, { t: "Refunds", num: 1 }, { t: "Net", num: 1 }],
     r.revenue.map(m => `<tr><th scope="row">${e(m.currency)}</th><td class="num" data-label="Payments">${(m.payments_cents / 100).toFixed(2)} <span class="sub">${plural(m.payments, "payment")}</span></td><td class="num" data-label="Refunds">${(m.refunds_cents / 100).toFixed(2)}</td><td class="num" data-label="Net"><strong>${(m.net_cents / 100).toFixed(2)}</strong></td></tr>`).join(""))
     : `<p class="muted">No payments yet (the Stripe webhook is in <a href="#settings">Settings</a>).</p>`;
-  const cohorts = r.weekly_cohorts.length ? table(["Week", { t: "People", num: 1 }, { t: words(p.activation), num: 1 }, { t: "Paid", num: 1 }, ""],
-    r.weekly_cohorts.map(c => `<tr><th scope="row">${e(day(c.week))}</th><td class="num" data-label="People">${c.people}</td><td class="num" data-label="${e(words(p.activation))}">${of(c.activated, c.people)}</td><td class="num" data-label="Paid">${of(c.paid, c.people)}</td><td>${c.complete ? "" : `<span class="tag warn">incomplete</span>`}</td></tr>`).join("")) : `<p class="muted">No cohorts yet.</p>`;
+  const cohorts = r.weekly_cohorts.length ? table(["Week", { t: "People", num: 1 }, { t: words(p.activation), num: 1 }, { t: "Paid", num: 1 }, "Window"],
+    r.weekly_cohorts.map(c => `<tr><th scope="row">${e(day(c.week))}</th><td class="num" data-label="People">${c.people}</td><td class="num" data-label="${e(words(p.activation))}">${of(c.activated, c.people)}</td><td class="num" data-label="Paid">${of(c.paid, c.people)}</td><td data-label="Window">${c.complete ? "complete" : `<span class="tag warn">incomplete</span>`}</td></tr>`).join("")) : `<p class="muted">No cohorts yet.</p>`;
   const sp = r.spend;
   const totalOutcomes = r.task_outcomes.reduce((n, o) => n + o.count, 0);
   const q = r.requests_by_reported_source;
@@ -124,7 +124,7 @@ export const outbox = {
     const list = d.messages || [];
     if (!list.length) return head + empty("The outbox is empty", "Approve a draft on <a href=\"#today\">Today</a>; within a minute it appears here.");
     return head + `<p class="muted">${plural(list.length, "message")}, newest first.</p><div class="stack">${list.map(m => `<article class="card" data-key="outbox:${e(m.id)}" aria-labelledby="ob-${e(m.id)}">
-      <div class="row"><span class="tag">${e(m.channel)}</span><h3 id="ob-${e(m.id)}" class="grow-title">${e(m.subject || "(no subject)")}</h3><span class="muted">${ago(m.sent_at)}</span></div>
+      <div class="row"><span class="tag">${e(m.channel)}</span><h2 id="ob-${e(m.id)}" class="grow-title item-title">${e(m.subject || "(no subject)")}</h2><span class="muted">${ago(m.sent_at)}</span></div>
       <dl class="envelope"><dt>From</dt><dd>${e(m.from)}</dd><dt>To</dt><dd>${m.person_id ? `<a href="#person/${e(m.person_id)}">${e(m.to)}</a>` : e(m.to)}</dd></dl>
       <details><summary>The message</summary><pre class="message">${e(m.body)}</pre></details>
       <div class="item-actions"><button type="button" class="btn" data-action="sim-reply" data-id="${e(m.id)}">Simulate a reply…</button>${m.channel === "email" ? `<button type="button" class="btn btn-danger" data-action="sim-bounce" data-id="${e(m.id)}">Simulate a bounce</button>` : ""}</div></article>`).join("")}</div>`;

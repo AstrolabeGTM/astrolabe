@@ -135,7 +135,7 @@ export function pageHead(title, explain) {
 
 // empty says there is nothing here, and what to do next (HTML allowed in next).
 export function empty(title, next) {
-  return `<div class="empty"><h3>${e(title)}</h3><p>${next}</p></div>`;
+  return `<div class="empty"><h2>${e(title)}</h2><p>${next}</p></div>`;
 }
 
 export function productName(id) {

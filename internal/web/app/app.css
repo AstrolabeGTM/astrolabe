@@ -106,7 +106,7 @@ main:focus { outline: none; }
 .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
 .grid-2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 16px; }
 .empty { border: 1px dashed var(--line-strong); border-radius: var(--radius); padding: 22px; text-align: center; color: var(--muted); }
-.empty h3 { color: var(--ink); }
+.empty h2 { color: var(--ink); font-size: 15px; margin-bottom: 4px; }
 .empty p { margin: 0 auto 10px; max-width: 60ch; }
 .empty p:last-child { margin-bottom: 0; }
 .notice { border-radius: var(--radius); padding: 10px 14px; background: var(--info-bg); color: var(--ink); border: 1px solid var(--line); }
@@ -201,7 +201,7 @@ input[readonly] { background: var(--surface-2); }
 .envelope dt { color: var(--muted); }
 .envelope dd { margin: 0; overflow-wrap: anywhere; font-weight: 550; }
 .message { white-space: pre-wrap; overflow-wrap: anywhere; font: inherit; margin: 0; padding: 10px 12px; border-radius: 8px;
-  background: var(--surface-2); max-height: 22em; overflow: auto; }
+  background: var(--surface-2); }
 .flags { list-style: none; margin: 8px 0; padding: 0; display: grid; gap: 4px; }
 .flags li { background: var(--warn-bg); color: var(--warn); border-radius: 6px; padding: 4px 10px; font-size: 13.5px; font-weight: 550; }
 .reason { background: var(--bad-bg); color: var(--bad); border-radius: 6px; padding: 6px 10px; font-size: 14px; font-weight: 550; overflow-wrap: anywhere; margin: 8px 0 0; }
@@ -256,6 +256,7 @@ table th[scope=row] { font-size: 14px; font-weight: 600; color: var(--ink); text
 .note .row { gap: 6px 10px; }
 
 .grow-title { flex: 1 1 200px; margin: 0; min-width: 0; overflow-wrap: anywhere; }
+h2.item-title { font-size: 15px; }
 
 /* ---- review ---- */
 .tally { list-style: none; margin: 0; padding: 0; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); }
@@ -281,7 +282,7 @@ fieldset.decision legend { padding: 0 4px; }
 .stat dd.small { font-size: 17px; }
 
 /* ---- boards (pipeline) ---- */
-.board { position: relative; display: grid; grid-auto-flow: column; grid-auto-columns: minmax(180px, 1fr); gap: 12px; overflow-x: auto; padding-bottom: 8px; }
+.board { position: relative; display: grid; grid-auto-flow: column; grid-auto-columns: minmax(150px, 1fr); gap: 12px; overflow-x: auto; padding-bottom: 8px; }
 .board:focus-visible { outline-offset: 4px; }
 .column { background: var(--surface-2); border-radius: var(--radius); padding: 10px; min-width: 0; }
 .column h3 { font-size: 14px; margin: 2px 4px 10px; }

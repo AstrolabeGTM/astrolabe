@@ -52,7 +52,7 @@ function accountsBoard(b, product) {
       <td data-label="Revisit">${a.revisit_on ? `${e(day(a.revisit_on))}${b.revisit_due.some(x => x.id === a.id) ? ` <span class="tag info">look again now</span>` : ""}` : "—"}</td>
       <td><button type="button" class="btn btn-sm" data-action="reopen" data-id="${e(a.id)}" aria-label="Reopen ${e(a.company)}">Reopen…</button></td></tr>`).join("");
   return `${stats}
-    <div class="board" role="region" aria-label="Accounts by stage" tabindex="0">${cols}</div>
+    <div class="board" role="region" aria-label="Accounts board" tabindex="0">${cols}</div>
     <p class="help">Chips are the qualification checks: ✓ yes, ✗ no, ? not known; dashed ones are recorded but never block. ⚑ marks the stages that need every gating check (${e(b.checks.join(", ") || "none")}) answered yes.</p>
     ${closed ? `<section class="section" aria-labelledby="s-closed"><div class="section-head"><h3 id="s-closed">Paused and lost <span class="muted num">(${b.paused + b.lost})</span></h3></div>
       <div class="table-wrap"><table class="stack-sm"><thead><tr><th scope="col">Account</th><th scope="col">Status</th><th scope="col">Reason</th><th scope="col">Revisit on</th><th scope="col"><span class="sr-only">Reopen</span></th></tr></thead><tbody>${closed}</tbody></table></div></section>` : ""}`;
@@ -67,7 +67,7 @@ function peopleBoard(pb) {
         <p class="deal-meta">${p.company ? `${e(p.company)} · ` : ""}${plural(p.days_in_stage, "day")} here</p></li>`).join("")}</ul>${more}` : `<p class="muted column-empty">None</p>`}</section>`;
   }).join("");
   return `<p class="muted">${plural(pb.total, "person", "people")} in the product; each is in the furthest stage they reached, so the columns add up to ${pb.total}.</p>
-    <div class="board" role="region" aria-label="People by funnel stage" tabindex="0">${cols}</div>`;
+    <div class="board" role="region" aria-label="People board" tabindex="0">${cols}</div>`;
 }
 
 function stageOptions(b, current) {
