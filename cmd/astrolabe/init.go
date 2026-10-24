@@ -79,12 +79,20 @@ func initCmd(args []string, in io.Reader, out io.Writer) error {
 	if o.Template == "demo" {
 		fmt.Fprintln(out, `Next: docker compose up -d, open http://localhost:8080 and sign in with ASTROLABE_PASSWORD from .env.
 The demo runs in sandbox mode: nothing is really sent; try People → Start sequence, approve in the Inbox,
-then reply from the Outbox.`)
+then reply from the Outbox.
+
+Use it from Claude Code or Codex (see README, "Use it from Claude or Codex"):
+  claude mcp add astrolabe -- docker compose -f "$PWD/compose.yaml" exec -T astrolabe astrolabe mcp
+  codex mcp add astrolabe -- docker compose -f "$PWD/compose.yaml" exec -T astrolabe astrolabe mcp
+Or over HTTP at http://localhost:8080/mcp; the bearer token is:
+  docker compose exec astrolabe astrolabe mcp token`)
 	} else {
 		fmt.Fprintf(out, `Next:
   1. Write products/%[1]s/claims.md and voice.md (the product won't load while they start with STUB:).
   2. Edit monitors.yaml and automations.yaml; your editor autocompletes them from schemas/.
   3. astrolabe doctor   (checks what's missing)
+  4. Chat with it: claude mcp add astrolabe -- docker compose -f "$PWD/compose.yaml" exec -T astrolabe astrolabe mcp
+     (Codex: codex mcp add ... the same way; HTTP and Claude Desktop are in the README.)
 `, idFrom(files))
 	}
 	return nil

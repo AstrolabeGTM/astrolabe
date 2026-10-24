@@ -25,15 +25,70 @@ Open http://localhost:8080 and sign in with `ASTROLABE_PASSWORD` from `.env`. Th
 4. **Inbox:** the sequence stopped and the reply waits to be labelled. Mark it *interested* and a to-do appears.
 5. **Signals → Add a signal by hand** with type `referral`: the `referral-intro` automation starts a sequence by itself.
 
-## Use it from Claude
+## Use it from Claude or Codex
 
-Astrolabe is an MCP server. With the compose setup above, add it to Claude Code:
+Astrolabe is an MCP server. Every client gets the same tools ([full list](docs/mcp-tools.md)), over one of two transports:
+
+- **stdio**: the client starts `astrolabe mcp` itself (through `docker compose exec`), one process per client. Nothing extra to set up.
+- **HTTP**: the client connects to the running server at `http://localhost:8080/mcp` with a bearer token. The server must be up (`docker compose up -d`).
+
+Get the token (generated on first start and kept in the secrets volume; or set `ASTROLABE_MCP_TOKEN` in `.env`):
 
 ```sh
-claude mcp add astrolabe -- docker compose -f "$PWD/compose.yaml" exec -T astrolabe astrolabe mcp
+export ASTROLABE_MCP_TOKEN=$(docker compose exec -T astrolabe astrolabe mcp token)
+docker compose exec astrolabe astrolabe mcp token -rotate   # replace it; takes effect at once
 ```
 
-Claude Desktop takes the same command in `claude_desktop_config.json`. Then ask "what's in my inbox?", "who are the top prospects?", "start the intro sequence for Sam and Priya", "simulate a reply from Sam" or "how's the funnel?".
+**Claude Code**
+
+```sh
+# stdio
+claude mcp add astrolabe -- docker compose -f "$PWD/compose.yaml" exec -T astrolabe astrolabe mcp
+# HTTP
+claude mcp add --transport http astrolabe http://localhost:8080/mcp --header "Authorization: Bearer $ASTROLABE_MCP_TOKEN"
+```
+
+(The HTTP form stores the token in Claude's config; `--scope project` writes it to `.mcp.json`, so keep that file out of git.)
+
+**Claude Desktop** takes stdio in `claude_desktop_config.json` (use the absolute path to your `compose.yaml`):
+
+```json
+{
+  "mcpServers": {
+    "astrolabe": {
+      "command": "docker",
+      "args": ["compose", "-f", "/path/to/compose.yaml", "exec", "-T", "astrolabe", "astrolabe", "mcp"]
+    }
+  }
+}
+```
+
+**Codex CLI**
+
+```sh
+# stdio
+codex mcp add astrolabe -- docker compose -f "$PWD/compose.yaml" exec -T astrolabe astrolabe mcp
+# HTTP (Codex reads the token from the environment variable, so it never lands in config.toml)
+codex mcp add astrolabe --url http://localhost:8080/mcp --bearer-token-env-var ASTROLABE_MCP_TOKEN
+```
+
+These write the following to `~/.codex/config.toml`, which you can also edit by hand:
+
+```toml
+# stdio
+[mcp_servers.astrolabe]
+command = "docker"
+args = ["compose", "-f", "/path/to/compose.yaml", "exec", "-T", "astrolabe", "astrolabe", "mcp"]
+
+# HTTP (use one of the two)
+[mcp_servers.astrolabe]
+url = "http://localhost:8080/mcp"
+bearer_token_env_var = "ASTROLABE_MCP_TOKEN"
+```
+
+Then ask "what's in my inbox?", "who are the top prospects?", "start the intro sequence for Sam and Priya", "simulate a reply from Sam" or "how's the funnel?".
+
+HTTP binds to the same port as the web app. For anything beyond your own machine, put it behind HTTPS; the token is the only credential.
 
 ## Your own product
 

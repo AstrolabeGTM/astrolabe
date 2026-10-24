@@ -22,7 +22,6 @@ import (
 	"github.com/AstrolabeGTM/astrolabe/internal/app"
 	"github.com/AstrolabeGTM/astrolabe/internal/doctor"
 	"github.com/AstrolabeGTM/astrolabe/internal/hooks"
-	"github.com/AstrolabeGTM/astrolabe/internal/mcp"
 	"github.com/AstrolabeGTM/astrolabe/internal/people"
 	"github.com/AstrolabeGTM/astrolabe/internal/product"
 	"github.com/AstrolabeGTM/astrolabe/internal/sandbox"
@@ -54,13 +53,16 @@ Commands:
   doctor [-connect]               check the setup and say what to fix (-connect also tests logins, keys, DNS)
   mailbox add|list|test|remove    set up a sending mailbox with SMTP/IMAP and an app password (simplest)
   gmail auth <address>            or: authorise a Gmail/Workspace mailbox with OAuth
-  mcp                             MCP server on stdio, for Claude Desktop / Claude Code
+  mcp                             MCP server on stdio, for Claude Desktop, Claude Code, Codex
+  mcp token [-rotate]             print (or replace) the bearer token for MCP over HTTP (/mcp)
+  mcp tools [-md]                 list every MCP tool
 
 Environment:
   ASTROLABE_DATABASE_URL          Postgres URL (default postgres:///astrolabe?host=/tmp)
   ASTROLABE_PRODUCTS              products folder (default ./products)
   ASTROLABE_ADDR                  listen address (default 127.0.0.1:8080)
   ASTROLABE_PASSWORD              web app password (required for serve)
+  ASTROLABE_MCP_TOKEN             bearer token for MCP at /mcp (default: generated, saved in the secrets dir)
   ASTROLABE_SECRETS_DIR           mailbox tokens (default ~/.config/astrolabe)
   ASTROLABE_GOOGLE_CLIENT_ID      Google OAuth client (Desktop app) for Gmail
   ASTROLABE_GOOGLE_CLIENT_SECRET
@@ -141,23 +143,7 @@ func run(ctx context.Context, args []string, out io.Writer) error {
 		}
 		return err
 	case "mcp":
-		a, err := app.Open(ctx, cfg, false)
-		if err != nil {
-			return err
-		}
-		defer a.Close()
-		if err := a.CheckMigrated(ctx); err != nil {
-			return err
-		}
-		products := loadProducts(ctx, a)
-		srv := &mcp.Server{S: a.Outreach, Signals: a.Signals, Sources: a.Sources, Writer: a.Writer, Studio: a.Studio, ProductsDir: cfg.ProductsDir, Mode: a.Cfg.Mode,
-			Products: func() []*product.Product { return *products.Load() },
-			Reload: func(ctx context.Context) error {
-				list, err := a.LoadProducts(ctx)
-				products.Store(&list)
-				return err
-			}}
-		return srv.Run(ctx, version)
+		return mcpCommand(ctx, cfg, args[1:], out)
 	case "monitor":
 		if len(args) != 4 || args[1] != "run" {
 			return errors.New("usage: astrolabe monitor run <product> <monitor>")
@@ -298,6 +284,9 @@ func serve(ctx context.Context, cfg app.Config) error {
 		}
 		w.Write([]byte("ok"))
 	})
+	if err := mountMCP(mux, newMCPServer(ctx, a, cfg, products), cfg); err != nil {
+		return err
+	}
 	mux.Handle("/", w.Handler())
 	httpSrv := &http.Server{Addr: cfg.Addr, Handler: mux, ReadHeaderTimeout: 10 * time.Second}
 
