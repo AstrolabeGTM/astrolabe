@@ -107,7 +107,7 @@ This writes `products/<id>/`:
 
 | File | What goes in it |
 | --- | --- |
-| `product.yaml` | Name, who it's for (`target`), funnel stages, the offer, sender mailboxes, `fit` rules, `auto_approve`, limits |
+| `product.yaml` | Name, who it's for (`target`), funnel stages, the offer, sender mailboxes, `fit` rules, `auto_approve`, limits, and for b2b an optional account `pipeline` |
 | `claims.md`, `voice.md` | What's true about the product (drafts may only use this) and how you write. It won't load while they start with `STUB:`. |
 | `sequences/*.yaml` | Timed message steps, `kind: cold` (strangers) or `kind: users` (existing users) |
 | `monitors.yaml` | Where to look for signals: GitHub searches, your repo's stars, issues and discussions, HN/Stack Overflow/RSS keywords, and `github_release` counters (release downloads, stars, forks, watchers, discussions; no people). Add `reception: true` to log results as public mentions |
@@ -154,7 +154,8 @@ signals ──▶ people + score ──▶ automations ──▶ sequences ─�
 | **Priority A–D** (lead score) | Score 0–100 from fit, recent activity (intent) and time-sensitive events (why now). A = contact now |
 | **Sequence** (cadence) | Timed message steps. `kind: cold` for strangers, `kind: users` for existing users |
 | **Automation** (play, workflow) | `trigger → when → action` in `automations.yaml`, e.g. on a pain-issue signal with fit ≥ 50, start a sequence |
-| **Funnel / activation** (pipeline) | Your product's pipeline stages; activation is the first real success (the number to move) |
+| **Funnel / activation** (lifecycle stages) | Your product's stages for people; activation is the first real success (the number to move) |
+| **Pipeline** (deals, opportunities) | b2b, optional: companies (accounts) moving through your stages, each with one next action and a note per move. Qualification checks (BANT, MEDDIC) must be "yes" with evidence before the gate stage. See [§15.2](docs/astrolabe.md#152-account-pipeline-and-qualification) |
 | **Offer** | The one concrete thing every message asks for |
 | **Do not contact** (suppression list) | People no product will ever message again |
 

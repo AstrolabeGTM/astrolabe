@@ -7,3 +7,12 @@
 - id: stuck-after-signup
   trigger: {stage_stuck: {stage: signed_up, for: 2d}}
   action: {sequence: activation-help}
+
+# Pipeline automations: an account entering a stage, or sitting in one.
+- id: qualified-trial-plan
+  trigger: {account_stage: qualified}
+  action: {task: "Send a one-page trial plan with two kickoff dates"}
+
+- id: contacted-no-answer
+  trigger: {account_stuck: {stage: contacted, for: 14d}}
+  action: {task: "No answer for two weeks: try another person, or pause it with a revisit date"}

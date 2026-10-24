@@ -47,7 +47,7 @@ func (s *Server) Build(version string) *sdk.Server {
 		Instructions: `Astrolabe is go-to-market for developers: it finds people who need your product, drafts outreach you approve, and measures what converts. Each product is a folder of YAML + Markdown (products/<id>/).
 
 The operator may use developer or sales words; both mean the same things here. Answer in whichever vocabulary they use.
-Sales term -> Astrolabe term: lead/contact/prospect -> person; ICP/persona -> target and fit rules; lead scoring/MQL -> score/priority; intent data/buying signal -> signal; cadence/campaign/nurture -> sequence; enroll -> start_sequence; play/playbook/workflow -> automation; suppress/unsubscribe/DNC -> do_not_contact; lifecycle stage/pipeline stage -> funnel stage; outbound -> kind cold; lifecycle/retention messaging -> kind users; brief/account research -> research; disposition -> label_reply or close_task outcome.
+Sales term -> Astrolabe term: lead/contact/prospect -> person; ICP/persona -> target and fit rules; lead scoring/MQL -> score/priority; intent data/buying signal -> signal; cadence/campaign/nurture -> sequence; enroll -> start_sequence; play/playbook/workflow -> automation; suppress/unsubscribe/DNC -> do_not_contact; lifecycle stage -> funnel stage; outbound -> kind cold; lifecycle/retention messaging -> kind users; brief/account research -> research; disposition -> label_reply or close_task outcome.
 
 Words, in developer terms:
 - signal: an event about a person (a GitHub issue they opened, a star, an HN post, a product event). Stored once per dedupe key.
@@ -61,7 +61,7 @@ Typical session: inbox -> label replies -> handle due tasks -> write or review d
 To find people: top_prospects, then person. To see what's working: funnel, experiments, digest.
 Drafts may already be written by the Claude API (ai_state "done"; "flags" lists problems): show flags.
 If inbox reports mode "sandbox", nothing reaches real people: say "sent to the sandbox outbox", never "sent", and offer simulate_reply to try the rest of the flow.
-Rules: use only claims from product_context.claims; never use never_claim phrases; approve sends exactly the saved text, so never approve without the operator's say-so.`,
+Rules: use only claims from product_context.claims; never use never_claim phrases; approve sends exactly the saved text, so never approve without the operator's say-so.` + pipelineInstructions,
 	})
 
 	// Products and setup
@@ -120,6 +120,7 @@ Rules: use only claims from product_context.claims; never use never_claim phrase
 		register(srv, "simulate_bounce", "Sandbox only: make an outbox email bounce; the person goes on do-not-contact.", s.simulateBounce)
 	}
 	register(srv, "content_mark", "Mark a content item posted (with its URL) or skipped.", s.contentMark)
+	s.registerPipeline(srv) // account pipeline: pipeline.go
 	return srv
 }
 

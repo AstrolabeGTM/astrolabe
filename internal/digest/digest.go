@@ -22,6 +22,7 @@ import (
 	"github.com/AstrolabeGTM/astrolabe/internal/counters"
 	"github.com/AstrolabeGTM/astrolabe/internal/experiment"
 	"github.com/AstrolabeGTM/astrolabe/internal/funnel"
+	"github.com/AstrolabeGTM/astrolabe/internal/pipeline"
 	"github.com/AstrolabeGTM/astrolabe/internal/product"
 	"github.com/AstrolabeGTM/astrolabe/internal/reception"
 	"github.com/AstrolabeGTM/astrolabe/internal/score"
@@ -40,6 +41,9 @@ type ProductDigest struct {
 	Actions     []string            `json:"actions"`
 	Counters    *counters.Report    `json:"public_counters,omitempty"`
 	Reception   *reception.Report   `json:"reception,omitempty"`
+	// Pipeline: accounts per stage, stuck accounts and overdue next actions
+	// (products with a pipeline).
+	Pipeline *pipeline.Board `json:"pipeline,omitempty"`
 }
 
 // Moved: people entering a stage this week vs the week before.
@@ -126,6 +130,13 @@ func Build(ctx context.Context, pool *pgxpool.Pool, products []*product.Product,
 		if pd.Reception.Total == 0 {
 			pd.Reception = nil
 		}
+		if p.Pipeline != nil {
+			b, err := pipeline.BuildBoard(ctx, pool, p, now)
+			if err != nil {
+				return nil, err
+			}
+			pd.Pipeline = b.Summary()
+		}
 		pd.Actions = actions(p, &pd)
 		d.Products = append(d.Products, pd)
 	}
@@ -134,6 +145,21 @@ func Build(ctx context.Context, pool *pgxpool.Pool, products []*product.Product,
 
 func actions(p *product.Product, pd *ProductDigest) []string {
 	var out []string
+	// Promises to people already in a conversation come before new outreach.
+	if pl := pd.Pipeline; pl != nil && len(pl.Overdue) > 0 {
+		var items []string
+		for i, a := range pl.Overdue {
+			if i == 3 {
+				break
+			}
+			items = append(items, fmt.Sprintf("%s: %s (due %s)", a.Company, a.NextAction, a.NextDue))
+		}
+		what := "the overdue next action"
+		if len(pl.Overdue) > 1 {
+			what = fmt.Sprintf("the %d overdue next actions", len(pl.Overdue))
+		}
+		out = append(out, fmt.Sprintf("Do %s on accounts before new outreach: %s.", what, strings.Join(items, "; ")))
+	}
 	if len(pd.Uncontacted) > 0 {
 		var names []string
 		for _, r := range pd.Uncontacted {
@@ -156,6 +182,20 @@ func actions(p *product.Product, pd *ProductDigest) []string {
 			names = append(names, orID(x.Name, x.ID))
 		}
 		out = append(out, fmt.Sprintf("Help the %d people stuck at %s for over %dd (e.g. %s), or add a stage_stuck automation.", s.Count, s.Stage, s.Days, strings.Join(names, ", ")))
+	}
+	if pl := pd.Pipeline; pl != nil && len(pl.Stuck) > 0 && len(out) < 3 {
+		var items []string
+		for i, a := range pl.Stuck {
+			if i == 3 {
+				break
+			}
+			items = append(items, fmt.Sprintf("%s (%s, %dd)", a.Company, a.Stage, a.DaysInStage))
+		}
+		what := "the account"
+		if len(pl.Stuck) > 1 {
+			what = fmt.Sprintf("the %d accounts", len(pl.Stuck))
+		}
+		out = append(out, fmt.Sprintf("Move on, pause or close %s stuck over %s in one stage: %s.", what, pl.StuckAfter, strings.Join(items, ", ")))
 	}
 	for _, e := range pd.Experiments {
 		if len(out) < 3 && strings.Contains(e.Verdict, " wins:") {
@@ -194,6 +234,9 @@ func (d *Digest) Text() string {
 		}
 		for _, e := range p.Experiments {
 			fmt.Fprintf(&b, "Experiment %s: %s\n", e.Key, e.Verdict)
+		}
+		if p.Pipeline != nil {
+			b.WriteString(p.Pipeline.Text())
 		}
 		if p.Counters != nil {
 			b.WriteString(p.Counters.Text())

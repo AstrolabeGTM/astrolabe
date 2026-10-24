@@ -1,0 +1,64 @@
+# DEMO DATA: example accounts for the pipeline in product.yaml, loaded once
+# in sandbox mode. Days count back from the day the demo starts.
+- company: acme.example
+  name: Acme
+  stage: trial
+  days_in_stage: 4
+  evidence: "Sam agreed a two-week trial on the payments repo"
+  next_action: "Review the first flaky-test report with Sam"
+  due_in_days: 1
+  people: {sam.lee@acme.example: champion}
+  checks:
+    pain: "yes: Checkout tests fail about once a day and block merges"
+    champion: "yes: Sam will run the trial and present the result"
+    timing: "yes: Payment release freeze starts in December"
+    budget: "unknown: Not asked yet"
+  goal: "Merge payment changes without re-running CI three times"
+  timing: "Release freeze in December; the flaky suite has to be green before then"
+  baseline: "Re-run failed jobs by hand; a quarantine list in a wiki page"
+
+- company: globex.example
+  name: Globex
+  stage: qualified
+  days_in_stage: 6
+  evidence: "Discovery call with Priya; all three checks are yes"
+  next_action: "Send the one-page trial plan with two kickoff dates"
+  due_in_days: -2
+  people: {priya.n@globex.example: champion}
+  checks:
+    pain: "yes: Go integration tests time out on CircleCI twice a week"
+    champion: "yes: Priya owns CI health for the team"
+    timing: "yes: Moving to a new CI provider this quarter"
+
+- company: initech.example
+  name: Initech
+  stage: contacted
+  days_in_stage: 18
+  evidence: "Wrote to Tom after his post about slow Python test suites"
+  next_action: "Follow up with one flaky test found in their public repo"
+  due_in_days: 3
+  people: {tom@initech.example: buyer}
+  checks:
+    pain: "yes: Public post about re-running pytest jobs"
+    champion: "unknown: Tom is the CTO; who would run a trial?"
+
+- company: umbrella.example
+  name: Umbrella
+  stage: identified
+  days_in_stage: 2
+  evidence: "Jo opened an issue about an intermittent Go test failure"
+  next_action: "Write to Jo about the intermittent failure in their issue"
+  due_in_days: 0
+  people: {jo@umbrella.example: user}
+
+- company: hooli.example
+  name: Hooli
+  stage: contacted
+  days_in_stage: 10
+  evidence: "Mia replied: interested, but not before their launch"
+  next_action: "Ask Mia when the launch is"
+  due_in_days: 0
+  people: {mia@hooli.example: champion}
+  status: paused
+  reason: no_timing
+  revisit_in_days: 21

@@ -48,6 +48,8 @@ Commands:
                                   facts, notes); shows each company's fit
   monitor run <product> <monitor> run one monitor now
   score [product]                 recompute scores
+  pipeline export <product> [file.csv]
+                                  the account pipeline's weekly snapshots as CSV (stdout by default)
   mode [set sandbox|live]         show or deliberately switch this database's mode
   schema [dir]                    write JSON schemas for the YAML files (editor autocomplete)
   doctor [-connect]               check the setup and say what to fix (-connect also tests logins, keys, DNS)
@@ -159,6 +161,8 @@ func run(ctx context.Context, args []string, out io.Writer) error {
 		n, err := a.Signals.RunMonitor(ctx, a.Sources, args[2], args[3], time.Now())
 		fmt.Fprintf(out, "%d new signals\n", n)
 		return err
+	case "pipeline":
+		return pipelineCmd(ctx, cfg, args[1:], out)
 	case "score":
 		a, err := app.Open(ctx, cfg, false)
 		if err != nil {

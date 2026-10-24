@@ -599,7 +599,66 @@ The reason shows where you see the outcome: the skipped list in the MCP result a
 
 ### 15.2 Account pipeline and qualification
 
-_In progress._
+The funnel (§9) follows people. For b2b products, the **pipeline** follows companies (**accounts**; sales: deals, opportunities) through stages you define. Every move needs a short note on what happened, and a qualification gate keeps accounts out of the later stages until the checks are honestly "yes". It is optional: add `pipeline:` to `product.yaml` (it needs `audience: b2b`). The Pipewrench demo has one:
+
+```yaml
+pipeline:
+  stages: [identified, contacted, qualified, trial, customer]
+  qualify:
+    gate: qualified
+    checks: [pain, champion, timing]   # all must be yes to enter qualified or any later stage
+    record: [budget]                   # asked and kept, never blocks
+  reasons: [no_fit, no_timing, no_reply, chose_alternative, no_budget, other]   # the default when left out
+  stuck_after: 14d                     # the default
+```
+
+**An account** is one company in one product's pipeline. It holds:
+
+| Field | Meaning |
+| --- | --- |
+| Stage, date entered | The current stage, and a history of every stage it entered with the evidence note for each move |
+| Next action, due date | Exactly one while the account is open. Setting a new one replaces it, and the database refuses an open account without one |
+| Qualification | Each check answered `yes`, `no` or `unknown`, with one line of evidence (required for yes and no) and when it was answered. Unanswered checks count as unknown (sales: BANT, MEDDIC) |
+| People | Existing people on the account, each with a role: `champion`, `buyer`, `user`, ... |
+| Goal | What the account wants to achieve |
+| Timing | What is driving the timing: a release, an audit, a migration (sales: compelling event) |
+| Baseline | How they do it today: the existing approach a result will be judged against (sales: status quo) |
+| Evidence links | Call notes, documents, issues |
+| Paused or lost | A reason from `reasons` and a revisit date, instead of a next action |
+
+**Rules**, enforced in one place so chat, jobs and the browser app behave the same:
+
+- Moving a stage needs a short evidence note (one line).
+- Entering the `gate` stage, or any later stage, is refused unless every gating check is yes. The refusal names each failing check and its answer ("cannot enter qualified: ... champion is unknown, timing is no"). This holds for new accounts, moves between later stages and reopened accounts. `record` checks never block.
+- `paused` and `lost` are built in, not stages. Either needs a reason from `reasons` and a revisit date. On the revisit date a task appears in the inbox, once. Moving the account to a stage reopens it, with a new next action.
+- An open account in one stage for longer than `stuck_after` is **stuck**. A next action due before today is **overdue**.
+
+**Automations.** Two triggers act on accounts, through the same machinery as §6:
+
+```yaml
+- id: qualified-trial-plan
+  trigger: {account_stage: qualified}            # the account entered the stage (in the last 7 days)
+  action: {task: "Send a one-page trial plan with two kickoff dates"}
+
+- id: contacted-no-answer
+  trigger: {account_stuck: {stage: contacted, for: 14d}}
+  action: {task: "No answer for two weeks: try another person, or pause it with a revisit date"}
+```
+
+They run in the hourly automation scan, and right after an account changes through MCP. Each fires **once per stay** in the stage. It stays quiet after the account moves on, and fires again only if the account comes back to the stage later. The task names the account and is linked to it. A `sequence` action starts for the account's champion (or its first person), passes that person's `when` filters, and stops if the account leaves the stage.
+
+**Where you see it:**
+
+| Where | What |
+| --- | --- |
+| MCP `pipeline` | Open accounts per stage, paused and lost counts, each account's days in stage and next action, stuck accounts, overdue next actions, revisits due |
+| MCP `account`, `add_account`, `move_stage`, `qualify`, `set_next_action`, `close_account`, `update_account` | One account in full; add one; move it (refused with the reason at the gate); answer checks; set the next action; pause or lose it; edit goal, timing, baseline, people and links |
+| Weekly digest | Accounts per stage, stuck accounts and overdue next actions. Overdue next actions come first in "Do this week", ahead of new outreach |
+| Weekly snapshot | Every Monday (or the first hour the server runs that week) one row per account is saved. MCP `pipeline_export` or `astrolabe pipeline export <product> [file.csv]` writes every week as CSV, with a column per check |
+
+In sandbox mode the demo loads five example accounts from `demo-accounts.yaml`, including a stuck one, an overdue next action and a paused account.
+
+Data: `accounts`, `account_stages` (history), `account_checks`, `account_people`, `account_links` and `pipeline_snapshots`; tasks and automation runs carry an `account_id`. Code: `internal/pipeline`, plain Go functions (`Add`, `Move`, `Qualify`, `SetNextAction`, `Close`, `Update`, `SetPerson`, `AddLink`, `Get`, `List`, `BuildBoard`, `Revisit`, `Snapshot`, `WriteCSV`) that the browser app's JSON API can call. The triggers live in `internal/play`.
 
 ### 15.3 Public counters
 
