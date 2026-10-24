@@ -210,6 +210,10 @@ func (h *Handler) handleEvent(ctx context.Context, productID string, ev Event) e
 	if err != nil {
 		return err
 	}
+	if res.Forgotten {
+		// They asked to be forgotten: keep nothing, and do not ask again.
+		return h.markSeen(ctx, "events:"+productID, ev.ID, productID)
+	}
 	if res.PersonID == nil {
 		if res.Ambiguous {
 			// Recorded for review; nothing else can be attributed safely.
@@ -435,6 +439,10 @@ func (h *Handler) handleStripe(ctx context.Context, productID string, ev stripeE
 	})
 	if err != nil {
 		return err
+	}
+	if res.Forgotten {
+		// No payment row either: it would carry their email address.
+		return h.markSeen(ctx, "stripe", ev.ID, productID)
 	}
 	personID := res.PersonID
 	if personID == nil {

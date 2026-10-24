@@ -107,6 +107,10 @@ func (s *Service) annotate(ctx context.Context, b *Broadcast) {
 	var used int
 	s.Pool.QueryRow(ctx, `SELECT count(*) FROM updates_messages WHERE product_id = $1 AND kind = 'broadcast' AND status IN ('sending', 'sent', 'unknown') AND claimed_at > $2`,
 		b.Product, s.now().Add(-24*time.Hour)).Scan(&used)
+	var erased int
+	s.Pool.QueryRow(ctx, `SELECT count(*) FROM erased_sends WHERE product_id = $1 AND counter = 'broadcast' AND counted_at > $2`,
+		b.Product, s.now().Add(-24*time.Hour)).Scan(&erased)
+	used += erased
 	switch scope, _ := pausedFor(ctx, s, b.Product); {
 	case u.PostalAddress == "":
 		b.Note = "waiting: updates.postal_address is not set"

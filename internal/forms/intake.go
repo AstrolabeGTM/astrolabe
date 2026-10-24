@@ -42,7 +42,10 @@ type Submission struct {
 
 // Outcome says what taking in a submission did.
 type Outcome struct {
-	New       bool // false: already taken in earlier
+	New bool // false: already taken in earlier
+	// Forgotten: the sender asked to be forgotten. Nothing was stored; an
+	// operator task says someone wrote again.
+	Forgotten bool
 	PersonID  *int64
 	CompanyID *int64
 	AccountID *int64
@@ -143,9 +146,12 @@ func (in *Intake) Submit(ctx context.Context, p *product.Product, m *product.Mon
 		Title:   title(f, email, m), Data: data, IdentitySource: people.SourceForm,
 		DedupeKey: fmt.Sprintf("form:%s:%s:%s", m.ID, s.Source, s.ExternalID),
 	}
-	_, err = in.Signals.Ingest(ctx, sig)
+	res, err := in.Signals.Ingest(ctx, sig)
 	if err != nil {
 		return o, fmt.Errorf("signal: %w", err)
+	}
+	if res.Forgotten {
+		return in.droppedForgotten(ctx, p, m, s)
 	}
 	o.New = true
 	if err := in.Pool.QueryRow(ctx, `SELECT id, person_id, company_id FROM signals WHERE product_id = $1 AND dedupe_key = $2`,
@@ -292,4 +298,19 @@ func excerpt(s string, n int) string {
 		return string(r)
 	}
 	return string(r[:n]) + "…"
+}
+
+// droppedForgotten handles a submission from someone who asked to be
+// forgotten. The submission is not stored, so the person is not recreated;
+// the operator gets one task, naming only where it came from (the form and
+// the submission id, which is how to delete it at the source), to decide
+// whether to accept them again. The same submission seen again (a poll that
+// overlaps) does not make a second task.
+func (in *Intake) droppedForgotten(ctx context.Context, p *product.Product, m *product.Monitor, s Submission) (Outcome, error) {
+	action := fmt.Sprintf("A forgotten person wrote again via the %s form (%s submission %s); decide whether to accept", formName(m), s.Source, s.ExternalID)
+	_, err := in.Pool.Exec(ctx, `
+		INSERT INTO tasks (product_id, next_action, due_at)
+		SELECT $1, $2, $3 WHERE NOT EXISTS (SELECT 1 FROM tasks WHERE product_id = $1 AND next_action = $2)`,
+		p.ID, action, in.now())
+	return Outcome{Forgotten: true}, err
 }

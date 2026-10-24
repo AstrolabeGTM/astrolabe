@@ -133,6 +133,12 @@ func (s *Service) claimNext(ctx context.Context) (out *outbound, progressed bool
 					AND status IN ('sending', 'sent', 'unknown') AND claimed_at > $2`, pid, s.now().Add(-24*time.Hour)).Scan(&used); err != nil {
 					return err
 				}
+				var erased int
+				if err := tx.QueryRow(ctx, `SELECT count(*) FROM erased_sends WHERE product_id = $1 AND counter = 'broadcast' AND counted_at > $2`,
+					pid, s.now().Add(-24*time.Hour)).Scan(&erased); err != nil {
+					return err
+				}
+				used += erased
 				if used >= u.PerDay {
 					continue
 				}

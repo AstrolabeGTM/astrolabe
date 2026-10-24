@@ -50,6 +50,7 @@ Commands:
                                   campaigns.json: [{"code","label"}] of campaigns not ended, for a website's landing pages
   campaigns report <product> <campaign>
                                   spend, clicks and attributed results for the campaign window
+  forget <email|id> [-yes]        erase a person on request (shows what goes first; -yes skips the question)
   monitor run <product> <monitor> run one monitor now
   score [product]                 recompute scores
   pipeline export <product> [file.csv]
@@ -149,6 +150,8 @@ func run(ctx context.Context, args []string, out io.Writer) error {
 			fmt.Fprintf(out, "Authorised %s.\n", args[2])
 		}
 		return err
+	case "forget":
+		return forgetCmd(ctx, cfg, args[1:], os.Stdin, out)
 	case "mcp":
 		return mcpCommand(ctx, cfg, args[1:], out)
 	case "campaigns":

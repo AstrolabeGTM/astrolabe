@@ -150,6 +150,13 @@ func (s *Service) SendAction(ctx context.Context, id int64) (SendOutcome, error)
 			a.ProductID, a.PersonID, now).Scan(&today, &week); err != nil {
 			return err
 		}
+		// Sends to people erased since still count toward the cap (see forget).
+		var erased int
+		if err := tx.QueryRow(ctx, `SELECT count(*) FROM erased_sends WHERE product_id = $1 AND counter = 'cold' AND counted_at >= $2::timestamptz - interval '24 hours'`,
+			a.ProductID, now).Scan(&erased); err != nil {
+			return err
+		}
+		today += erased
 		if a.Kind == "reply" {
 			today, week = 0, 0 // a conversation they started is not outreach volume
 		}

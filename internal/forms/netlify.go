@@ -19,6 +19,7 @@ import (
 //
 //	GET /api/v1/sites/{site}/forms              the site's forms, to find one by name
 //	GET /api/v1/forms/{form_id}/submissions     verified submissions, newest first
+//	DELETE /api/v1/submissions/{submission_id}  erase one submission (204), used when a person asks to be forgotten
 //
 // The submissions endpoint returns verified submissions unless asked for
 // state=spam, so spam is never fetched; a submission that says it is spam
@@ -42,6 +43,31 @@ func (n *Netlify) base() string {
 }
 
 func (n *Netlify) get(ctx context.Context, path string, q url.Values, out any) error {
+	return n.call(ctx, "GET", path, q, out)
+}
+
+// DeleteSubmission erases one submission at Netlify. A submission Netlify no
+// longer has (404) counts as erased.
+func (n *Netlify) DeleteSubmission(ctx context.Context, id string) error {
+	if id == "" {
+		return errors.New("no submission id")
+	}
+	err := n.call(ctx, "DELETE", "/submissions/"+url.PathEscape(id), nil, nil)
+	var he *httpError
+	if errors.As(err, &he) && he.status == http.StatusNotFound {
+		return nil
+	}
+	return err
+}
+
+type httpError struct {
+	status int
+	msg    string
+}
+
+func (e *httpError) Error() string { return e.msg }
+
+func (n *Netlify) call(ctx context.Context, method, path string, q url.Values, out any) error {
 	if n.Token == "" {
 		return errors.New("ASTROLABE_NETLIFY_TOKEN is not set")
 	}
@@ -49,7 +75,7 @@ func (n *Netlify) get(ctx context.Context, path string, q url.Values, out any) e
 	if len(q) > 0 {
 		u += "?" + q.Encode()
 	}
-	req, err := http.NewRequestWithContext(ctx, "GET", u, nil)
+	req, err := http.NewRequestWithContext(ctx, method, u, nil)
 	if err != nil {
 		return err
 	}
@@ -65,12 +91,15 @@ func (n *Netlify) get(ctx context.Context, path string, q url.Values, out any) e
 	}
 	defer resp.Body.Close()
 	b, _ := io.ReadAll(io.LimitReader(resp.Body, 10<<20))
+	if method == "DELETE" && (resp.StatusCode == 200 || resp.StatusCode == 204) {
+		return nil
+	}
 	if resp.StatusCode != 200 {
 		msg := strings.Join(strings.Fields(string(b)), " ")
 		if len(msg) > 200 {
 			msg = msg[:200]
 		}
-		return fmt.Errorf("netlify %s: %d %s", path, resp.StatusCode, msg)
+		return &httpError{resp.StatusCode, fmt.Sprintf("netlify %s: %d %s", path, resp.StatusCode, msg)}
 	}
 	return json.Unmarshal(b, out)
 }
