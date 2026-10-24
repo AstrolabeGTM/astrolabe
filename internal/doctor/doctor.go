@@ -120,6 +120,10 @@ func Run(ctx context.Context, in Input) []Check {
 			continue
 		}
 		add("products", OK, fmt.Sprintf("%s: %d sequences, %d automations, %d monitors", p.ID, len(p.Sequences), len(p.Plays), len(p.Monitors)), "")
+		if p.Outreach.EmailFromGitHub {
+			add("policy", Warn, p.ID+": outreach.email_from_github is true, so people known only from GitHub can be emailed. GitHub's Acceptable Use Policies (section 7) forbid using GitHub data to send unsolicited email",
+				"Remove outreach.email_from_github (or set it to false) in product.yaml; help people in the GitHub thread instead.")
+		}
 	}
 
 	out = append(out, channels(ctx, in, products)...)

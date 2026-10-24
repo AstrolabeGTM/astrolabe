@@ -85,6 +85,13 @@ func TestChatLoop(t *testing.T) {
 	}
 	call("import_people", map[string]any{"product": "demo", "csv": "email,name\nana@acme.example,Ana Ruiz\n"})
 	call("start_sequence", map[string]any{"product": "demo", "sequence": "intro", "person_ids": []int{1}})
+	// Known only from GitHub: refused, with the policy reason in the result.
+	call("import_people", map[string]any{"product": "demo", "csv": "github,name\noctocat,Octo Cat\n"})
+	gh := call("start_sequence", map[string]any{"product": "demo", "sequence": "intro", "person_ids": []int{2}})
+	skipped, _ := gh["skipped"].([]any)
+	if len(skipped) != 1 || !strings.Contains(skipped[0].(string), "Acceptable Use Policies") {
+		t.Fatalf("GitHub-only person must be refused with the reason: %v", gh)
+	}
 	inbox := call("inbox", map[string]any{})
 	drafts := inbox["drafts"].([]any)
 	if len(drafts) != 1 {

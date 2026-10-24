@@ -74,7 +74,7 @@ flowchart LR
 ```
 
 The same loop covers every GTM motion:
-- **Cold outreach** (Pipewrench): a GitHub issue about a flaky test leads to research notes, then an email sequence.
+- **Cold outreach** (Pipewrench): a GitHub issue about a flaky test becomes a task to help in the issue thread itself. People who gave you an address (an import, a form, a reply) get research notes, then an email sequence. GitHub data never starts a cold email (§15.1).
 - **Users** (Parlo): a user finishes the placement test but never starts a lesson, so they get a WhatsApp or push nudge toward the first lesson.
 - **Content**: a release note becomes launch posts.
 - **Community**: a Hacker News thread becomes a task for you to reply in person.
@@ -208,7 +208,7 @@ Every signal is stored in the same shape:
 **Identity matching.** Signals attach to a **person**, and in B2B also to a **company**. Match people through verified links between email, GitHub login and product user ID; product user IDs are scoped to their product. A company domain groups accounts, never merges coworkers into one person. Matches are deterministic only, with no fuzzy merging. If a link is ambiguous it goes to a review list and is never guessed.
 
 **Enrichment**, cheapest first:
-1. Public GitHub profile and repo data: the profile's name, `@org` company and public email; the signal repo's languages (≥10% of code) and declared dependencies (`package.json`, `requirements.txt`, `go.mod`) become facts like `lang:typescript` and `dep:bullmq`. Facts from an org's repo belong to the company.
+1. Public GitHub profile and repo data: the profile's name, `@org` company and public email (recorded as an address found through GitHub, so it does not allow email by itself, §15.1); the signal repo's languages (≥10% of code) and declared dependencies (`package.json`, `requirements.txt`, `go.mod`) become facts like `lang:typescript` and `dep:bullmq`. Facts from an org's repo belong to the company.
 2. The company website
 3. An optional paid email finder, only for people at priority A or B
 
@@ -237,19 +237,18 @@ A **automation** is `trigger → audience filter → action`. It is how one expe
 
 ```yaml
 # products/pipewrench/automations.yaml
-- id: pain-issue-outreach
+- id: pain-issue-help
   notes: "Audience, offer, max effort — written before starting"
   trigger: {signal: github.issue_pain}
   when: {min_fit: 60, not_contacted_within: 30d}
-  action: {sequence: technical-intro}
-  success: {event: first_report, within: 14d}   # default: the product offer
+  action: {task: "Answer in the issue if you can genuinely help", draft: true}
   limit_per_day: 10
 
 - id: postmortem-offer
   trigger: {signal: community.postmortem}
   when: {min_fit: 60}
   delay: 5d                         # never during the incident; rechecked when due
-  action: {sequence: free-workflow-test}
+  action: {task: "Offer a free workflow test if they want one"}
 
 - id: stalled-install
   trigger: {stage_stuck: {stage: installed, for: 3d}}
@@ -290,6 +289,8 @@ Automation **templates** cover the common moves, so a new product starts with a 
 **Prevent competing nudges.** Allow one active conversion sequence per person per product. Before every step, recheck that the person is still eligible and has not reached the goal, replied or started a human conversation. A delayed `stage_stuck` automation must recheck the stall when it runs. Win-back uses time since the last meaningful activity, not time since the first `active` event. A completed purchase or activation cancels obsolete pending messages.
 
 ## 7. Outreach and messaging
+
+Email goes only to people who gave you an address. Someone Astrolabe knows only from GitHub is helped in the thread, never emailed (§15.1).
 
 **Sequences** are ordered steps with delays. Each step targets a channel:
 
@@ -458,7 +459,7 @@ flowchart LR
 | Table | Holds |
 | --- | --- |
 | `products`, `sequences` | Loaded from `products/*/` (config, automations, monitors and claims/voice text), versioned by file hash |
-| `companies`, `people`, `identities` | Matched entities with enrichment `facts`; `identities` maps email, GitHub, product user id (`<product>:<id>`), phone, HN, Stack Overflow and Stripe customer to a person |
+| `companies`, `people`, `identities` | Matched entities with enrichment `facts`; `identities` maps email, GitHub, product user id (`<product>:<id>`), phone, HN, Stack Overflow and Stripe customer to a person, with a `source` saying where each came from (§15.1) |
 | `product_people` | Which products a person belongs to, with the first-touch `source` |
 | `signals`, `identity_reviews`, `monitor_runs` | Every signal (§4), unique on `(product_id, dedupe_key)`; ambiguous matches; monitor status |
 | `scores` | Current fit/intent/why-now/priority with breakdown; recomputed on new signals, enrichment and daily |
@@ -536,7 +537,7 @@ After M1, use it with real prospects for your first product and help them reach 
 - Automated LinkedIn or X DMs, and posting to X/LinkedIn through their APIs. They stay manual tasks.
 - Reddit search: its unauthenticated API is blocked; add subreddit RSS feeds to a `community` monitor instead.
 - Paid email finders (enrichment step 3) and company-website enrichment (step 2): only public GitHub data is used today.
-- Buying contact lists and bulk cold email. Outreach is signal-led only.
+- Buying contact lists and bulk cold email. Outreach is signal-led only, and never emails someone known only from GitHub (§15.1).
 - Learned scoring models, multi-touch attribution models, BigQuery or dbt.
 - Multi-user roles, per-customer installs, Kubernetes, Temporal.
 
@@ -553,7 +554,44 @@ product. Each is generic; the examples use Pipewrench.
 
 ### 15.1 Outreach guards
 
-_In progress._
+**Why.** GitHub's [Acceptable Use Policies](https://docs.github.com/en/site-policy/acceptable-use-policies/github-acceptable-use-policies), section 7, forbid using information from GitHub, "whether scraped, collected through our API, or obtained otherwise", for spamming, including sending unsolicited emails to users. A cold email to someone found in a GitHub issue is exactly that, so Astrolabe does not send it unless you turn the guard off.
+
+**Where an address came from.** Every identity records a `source`:
+
+| Source | Meaning |
+| --- | --- |
+| `github` | Found through GitHub: monitors, profile enrichment, commit or profile emails |
+| `event` | Sent by your product's events (a signup form, an app) or a tracked link |
+| `stripe` | Came with a Stripe payment |
+| `reply` | They wrote to you from this address |
+| `import`, `manual` | You vouched for it: a CSV import, or a signal you entered by hand |
+| `form` | Reserved for form intake (§15.5) |
+
+An address only moves from `github` to another source, and only for the same person: when they give it to you themselves (a signup, a reply, your import). Nothing moves it back.
+
+**The rule.** A person is **GitHub-only** when they have a GitHub login or a GitHub-found address and no email identity from any other source. Unless the product sets `outreach.email_from_github: true`, a GitHub-only person gets no email of any kind: not a cold or users sequence, not an answer to a reply, and not a later broadcast.
+
+```yaml
+# products/pipewrench/product.yaml
+outreach:
+  email_from_github: false   # default. true accepts the policy risk; `astrolabe doctor` warns
+links:
+  personal: false            # optional: keep the plain offer link, no tracked link per message
+```
+
+**Where it is checked.** One function, `outreach.MayEmail(ctx, q, productID, personID)`, answers yes or no with a reason, and every email path asks it:
+- *Enrolment.* Starting any sequence with an `email` step for a GitHub-only person is refused, by `start_sequence`, the People page and automations alike, and the reason names the policy. Sequences made only of manual task steps (`linkedin_task`, `x_task`) are still allowed.
+- *Drafting and approval.* A step that comes due for someone who has become GitHub-only is held as blocked; approving such a message is refused.
+- *Answering a reply.* Refused with the reason. A person who replies from an address has given it to you, so a reply from a GitHub-only person lifts the restriction.
+- *The send transaction.* The check runs again. If it fails, the message is held (status `blocked`) with the reason on it and is never sent. This also catches people enrolled before the guard existed.
+
+The reason shows where you see the outcome: the skipped list in the MCP result and People page, the play's run outcome, and the error on a held message in the inbox and outbox.
+
+**What to do instead.** The `devtool` starter turns GitHub issue and repo signals into a task: "answer in the issue if you can genuinely help", with a draft. Help in the thread; if they want to talk further they will give you an address, and the guard opens by itself. If you already know someone's address from them, import it (`import_people`) or add it by hand.
+
+**Personal links.** `links.personal: false` leaves the offer destination as it is: no tracked link is created for each message, and `{{.Link}}` is the plain destination. Clicks are then not attributed to a person.
+
+**Backfill.** Migration 0007 labels existing identities: an address the person wrote from is `reply`; one carried by a signal is `stripe`, `manual` or `event` by the signal's type; people created by import get `import`; anything else on a person with a GitHub login is `github`; the rest are `manual`. The import rule cannot tell a profile email found later from the address you imported, so such a person counts as having given an address.
 
 ### 15.2 Account pipeline and qualification
 

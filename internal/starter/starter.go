@@ -26,7 +26,7 @@ var templates embed.FS
 // Templates, with what each is for.
 var Templates = map[string]string{
 	"demo":    "a fictional product with example people, to try everything in sandbox mode",
-	"devtool": "a developer tool: GitHub/HN signals, cold email to engineers, activation help",
+	"devtool": "a developer tool: GitHub/HN signals become tasks to help in the thread, email for people who gave an address, activation help",
 	"saas":    "a B2B SaaS: trials, activation, trial-ending and win-back",
 	"app":     "a consumer app: product events, push/in-app and email to users",
 }

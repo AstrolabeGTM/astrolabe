@@ -84,7 +84,7 @@ Rules: use only claims from product_context.claims; never use never_claim phrase
 	register(srv, "do_not_contact", "Put a person (id or email) on the do-not-contact list: no product will message them again. allow=true removes them.", s.doNotContact)
 
 	// Sequences and messages
-	register(srv, "start_sequence", "Start a sequence for people (by id). One active sequence per person per product; the first draft appears immediately.", s.enroll)
+	register(srv, "start_sequence", "Start a sequence for people (by id). One active sequence per person per product; the first draft appears immediately. A person known only from GitHub is refused for any sequence with an email step (GitHub's Acceptable Use Policies); the reason is in `skipped`.", s.enroll)
 	register(srv, "inbox", "Everything waiting on the operator: sends needing a decision, replies to label, due tasks, drafts, and queued sends.", s.inbox)
 	register(srv, "write_draft", "Set a draft's text (email subject/body, or the note for a manual LinkedIn/X task). Any earlier approval is withdrawn.", s.writeDraft)
 	register(srv, "ai_draft", "Have the Claude API write a draft now from claims, voice, research and the triggering signal. Returns it with flags; never sends.", s.aiDraft)

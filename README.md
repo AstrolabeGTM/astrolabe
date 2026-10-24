@@ -43,7 +43,7 @@ docker run --rm --user "$(id -u):$(id -g)" -v "$PWD:/work" -w /work ghcr.io/astr
 
 | Template | For |
 | --- | --- |
-| `devtool` | Developer tools: GitHub/HN signals, cold email to engineers, help after signup |
+| `devtool` | Developer tools: GitHub/HN signals become tasks to help in the thread; email for people who gave you an address; help after signup |
 | `saas` | B2B SaaS: trials, activation, trial-ending notes, win-back |
 | `app` | Consumer apps: product events, push/in-app and email to users |
 | `demo` | The fictional product above |
@@ -122,6 +122,8 @@ An event whose `type` matches a funnel stage records that stage. Sending `user_i
 - Approval covers the exact sender, recipient, subject and body. Any edit withdraws it.
 - Each message has one row. The sender claims it in a transaction that rechecks approval, the sequence, the do-not-contact list, pauses and limits, then sends once.
 - If the provider's answer is lost, the message is marked **unknown** and never resent automatically. The inbox offers **Check Sent mail**, which looks it up by its Message-ID.
+- **No email from GitHub data.** GitHub's Acceptable Use Policies forbid using GitHub information to send unsolicited email, so a person Astrolabe knows only from GitHub (a monitor, an issue, a profile email) is never emailed: enrolment is refused with the reason and the send step checks again. Help them in the issue thread instead. They become emailable once they give an address (signup, reply, your import). A product can opt out with `outreach.email_from_github: true`; `astrolabe doctor` warns when it does.
+- Tracked links are optional: `links.personal: false` keeps the plain offer link in every message.
 - Replies stop the sequence. Bounces, "no" and unsubscribes put the person on the do-not-contact list for every product.
 
 ## Configuration
