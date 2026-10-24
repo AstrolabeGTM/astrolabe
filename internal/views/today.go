@@ -86,10 +86,14 @@ type Today struct {
 	Items   []Item           `json:"items"`
 	Counts  map[string]Count `json:"counts"`
 	// LaterTasks counts open tasks due after today; they are not listed.
-	LaterTasks  int      `json:"later_tasks"`
-	ReplyLabels []string `json:"reply_labels"`
-	Outcomes    []string `json:"task_outcomes"`
-	Note        string   `json:"note"`
+	LaterTasks int `json:"later_tasks"`
+	// OpenAccounts and ClosedAccounts are what the account items are out
+	// of: open, and paused or lost, pipeline accounts.
+	OpenAccounts   int      `json:"open_accounts"`
+	ClosedAccounts int      `json:"paused_or_lost_accounts"`
+	ReplyLabels    []string `json:"reply_labels"`
+	Outcomes       []string `json:"task_outcomes"`
+	Note           string   `json:"note"`
 }
 
 var stateRank = map[string]int{"past": 0, "near": 1, "ok": 2}
@@ -232,6 +236,8 @@ func (t *Today) accounts(ctx context.Context, out *outreach.Service, products []
 		if err != nil {
 			return err
 		}
+		t.OpenAccounts += len(b.Open)
+		t.ClosedAccounts += b.Paused + b.Lost
 		y, m, d := now.In(time.Local).Date()
 		today := time.Date(y, m, d, 0, 0, 0, 0, time.Local)
 		day := func(s string) time.Time {

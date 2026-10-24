@@ -92,34 +92,56 @@ async function done(message, kind = "ok") {
 }
 
 // describe remembers an element well enough to find it, or its successor,
-// after the screen is rendered again.
+// after the screen is rendered again: selectors built from its stable
+// attributes (most specific first), and the item it was in.
+const FOCUSABLE = "button:not([disabled]), a[href], input:not([disabled]):not([type=hidden]), select:not([disabled]), textarea:not([disabled]), [tabindex='0']";
+
 function describe(a) {
   if (!a || a === document.body) return null;
-  if (!$("#main").contains(a)) {
-    return a.dataset?.action ? { selector: `[data-action="${CSS.escape(a.dataset.action)}"]` } : null;
+  const q = (k, v) => `[${k}="${CSS.escape(String(v))}"]`;
+  const sels = [];
+  const d = a.dataset || {};
+  // Generated field ids (f-...) change with every render; others are stable.
+  if (a.id && !a.id.startsWith("f-")) sels.push(`#${CSS.escape(a.id)}`);
+  const act = d.action ? q("data-action", d.action) : d.change ? q("data-change", d.change) : "";
+  if (act) {
+    const extra = ["id", "item", "person", "scope", "class", "sent", "product", "monitor"].filter(k => d[k] !== undefined).map(k => q(`data-${k}`, d[k])).join("");
+    sels.push(act + extra);
   }
+  const form = a.closest?.("form[data-form]");
+  if (form) {
+    const f = `form${q("data-form", form.dataset.form)}${form.dataset.id ? q("data-id", form.dataset.id) : ""}`;
+    if (a.name) sels.push(`${f} ${q("name", a.name)}${a.value && a.type === "submit" ? q("value", a.value) : ""}`);
+    if (a.tagName === "BUTTON") sels.push(`${f} button:not([type=button])`);
+  }
+  if (!$("#main").contains(a)) return { sels };
   const item = a.closest("[data-key]");
   const items = $$("[data-key]", $("#main"));
-  return { key: item?.dataset.key, index: item ? items.indexOf(item) : -1, action: a.dataset.action || a.dataset.change, id: a.id };
+  return { sels, key: item?.dataset.key, index: item ? items.indexOf(item) : -1 };
 }
 
+// restoreFocus puts focus on the remembered element if it is still there
+// and can take focus, else on the next control in its item, else on the
+// next item, else on the main content.
 function restoreFocus(t) {
   const main = $("#main");
   if (!t) return;
-  let el = t.selector && document.querySelector(t.selector);
-  if (!el && t.id) el = document.getElementById(t.id);
-  if (!el && t.key) {
-    const item = main.querySelector(`[data-key="${CSS.escape(t.key)}"]`);
-    const act = CSS.escape(t.action || "");
-    el = item && (item.querySelector(`[data-action="${act}"], [data-change="${act}"]`) || item.querySelector("button, a, input, select, textarea"));
-    if (!el) {
-      const items = $$("[data-key]", main);
-      const next = items[Math.min(t.index, items.length - 1)];
-      el = next?.querySelector("button, a, input, select, textarea");
-    }
+  const tryFocus = el => { if (!el) return false; el.focus(); return document.activeElement === el; };
+  for (const s of t.sels || []) {
+    const el = document.querySelector(s);
+    if (tryFocus(el)) return;
+    // Disabled now (approved, say): the next control near it.
+    const near = el?.closest("[data-key], form, .item-actions, section");
+    if (near && tryFocus(near.querySelector(FOCUSABLE))) return;
   }
-  if (el) el.focus();
-  else main.focus({ preventScroll: true });
+  if (t.key) {
+    const item = main.querySelector(`[data-key="${CSS.escape(t.key)}"]`);
+    if (item && tryFocus(item.querySelector(FOCUSABLE))) return;
+    const items = $$("[data-key]", main);
+    const next = items[Math.min(t.index, items.length - 1)];
+    if (next && tryFocus(next.querySelector(FOCUSABLE))) return;
+  }
+  main.focus({ preventScroll: true });
 }
 
 let firstShow = true;

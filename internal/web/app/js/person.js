@@ -82,7 +82,11 @@ function aside(v) {
       <form class="form" data-form="facts">${field("facts", "Add facts", { help: "kind:value, separated by commas, e.g. dep:bullmq, team:5-50. Fit rules in product.yaml match on these." })}
       <div class="form-actions"><button class="btn btn-sm">Add facts</button></div></form>`) +
     section("p-research", "Research notes", (briefs || `<p class="muted">None yet.</p>`) + research) +
-    section("p-tasks", "Open tasks", tasks ? `<ul class="plain-list">${tasks}</ul><p class="help">Close them on <a href="#today">Today</a>.</p>` : `<p class="muted">None.</p>`);
+    section("p-tasks", "Open tasks", tasks ? `<ul class="plain-list">${tasks}</ul><p class="help">Close them on <a href="#today">Today</a>.</p>` : `<p class="muted">None.</p>`) +
+    section("p-stop", "Stop contact or erase", `<p class="help">Do not contact keeps them but no product will message them again (you can undo it). Forget erases everything about them on their request, after showing what would go.</p>
+      <div class="row">${v.do_not_contact ? `<button type="button" class="btn btn-sm" data-action="person-allow">Allow contact again</button>`
+        : `<button type="button" class="btn btn-sm btn-danger" data-action="person-dnc">Do not contact…</button>`}
+      <button type="button" class="btn btn-sm btn-danger" data-action="person-forget">Forget this person…</button></div>`);
 }
 
 function render(v) {
@@ -130,10 +134,7 @@ export default {
   crumbs: v => [{ label: "People", href: "#people" }, { label: v ? nameOf(v.person) : "Person" }],
   pageActions: v => v ? `<button type="button" class="btn btn-sm btn-primary" data-action="person-log">Log a conversation</button>
     <button type="button" class="btn btn-sm" data-action="person-start">Start a sequence</button>
-    <button type="button" class="btn btn-sm" data-action="person-task">Add a task</button>
-    ${v.do_not_contact ? `<button type="button" class="btn btn-sm" data-action="person-allow">Allow contact again</button>`
-      : `<button type="button" class="btn btn-sm btn-danger" data-action="person-dnc">Do not contact</button>`}
-    <button type="button" class="btn btn-sm btn-danger" data-action="person-forget">Forget this person…</button>` : "",
+    <button type="button" class="btn btn-sm" data-action="person-task">Add a task</button>` : "",
   actions: {
     ...seqActions,
     "person-start": (b, ctx) => startSequenceDialog([ctx.data.person.id], { productId: ctx.data.products[0] || state.boot.products[0]?.id,

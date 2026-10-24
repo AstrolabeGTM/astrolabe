@@ -219,7 +219,7 @@ function render(t) {
     ${stat("Drafts to approve", c.approval, pastOf("approval", tg.approval_seconds))}
     ${stat("Held sends", c.held, pastOf("held", tg.held_seconds))}
     ${stat("Tasks due today", c.task, `${c.task.past} of ${c.task.total} overdue · ${t.later_tasks} due later`)}
-    ${state.boot?.products.some(p => p.pipeline) ? `<div class="stat"><dt>Accounts needing you</dt><dd>${c.account.total + c.revisit.total}<span class="sub">${c.account.total} next action${c.account.total === 1 ? "" : "s"} overdue · ${c.revisit.total} to revisit</span></dd></div>` : ""}
+    ${state.boot?.products.some(p => p.pipeline) ? `<div class="stat"><dt>Accounts needing you</dt><dd>${c.account.total + c.revisit.total}<span class="sub">${c.account.total} of ${t.open_accounts} open overdue · ${c.revisit.total} of ${t.paused_or_lost_accounts} paused or lost to revisit</span></dd></div>` : ""}
   </dl>`;
   const waiting = t.items.filter(i => i.kind !== "queued");
   if (!waiting.length && !c.queued.total) {
