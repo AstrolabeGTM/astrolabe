@@ -42,3 +42,19 @@ fit:
   - {any: [ci:github-actions, ci:circleci], weight: 40, label: uses hosted CI}
   - {any: [lang:typescript, lang:go, lang:python], weight: 30, label: supported language}
   - {any: [team:5-50], weight: 20, label: team size}
+
+# Companies (accounts) through deal stages, beside the per-person funnel.
+# Entering "qualified" or any later stage needs every check answered yes,
+# each with one line of evidence:
+#   pain:     flaky tests cost them real time now (re-runs, blocked merges)
+#   champion: an engineer who cares and will run the trial
+#   timing:   something makes it matter now (a release, a CI bill, a migration)
+# budget (who would pay, and how much) is asked and kept but never blocks.
+# The example accounts are in demo-accounts.yaml.
+pipeline:
+  stages: [identified, contacted, qualified, trial, customer]
+  qualify:
+    gate: qualified
+    checks: [pain, champion, timing]
+    record: [budget]
+  stuck_after: 14d

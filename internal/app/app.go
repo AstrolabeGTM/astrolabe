@@ -26,6 +26,7 @@ import (
 	"github.com/AstrolabeGTM/astrolabe/internal/mail"
 	"github.com/AstrolabeGTM/astrolabe/internal/outreach"
 	"github.com/AstrolabeGTM/astrolabe/internal/people"
+	"github.com/AstrolabeGTM/astrolabe/internal/pipeline"
 	"github.com/AstrolabeGTM/astrolabe/internal/play"
 	"github.com/AstrolabeGTM/astrolabe/internal/product"
 	"github.com/AstrolabeGTM/astrolabe/internal/sandbox"
@@ -161,6 +162,7 @@ func Open(ctx context.Context, cfg Config, work bool) (*App, error) {
 		river.AddWorker(workers, &draft.ActionWorker{W: a.Writer})
 		river.AddWorker(workers, &draft.ReplyWorker{W: a.Writer})
 		river.AddWorker(workers, &draft.TaskWorker{W: a.Writer})
+		river.AddWorker(workers, &pipeline.Worker{Pool: pool})
 		river.AddWorker(workers, &digest.Worker{Pool: pool, Senders: a.sender,
 			Products: func() []*product.Product {
 				ps, err := product.All(context.Background(), pool)
@@ -191,6 +193,10 @@ func Open(ctx context.Context, cfg Config, work bool) (*App, error) {
 				&river.PeriodicJobOpts{RunOnStart: true}),
 			river.NewPeriodicJob(river.PeriodicInterval(time.Hour),
 				func() (river.JobArgs, *river.InsertOpts) { return digest.Args{}, nil },
+				&river.PeriodicJobOpts{RunOnStart: true}),
+			// Revisit tasks for paused/lost accounts, and the weekly snapshot.
+			river.NewPeriodicJob(river.PeriodicInterval(time.Hour),
+				func() (river.JobArgs, *river.InsertOpts) { return pipeline.Args{}, nil },
 				&river.PeriodicJobOpts{RunOnStart: true}),
 		}
 		if a.Cfg.Mode != sandbox.Sandbox {
@@ -280,8 +286,9 @@ func (a *App) LoadProducts(ctx context.Context) ([]*product.Product, error) {
 	return products, loadErr
 }
 
-// seedDemo imports a demo product's example people (demo-people.csv) the
-// first time it loads in sandbox mode, so the demo has people to work with.
+// seedDemo imports a demo product's example people (demo-people.csv) and
+// accounts (demo-accounts.yaml) the first time it loads in sandbox mode, so
+// the demo has people and a pipeline to work with.
 func (a *App) seedDemo(ctx context.Context, products []*product.Product) error {
 	if a.Cfg.Mode != sandbox.Sandbox {
 		return nil
@@ -311,6 +318,17 @@ func (a *App) seedDemo(ctx context.Context, products []*product.Product) error {
 			slog.Info("demo people imported", "product", p.ID, "count", len(rows))
 		}
 		f.Close()
+		if path := filepath.Join(p.Dir, "demo-accounts.yaml"); p.Pipeline != nil {
+			if _, err := os.Stat(path); err == nil {
+				n, err := pipeline.SeedFile(ctx, a.Pool, p, path, time.Now())
+				if err != nil {
+					return fmt.Errorf("seed %s pipeline: %w", p.ID, err)
+				}
+				if n > 0 {
+					slog.Info("demo accounts added", "product", p.ID, "count", n)
+				}
+			}
+		}
 	}
 	return nil
 }
