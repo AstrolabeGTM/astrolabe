@@ -161,6 +161,7 @@ A **monitor** produces signals. Monitors are either scheduled (polling) or event
 | --- | --- | --- | --- |
 | `github_search` | Scheduled, hourly | Issues/PRs mentioning "flaky test", "fails intermittently"; repos adding a test runner | Dev tools |
 | `github_repo` | Scheduled | Stars, forks and issues on your repos or a competitor's | Dev tools |
+| `github_release` | Scheduled, daily is enough | No signals: daily counts of release downloads, stars, forks, watchers, open issues and discussions (section 15.3) | Dev tools with releases |
 | `community` | Scheduled, hourly | HN, Reddit, Lobsters, Stack Overflow, RSS keyword matches | All |
 | `product_events` | Webhook | signup, activated, stalled, limit hit, invited teammate | All (your apps send these) |
 | `site` | Product events + tracked links | Pricing or docs visits by a known person: send them as product events (e.g. `type: pricing_visit`); clicks on tracked links arrive as `link.click`. No PostHog integration yet | All |
@@ -172,7 +173,7 @@ Monitors are configured in `monitors.yaml`:
 
 ```yaml
 - id: pain-issues
-  type: github_search            # github_search | github_repo | community
+  type: github_search            # github_search | github_repo | community | github_release
   query: '"flaky test" is:issue language:TypeScript'
   signal: github.issue_pain
   strength: 25
