@@ -160,7 +160,11 @@ main:focus { outline: none; }
 .btn-primary:hover:not(:disabled) { background: var(--primary-hover); }
 .btn-danger { color: var(--bad); }
 .btn-primary.btn-destructive { background: var(--bad); border-color: var(--bad); color: #fff; }
-@media (prefers-color-scheme: dark) { .btn-primary.btn-destructive { background: #8f2a22; border-color: #8f2a22; } }
+.btn-primary.btn-destructive:hover:not(:disabled) { background: #7e1f18; border-color: #7e1f18; }
+@media (prefers-color-scheme: dark) {
+  .btn-primary.btn-destructive { background: #8f2a22; border-color: #8f2a22; }
+  .btn-primary.btn-destructive:hover:not(:disabled) { background: #a3342b; border-color: #a3342b; }
+}
 .btn-ghost { border-color: transparent; background: transparent; }
 .btn-sm { padding: 4px 10px; font-size: 13px; }
 .btn[aria-pressed="true"] { background: var(--primary); border-color: var(--primary); color: var(--primary-ink); }
