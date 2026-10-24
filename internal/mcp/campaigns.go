@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -49,6 +50,7 @@ func (s *Server) registerCampaigns(srv *sdk.Server) {
 	register(srv, "record_spend", "Record spend by hand: amount (e.g. 25 or 25.50, in the campaign's currency), platform, optional date (YYYY-MM-DD, default today), note, and the platform's clicks and impressions if you have them. Returns warnings: near the cap (80%), over the cap, spent before the gate was complete, stop rule met. Nothing is stopped or changed by a warning.", s.recordSpend)
 	register(srv, "import_spend", "Import a platform's spend and clicks CSV (header row with date, spend/cost/amount and optionally clicks, impressions, platform). Rows for the same platform and day are added together; importing the same file again replaces those days rather than adding to them. Unreadable rows are skipped and listed.", s.importSpend)
 	register(srv, "creatives", "A campaign's creatives (HTML template plus copy fields): copy, alt text, claims-check flags, rendered files and whether the approval still holds.", s.creatives)
+	register(srv, "creative_preview", "A creative's current copy filled into its template at one size, as a single HTML document with its stylesheets and images inlined: what a render would draw, available without the renderer. Shows flags and whether it is approved.", s.creativePreview)
 	register(srv, "render_creative", "Render a creative to PNG (and PDF if asked) at each required size through the optional Chromium sidecar (docker compose --profile creative up, ASTROLABE_RENDER_URL). Without it this says plainly what to start; copy, flags and approval still work. Rendering withdraws any approval, since the files are new.", s.renderCreative)
 	register(srv, "edit_creative", "Change a creative's copy fields and/or alt text. Any real edit withdraws the approval and drops the rendered files. The claims check runs on the new copy (never-claims, placeholders, numbers without a source); flagged copy cannot be approved.", s.editCreative)
 	register(srv, "approve_creative", "Approve a creative exactly as it is now: the copy, the template and every rendered file, by hash. Only on the operator's say-so. Refused while flagged. Any later edit withdraws it.", s.approveCreative)
@@ -396,4 +398,32 @@ func (s *Server) campaignsJSON(ctx context.Context, a productOpt) (any, error) {
 	}
 	b, _ := json.MarshalIndent(v, "", "  ")
 	return map[string]any{"campaigns": v, "file": string(b) + "\n"}, nil
+}
+
+type previewArg struct {
+	campaignArg
+	Creative string `json:"creative"`
+	Size     string `json:"size" jsonschema:"one of the creative's sizes, e.g. 1200x630"`
+}
+
+// creativePreview is the creative's current copy in its template at one
+// size, as one HTML document (stylesheets and images inlined): what a
+// render would draw, available without the renderer.
+func (s *Server) creativePreview(ctx context.Context, a previewArg) (any, error) {
+	p, c, cr, err := s.creativeTarget(a.campaignArg, a.Creative)
+	if err != nil {
+		return nil, err
+	}
+	if !slices.Contains(cr.Sizes, a.Size) {
+		return nil, fmt.Errorf("creative %s has sizes %v, not %q", cr.ID, cr.Sizes, a.Size)
+	}
+	v, err := campaign.View(ctx, s.S.Pool, p, c, cr)
+	if err != nil {
+		return nil, err
+	}
+	doc, w, h, err := campaign.Preview(cr, v.Copy, v.Alt, a.Size)
+	if err != nil {
+		return nil, err
+	}
+	return map[string]any{"html": doc, "width": w, "height": h, "size": a.Size, "approved": v.Approved, "flags": v.Flags}, nil
 }

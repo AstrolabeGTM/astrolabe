@@ -252,6 +252,20 @@ table th[scope=row] { font-size: 14px; font-weight: 600; color: var(--ink); text
 .note q { font-style: italic; }
 .note .row { gap: 6px 10px; }
 
+/* ---- campaigns and creatives ---- */
+.creative-frames { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px; margin: 12px 0; }
+.creative { margin: 0; min-width: 0; }
+.creative-frame { position: relative; overflow: hidden; border: 1px solid var(--line-strong); border-radius: 6px; background: var(--surface-2); }
+.creative-frame iframe { border: 0; display: block; transform-origin: 0 0; background: #fff; }
+.creative-frame img { display: block; }
+.creative figcaption { font-size: 13px; margin-top: 6px; }
+.creative-card h3 { margin: 0; }
+.checklist { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.checklist .sub { display: block; margin-left: 26px; color: var(--muted); font-size: 13px; }
+.warn-text { color: var(--warn); }
+.code-block { font-family: var(--mono); font-size: 13px; }
+.stat dd.small { font-size: 17px; }
+
 /* ---- boards (pipeline) ---- */
 .board { position: relative; display: grid; grid-auto-flow: column; grid-auto-columns: minmax(180px, 1fr); gap: 12px; overflow-x: auto; padding-bottom: 8px; }
 .board:focus-visible { outline-offset: 4px; }

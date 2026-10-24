@@ -140,6 +140,9 @@ func Check(ctx context.Context, q store.Q, p *product.Product, c *product.Campai
 		st.PctOfCap = &pct
 	}
 	st.Warnings = st.warnings()
+	if st.Warnings == nil {
+		st.Warnings = []string{} // an empty list, not null, for JSON readers
+	}
 	return st, nil
 }
 

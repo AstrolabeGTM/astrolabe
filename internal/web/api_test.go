@@ -604,3 +604,23 @@ func TestPipelineAPI(t *testing.T) {
 		t.Fatalf("export: %v", csv)
 	}
 }
+
+func TestCampaignRoutes(t *testing.T) {
+	ts, _ := apiServer(t)
+	s := newSession(t, ts)
+	if l := s.get("/api/campaigns?product=demo"); len(l["campaigns"].([]any)) != 0 {
+		t.Fatalf("campaigns: %v", l)
+	}
+	if code, body := do(t, s.c, "GET", ts.URL+"/api/campaign?product=demo&campaign=nope", "", nil); code != http.StatusBadRequest || !strings.Contains(body["error"].(string), "no campaign") {
+		t.Fatalf("a missing campaign: %d %v", code, body)
+	}
+	if code, _ := do(t, s.c, "GET", ts.URL+"/api/campaign/creatives/preview?product=demo&campaign=nope&creative=x&size=10x10", "", nil); code != http.StatusBadRequest {
+		t.Fatalf("a missing creative preview: %d", code)
+	}
+	if code, _ := do(t, s.c, "GET", ts.URL+"/api/campaign/creatives/file?product=demo&campaign=nope", "", nil); code != http.StatusBadRequest {
+		t.Fatalf("a missing creative file: %d", code)
+	}
+	if j := s.get("/api/campaigns/json"); j["file"] == nil {
+		t.Fatalf("campaigns.json: %v", j)
+	}
+}

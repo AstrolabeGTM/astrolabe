@@ -77,14 +77,21 @@ func queryArgs(q url.Values, in reflect.Type) (json.RawMessage, error) {
 		in = in.Elem()
 	}
 	fields := map[string]reflect.Type{}
-	if in.Kind() == reflect.Struct {
-		for i := range in.NumField() {
-			f := in.Field(i)
+	var collect func(t reflect.Type)
+	collect = func(t reflect.Type) {
+		for i := range t.NumField() {
+			f := t.Field(i)
 			name, _, _ := strings.Cut(f.Tag.Get("json"), ",")
-			if name != "" && name != "-" {
+			switch {
+			case f.Anonymous && name == "" && f.Type.Kind() == reflect.Struct:
+				collect(f.Type) // embedded arguments, e.g. campaignArg
+			case name != "" && name != "-":
 				fields[name] = f.Type
 			}
 		}
+	}
+	if in.Kind() == reflect.Struct {
+		collect(in)
 	}
 	args := map[string]any{}
 	for key, vals := range q {
