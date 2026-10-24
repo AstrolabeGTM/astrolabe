@@ -16,6 +16,7 @@ import (
 	sdk "github.com/modelcontextprotocol/go-sdk/mcp"
 
 	"github.com/AstrolabeGTM/astrolabe/internal/content"
+	"github.com/AstrolabeGTM/astrolabe/internal/doctor"
 	"github.com/AstrolabeGTM/astrolabe/internal/draft"
 	"github.com/AstrolabeGTM/astrolabe/internal/funnel"
 	"github.com/AstrolabeGTM/astrolabe/internal/gmail"
@@ -38,11 +39,14 @@ type Server struct {
 	Mode        string                      // sandbox or live
 	ProductsDir string
 	Products    func() []*product.Product
-	// LoadErrors lists product folders that failed to load, in plain words.
-	LoadErrors func() []string
-	// Mail and Accounts are the sending mailboxes (for check_sent).
+	// LoadIssues lists product folders that failed to load, and why.
+	LoadIssues func() []views.LoadIssue
+	// Mail and Accounts are the sending mailboxes (check_sent, setup).
 	Mail     *mail.Store
 	Accounts *gmail.Accounts
+	// Doctor runs the setup checks (astrolabe doctor); connect also tests
+	// logins, keys and DNS.
+	Doctor func(ctx context.Context, connect bool) []doctor.Check
 }
 
 // Run serves MCP over stdin/stdout until the client disconnects.
@@ -75,6 +79,9 @@ Rules: use only claims from product_context.claims; never use never_claim phrase
 	// Products and setup
 	register(srv, "product_setup", "Create products/<id>/ from a short interview: name, one-liner, who it's for, funnel stages, activation stage, one offer (promise, call to action, URL), sender mailboxes, never-claims, and (if the operator agreed them) claims and voice text. Ask for each before calling. Without claims/voice the files are STUB and the product won't load until filled in. Never overwrites.", s.productSetup)
 	register(srv, "products", "List loaded products: offer, funnel stages, sequences and their steps.", s.products)
+	register(srv, "setup", "Configuration as the operator checks it: loaded products with their folders, product folders that failed to load with each problem and its fix, sending mailboxes and whether each is connected, every pause switch (all sending, per product, per sequence) and webhook endpoints with whether their secret is set.", s.setup)
+	register(srv, "doctor", "Run the setup checks (astrolabe doctor): database, mode, password, products, mailboxes, channel secrets, public URL, webhooks and tokens, each ok, a warning or a problem, with the fix. connect=true also tests mailbox logins, the GitHub token, the Claude key and SPF/DMARC, without sending anything.", s.doctor)
+	register(srv, "reload_products", "Re-read the product folders (after editing product.yaml, sequences, automations or monitors) and report any that failed to load.", s.reloadProducts)
 	register(srv, "status", "The instance at a glance: mode (sandbox or live), loaded products with their sequences, how many product folders failed to load, active pauses, and whether AI drafting is on.", s.status)
 	register(srv, "product_context", "Everything needed to write for a product: one-liner, who it's for (target), offer, allowed claims (claims.md), never-claims and voice (voice.md). Call before drafting.", s.productContext)
 

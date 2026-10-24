@@ -21,6 +21,7 @@ import (
 	"time"
 
 	"github.com/AstrolabeGTM/astrolabe/internal/content"
+	"github.com/AstrolabeGTM/astrolabe/internal/doctor"
 	"github.com/AstrolabeGTM/astrolabe/internal/draft"
 	"github.com/AstrolabeGTM/astrolabe/internal/experiment"
 	"github.com/AstrolabeGTM/astrolabe/internal/funnel"
@@ -34,6 +35,7 @@ import (
 	"github.com/AstrolabeGTM/astrolabe/internal/score"
 	"github.com/AstrolabeGTM/astrolabe/internal/sentmail"
 	"github.com/AstrolabeGTM/astrolabe/internal/signal"
+	"github.com/AstrolabeGTM/astrolabe/internal/views"
 )
 
 //go:embed templates/*.html
@@ -53,8 +55,10 @@ type Server struct {
 	Products func() []*product.Product
 	// Reload re-reads product folders.
 	Reload func(context.Context) error
-	// LoadErrors lists product folders that failed to load, in plain words.
-	LoadErrors func() []string
+	// LoadIssues lists product folders that failed to load, and why.
+	LoadIssues func() []views.LoadIssue
+	// Doctor runs the setup checks; connect also tests logins and DNS.
+	Doctor func(ctx context.Context, connect bool) []doctor.Check
 
 	tmpl *template.Template
 }

@@ -34,7 +34,7 @@ func (srv *Server) apiRoutes() []apiRoute {
 		{"POST /api/pause", "pause", srv.apiPause},
 		{"POST /api/resume", "resume", srv.apiResume},
 	}
-	return slices.Concat(routes, srv.todayRoutes(), srv.peopleRoutes(), srv.signalRoutes(), srv.receptionRoutes())
+	return slices.Concat(routes, srv.todayRoutes(), srv.peopleRoutes(), srv.signalRoutes(), srv.receptionRoutes(), srv.settingsRoutes())
 }
 
 func (srv *Server) apiMux() http.Handler {
@@ -159,11 +159,11 @@ func idParam(r *http.Request) (int64, error) {
 
 func (srv *Server) aiEnabled() bool { return srv.Writer != nil && srv.Writer.LLM.Enabled() }
 
-func (srv *Server) loadErrors() []string {
-	if srv.LoadErrors == nil {
+func (srv *Server) loadIssues() []views.LoadIssue {
+	if srv.LoadIssues == nil {
 		return nil
 	}
-	return srv.LoadErrors()
+	return srv.LoadIssues()
 }
 
 // ---- bootstrap ----
@@ -171,7 +171,7 @@ func (srv *Server) loadErrors() []string {
 // apiBootstrap is the status every screen shows (mode, products, pauses)
 // plus the CSRF token for this session.
 func (srv *Server) apiBootstrap(w http.ResponseWriter, r *http.Request) {
-	st, err := views.GetStatus(r.Context(), srv.S, srv.Mode, srv.Products(), srv.loadErrors(), srv.aiEnabled())
+	st, err := views.GetStatus(r.Context(), srv.S, srv.Mode, srv.Products(), srv.loadIssues(), srv.aiEnabled())
 	if err != nil {
 		apiFail(w, err)
 		return

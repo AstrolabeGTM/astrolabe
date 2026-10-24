@@ -75,7 +75,7 @@ type Status struct {
 }
 
 // GetStatus reports the mode, products, load problems and pauses.
-func GetStatus(ctx context.Context, out *outreach.Service, mode string, products []*product.Product, loadErrors []string, ai bool) (*Status, error) {
+func GetStatus(ctx context.Context, out *outreach.Service, mode string, products []*product.Product, problems []LoadIssue, ai bool) (*Status, error) {
 	pauses, err := out.Pauses(ctx)
 	if err != nil {
 		return nil, err
@@ -83,7 +83,7 @@ func GetStatus(ctx context.Context, out *outreach.Service, mode string, products
 	if pauses == nil {
 		pauses = []string{}
 	}
-	st := &Status{Mode: mode, Products: Summarize(products), NotLoaded: len(loadErrors), Pauses: pauses, AIDrafting: ai}
+	st := &Status{Mode: mode, Products: Summarize(products), NotLoaded: len(problems), Pauses: pauses, AIDrafting: ai}
 	if mode == sandbox.Sandbox {
 		st.ModeNote = "Sandbox: nothing leaves this machine. Messages go to the local outbox, where you can simulate replies."
 	} else {
@@ -91,27 +91,6 @@ func GetStatus(ctx context.Context, out *outreach.Service, mode string, products
 		st.ModeNote = "Live: approved messages are sent to real people."
 	}
 	return st, nil
-}
-
-// LoadProblems turns the error from loading product folders into one line
-// per problem folder, as the operator should read it.
-func LoadProblems(err error) []string {
-	out := []string{}
-	var walk func(error)
-	walk = func(err error) {
-		if err == nil {
-			return
-		}
-		if j, ok := err.(interface{ Unwrap() []error }); ok {
-			for _, e := range j.Unwrap() {
-				walk(e)
-			}
-			return
-		}
-		out = append(out, strings.TrimSpace(err.Error()))
-	}
-	walk(err)
-	return out
 }
 
 func itoa(n int64) string { return strconv.FormatInt(n, 10) }

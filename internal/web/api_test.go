@@ -17,6 +17,7 @@ import (
 	"github.com/riverqueue/river/riverdriver/riverpgxv5"
 
 	"github.com/AstrolabeGTM/astrolabe/internal/content"
+	"github.com/AstrolabeGTM/astrolabe/internal/doctor"
 	"github.com/AstrolabeGTM/astrolabe/internal/gmail"
 	"github.com/AstrolabeGTM/astrolabe/internal/llm"
 	"github.com/AstrolabeGTM/astrolabe/internal/mcp"
@@ -25,6 +26,7 @@ import (
 	"github.com/AstrolabeGTM/astrolabe/internal/product"
 	"github.com/AstrolabeGTM/astrolabe/internal/signal"
 	"github.com/AstrolabeGTM/astrolabe/internal/store"
+	"github.com/AstrolabeGTM/astrolabe/internal/views"
 )
 
 const testPassword = "test-password-1"
@@ -471,5 +473,40 @@ func TestReceptionAPI(t *testing.T) {
 	}
 	if all := s.get("/api/counters")["counters"].([]any); len(all) != 0 {
 		t.Fatalf("products without a counter monitor are left out of all: %v", all)
+	}
+}
+
+func TestSettingsAPI(t *testing.T) {
+	ts, srv := apiServer(t)
+	s := newSession(t, ts)
+	setup := s.get("/api/setup")
+	pauses := setup["pauses"].([]any)
+	if len(setup["products"].([]any)) != 1 || pauses[0].(map[string]any)["scope"] != "global" || len(pauses) < 3 {
+		t.Fatalf("setup: %v", setup)
+	}
+	if code, _ := do(t, s.c, "GET", ts.URL+"/api/doctor", "", nil); code != http.StatusBadRequest {
+		t.Fatalf("doctor without a doctor: %d", code)
+	}
+	var connected bool
+	srv.Doctor = func(_ context.Context, connect bool) []doctor.Check {
+		connected = connect
+		return []doctor.Check{{Area: "database", Status: doctor.OK, Detail: "connected"}}
+	}
+	if d := s.get("/api/doctor"); len(d["checks"].([]any)) != 1 || connected {
+		t.Fatalf("doctor: %v", d)
+	}
+	s.get("/api/doctor?connect=1")
+	if !connected {
+		t.Fatal("connect=1 did not test connections")
+	}
+	srv.LoadIssues = func() []views.LoadIssue {
+		return []views.LoadIssue{{Folder: "products/x", Problems: []string{"url is required"}}}
+	}
+	r := s.mustPost("/api/products/reload", nil)
+	if len(r["load_problems"].([]any)) != 1 {
+		t.Fatalf("reload: %v", r)
+	}
+	if boot := s.get("/api/bootstrap"); boot["products_not_loaded"].(float64) != 1 {
+		t.Fatalf("status should count the folder that failed: %v", boot)
 	}
 }

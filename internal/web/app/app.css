@@ -212,7 +212,7 @@ th, td { text-align: left; padding: 9px 12px; border-bottom: 1px solid var(--lin
 tbody tr:last-child > * { border-bottom: 0; }
 th { font-size: 12.5px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; background: var(--surface-2); }
 td.num, th.num { text-align: right; }
-td .sub { display: block; color: var(--muted); font-size: 13px; overflow-wrap: anywhere; }
+td .sub, th .sub { display: block; color: var(--muted); font-size: 13px; font-weight: 400; overflow-wrap: anywhere; }
 caption { text-align: left; padding: 10px 12px; color: var(--muted); font-size: 13px; caption-side: bottom; }
 
 .selection-bar { display: flex; flex-wrap: wrap; gap: 6px 16px; align-items: center; margin-bottom: 10px; }
@@ -224,10 +224,26 @@ td.select input, th.select input { width: 18px; height: 18px; margin: 2px 0 0; }
 
 .counters-card + .counters-card { margin-top: 12px; }
 .counters-card h3 { margin: 0; }
-.counters-card table th[scope=row] { font-size: 14px; font-weight: 550; color: var(--ink); text-transform: none; letter-spacing: 0; background: none; }
 .counters-card details { margin-top: 10px; }
 select.tone { min-height: 32px; padding: 4px 8px; font-weight: 600; font-size: 13.5px; }
 select.tone.ok { color: var(--ok); } select.tone.warn { color: var(--warn); } select.tone.bad { color: var(--bad); }
+
+.checks { list-style: none; margin: 0; padding: 0; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); }
+.checks > li { display: grid; grid-template-columns: 84px 120px minmax(0, 1fr); gap: 4px 12px; align-items: baseline; padding: 9px 12px; border-top: 1px solid var(--line); font-size: 14px; }
+.checks > li:first-child { border-top: 0; }
+.checks > li .tag { justify-self: start; }
+.check-detail { overflow-wrap: anywhere; }
+.check-detail ul { margin: 4px 0 0; padding-left: 18px; }
+.check-detail .help { margin-top: 2px; }
+@media (max-width: 720px) {
+  .checks > li { grid-template-columns: auto minmax(0, 1fr); }
+  .check-detail { grid-column: 1 / -1; }
+}
+code.path { overflow-wrap: anywhere; font-size: 12.5px; }
+table th[scope=row] { font-size: 14px; font-weight: 600; color: var(--ink); text-transform: none; letter-spacing: 0; background: none; }
+.notice ul { margin: 6px 0; padding-left: 20px; }
+.notice p { margin: 0; }
+.notice + .notice, .notice + .table-wrap { margin-top: 10px; }
 
 /* ---- dialog and toast ---- */
 dialog { border: 1px solid var(--line); border-radius: 14px; padding: 0; width: min(620px, calc(100vw - 24px)); max-height: calc(100vh - 32px);

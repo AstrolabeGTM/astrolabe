@@ -152,7 +152,7 @@ func run(ctx context.Context, args []string, out io.Writer) error {
 		}
 		products := loadProducts(ctx, a)
 		srv := &mcp.Server{S: a.Outreach, Signals: a.Signals, Sources: a.Sources, Writer: a.Writer, Studio: a.Studio, ProductsDir: cfg.ProductsDir, Mode: a.Cfg.Mode,
-			Products: products.Products, Reload: products.Reload, LoadErrors: products.Errors, Mail: a.Mail, Accounts: a.Accounts}
+			Products: products.Products, Reload: products.Reload, LoadIssues: products.Issues, Mail: a.Mail, Accounts: a.Accounts, Doctor: doctorFor(cfg)}
 		return srv.Run(ctx, version)
 	case "monitor":
 		if len(args) != 4 || args[1] != "run" {
@@ -241,20 +241,28 @@ func run(ctx context.Context, args []string, out io.Writer) error {
 	}
 }
 
+// doctorFor runs the setup checks with this process's configuration.
+func doctorFor(cfg app.Config) func(context.Context, bool) []doctor.Check {
+	return func(ctx context.Context, connect bool) []doctor.Check {
+		return doctor.Run(ctx, doctor.Input{DatabaseURL: cfg.DatabaseURL, ProductsDir: cfg.ProductsDir, SecretsDir: cfg.SecretsDir,
+			Mode: cfg.Mode, Password: cfg.Password, Connect: connect})
+	}
+}
+
 // loaded holds the valid products and the problems with the others, and
 // reloads both together.
 type loaded struct {
 	a    *app.App
 	list atomic.Pointer[[]*product.Product]
-	errs atomic.Pointer[[]string]
+	errs atomic.Pointer[[]views.LoadIssue]
 }
 
 func (l *loaded) Products() []*product.Product { return *l.list.Load() }
-func (l *loaded) Errors() []string             { return *l.errs.Load() }
+func (l *loaded) Issues() []views.LoadIssue    { return *l.errs.Load() }
 
 func (l *loaded) Reload(ctx context.Context) error {
 	list, err := l.a.LoadProducts(ctx)
-	problems := views.LoadProblems(err)
+	problems := views.LoadIssues(err)
 	l.list.Store(&list)
 	l.errs.Store(&problems)
 	return err
@@ -297,7 +305,7 @@ func serve(ctx context.Context, cfg app.Config) error {
 	w := &web.Server{S: a.Outreach, Signals: a.Signals, Writer: a.Writer, Accounts: a.Accounts,
 		Hooks:  &hooks.Handler{Signals: a.Signals, Out: a.Outreach, Secret: hooks.EnvSecret},
 		Studio: a.Studio, Mode: a.Cfg.Mode, Mail: a.Mail, Password: cfg.Password,
-		Products: products.Products, Reload: products.Reload, LoadErrors: products.Errors}
+		Products: products.Products, Reload: products.Reload, LoadIssues: products.Issues, Doctor: doctorFor(cfg)}
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, r *http.Request) {
 		if err := a.Pool.Ping(r.Context()); err != nil {
