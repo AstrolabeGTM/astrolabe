@@ -162,6 +162,8 @@ A **monitor** produces signals. Monitors are either scheduled (polling) or event
 | `github_search` | Scheduled, hourly | Issues/PRs mentioning "flaky test", "fails intermittently"; repos adding a test runner | Dev tools |
 | `github_repo` | Scheduled | Stars, forks, issues and discussions on your repos or a competitor's (`events: [star, fork, issue, discussion]`) | Dev tools |
 | `github_release` | Scheduled, daily is enough | No signals: daily counts of release downloads, stars, forks, watchers, open issues and discussions (section 15.3) | Dev tools with releases |
+| `netlify_forms` | Scheduled, hourly | A request or sign-up form on a Netlify site: each verified submission is a person, a signal and optionally an account (section 15.5) | Anything with a static site |
+| `form_webhook` | Webhook | The same, for a form on your own server that posts to `/hooks/forms/<product>` (section 15.5) | Anything with a form |
 | `community` | Scheduled, hourly | HN, Reddit, Lobsters, Stack Overflow, RSS keyword matches | All |
 | `product_events` | Webhook | signup, activated, stalled, limit hit, invited teammate | All (your apps send these) |
 | `site` | Product events + tracked links | Pricing or docs visits by a known person: send them as product events (e.g. `type: pricing_visit`); clicks on tracked links arrive as `link.click`. No PostHog integration yet | All |
@@ -175,7 +177,7 @@ Monitors are configured in `monitors.yaml`:
 
 ```yaml
 - id: pain-issues
-  type: github_search            # github_search | github_repo | community | github_release
+  type: github_search            # github_search | github_repo | community | github_release | netlify_forms | form_webhook
   query: '"flaky test" is:issue language:TypeScript'
   signal: github.issue_pain
   strength: 25
@@ -569,7 +571,7 @@ product. Each is generic; the examples use Pipewrench.
 | `stripe` | Came with a Stripe payment |
 | `reply` | They wrote to you from this address |
 | `import`, `manual` | You vouched for it: a CSV import, or a signal you entered by hand |
-| `form` | Reserved for form intake (§15.5) |
+| `form` | They typed it into one of your forms (§15.5); counts as an address they gave you |
 
 An address only moves from `github` to another source, and only for the same person: when they give it to you themselves (a signup, a reply, your import). Nothing moves it back.
 
@@ -722,7 +724,59 @@ Two ways in:
 
 ### 15.5 Form intake
 
-_In progress._
+A request form (or a sign-up form) on your site becomes people, accounts and signals. Astrolabe usually runs on a laptop with no public address, so it **pulls** submissions from Netlify's API. A form on your own server can **push** to a signed webhook instead. Both end in the same code (`internal/forms`, `Intake.Submit`), so they behave identically.
+
+**A form is a monitor.** Both kinds live in `monitors.yaml`:
+
+```yaml
+# products/pipewrench/monitors.yaml
+- id: request-demo
+  type: netlify_forms            # polls Netlify; needs ASTROLABE_NETLIFY_TOKEN
+  site: pipewrench.example       # Netlify site id or name
+  form: request-demo             # the form's name (the HTML form's name attribute)
+  signal: form.request           # signal type recorded for each submission
+  strength: 40
+  why_now: true
+  every: 1h
+  account: true                  # open a pipeline account (needs `pipeline:` in product.yaml)
+  respond: 1d                    # how soon to reply; default 1d
+  fields:                        # optional: Astrolabe key -> your form's field name
+    source: heard_from
+    message: what_are_you_building
+
+- id: updates
+  type: form_webhook             # receives POST /hooks/forms/pipewrench?form=updates; never polled
+  signal: form.updates
+  strength: 5
+  every: 1h
+```
+
+`fields` keys are `email`, `name`, `company`, `domain`, `role`, `source` (the self-reported "how did you hear about us"), `campaign` and `message`. A key you leave out matches common names, ignoring case and punctuation: `email`/`work_email`, `name`/`full_name` (or `first_name` + `last_name`), `company`/`organization`, `domain`/`website`, `role`/`title`, `source`/`how_did_you_hear_about_us`, `campaign`/`utm_campaign`, `message`/`comments`/`details`. Only `email` is needed for a person; without a usable one the submission still becomes a signal.
+
+**Netlify.** The monitor calls [Netlify's API](https://docs.netlify.com/api-and-cli-guides/api-guides/get-started-with-api/#forms) with a personal access token in `ASTROLABE_NETLIFY_TOKEN`: `GET /api/v1/sites/{site}/forms` to find the form by name, then `GET /api/v1/forms/{form_id}/submissions` (paged, 100 at a time) for what is new since the last run, as for other monitors. That endpoint returns **verified** submissions; spam is a separate list (`state=spam`) that Astrolabe never fetches, and an item marked spam is skipped as well. Submissions are keyed by Netlify's id, so re-polling never duplicates. A missing token or an unknown site or form shows as the monitor's last error.
+
+**Webhook.** `POST /hooks/forms/<product>` takes a JSON object of fields, signed exactly like product events (header `Astrolabe-Signature: t=<unix>,v1=<hmac>`, HMAC-SHA256 over `<t>.<body>`, 5-minute tolerance) with the secret `ASTROLABE_FORMS_SECRET_<PRODUCT>` (product id upper-cased, dashes as underscores). The form is the product's `form_webhook` monitor named in `?form=<monitor id>`; the parameter can be left out when the product has only one. A field named `id` makes retries safe; without one a hash of the body does. A bad or missing signature is refused with 401 before anything is stored.
+
+**What a submission does**, once, whichever way it arrived:
+
+1. **Stored** in `form_submissions`, unique by product, monitor, source (`netlify` or `webhook`) and external id, with every field as submitted. The host's `ip` and `user_agent` are dropped.
+2. **Person**: found or created by email. The address is recorded with identity source `form`, so the outreach guard (§15.1) treats it as an address they gave you, and a GitHub-only person who then submits a form becomes emailable. Name and role fill blanks only.
+3. **Company**: from the `domain` field, else the email's domain (free-mail such as gmail.com and outlook.com is ignored), else the `company` name alone.
+4. **Account**: with `account: true` and a pipeline, the company gets an account in the **first stage** with the next action "Reply to the request" due in `respond`. If the company already has an account, the person is added to it and its stage and next action are left alone.
+5. **Signal** of the monitor's `signal` type. Its data has every submitted field under the form's own names, plus `campaign` (when present; the keys a campaign attribution reads), `reported_source` and `form`.
+6. **Self-reported source**, as written, stored on the person per product (`product_people.reported_source`) and shown by the MCP `person` tool as `reported_source`, beside the first touch. It is never merged into first-touch attribution (`by_source`), because "a friend told me" and "your Hacker News post" are different facts from the first tracked touch.
+
+**The reply task** is not made by the intake. An automation on the signal type makes it, once per signal:
+
+```yaml
+- id: form-request-reply
+  trigger: {signal: form.request}
+  action: {task: "Reply to the request"}
+```
+
+The `devtool` template ships this automation and a commented `netlify_forms` monitor; the Pipewrench demo has a `form_webhook` monitor (the demo never polls Netlify), so you can send it a request with a signed `curl` like the README's product-event example. A sign-up form is the same monitor with its own signal type (`form.updates`), and automations or later features react to that type; its person always has the submitted email as a `form` identity and the signal data has every field.
+
+**Reading it.** MCP `form_submissions` lists recent submissions with their person, company, account, self-reported source and campaign; `run_monitor` pulls a Netlify form now; `funnel` has `requests_by_reported_source`: requests since the start of the window by what people said (case-folded), each with its share of the total, plus how many left the question blank.
 
 ### 15.6 Conversation notes
 

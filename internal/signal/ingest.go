@@ -16,6 +16,7 @@ import (
 	"github.com/riverqueue/river"
 
 	"github.com/AstrolabeGTM/astrolabe/internal/people"
+	"github.com/AstrolabeGTM/astrolabe/internal/product"
 	"github.com/AstrolabeGTM/astrolabe/internal/store"
 )
 
@@ -48,6 +49,10 @@ type Signal struct {
 	DedupeKey   string         `json:"dedupe_key"`
 	// Repo ("owner/name") the signal came from; enrichment reads it.
 	Repo string `json:"repo,omitempty"`
+	// IdentitySource, when set, says where the subject's email came from
+	// (people.Source*), overriding what the signal type implies. Form intake
+	// sets it to "form": an address the person typed in themselves.
+	IdentitySource string `json:"-"`
 }
 
 // Result of ingesting one signal.
@@ -62,10 +67,18 @@ type Result struct {
 // may be nil), e.g. to enqueue scoring, enrichment and play evaluation.
 type Hook func(ctx context.Context, tx pgx.Tx, s *Signal, r Result) error
 
+// FormPoller pulls form submissions for a netlify_forms monitor and takes
+// them in; it returns how many were new.
+type FormPoller interface {
+	Poll(ctx context.Context, p *product.Product, m *product.Monitor, since, now time.Time) (int, error)
+}
+
 type Service struct {
 	Pool  *pgxpool.Pool
 	River *river.Client[pgx.Tx]
 	Hooks []Hook
+	// Forms takes in netlify_forms monitors (see package forms).
+	Forms FormPoller
 	// AfterEnrich runs in the enrichment transaction, e.g. to re-evaluate
 	// plays that skipped the person before their facts were known.
 	AfterEnrich func(ctx context.Context, tx pgx.Tx, personID int64) error
@@ -99,6 +112,8 @@ func (s *Signal) identitySource(kind string) string {
 	switch {
 	case kind == "github":
 		return people.SourceGitHub
+	case s.IdentitySource != "" && kind == "email":
+		return s.IdentitySource
 	case strings.HasPrefix(s.Type, "stripe."):
 		return people.SourceStripe
 	case strings.HasPrefix(s.Type, "manual."):

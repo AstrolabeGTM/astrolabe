@@ -23,6 +23,25 @@ type Report struct {
 	Revenue  []Money      `json:"revenue"`
 	Spend    Spend        `json:"spend"`
 	Outcomes []Outcome    `json:"task_outcomes"`
+	// Requests counts form submissions by what people said when asked how
+	// they heard of the product. It is what they reported, not first-touch
+	// attribution (by_source), and the two can disagree.
+	Requests Requests `json:"requests_by_reported_source"`
+}
+
+// Requests is the form submissions since a time and where they say they
+// came from. Percent is of Total, so a source's count always has its
+// denominator beside it; Unanswered are the ones that left it blank.
+type Requests struct {
+	Total      int              `json:"total"`
+	Unanswered int              `json:"unanswered"`
+	Sources    []ReportedSource `json:"sources"`
+}
+
+type ReportedSource struct {
+	Source   string `json:"source"` // as written, case-folded
+	Requests int    `json:"requests"`
+	Percent  int    `json:"percent_of_total"`
 }
 
 type StageTime struct {
@@ -108,6 +127,7 @@ func BuildReport(ctx context.Context, q store.Q, p *product.Product, since, now 
 		func() error { return r.attribution(ctx, q, p, since) },
 		func() error { return r.money(ctx, q, p, since) },
 		func() error { return r.spend(ctx, q, p, since) },
+		func() error { return r.requests(ctx, q, p, since) },
 	}
 	for _, f := range steps {
 		if err := f(); err != nil {
@@ -367,4 +387,32 @@ func (r *Report) spend(ctx context.Context, q store.Q, p *product.Product, since
 		r.Spend.MinPerActive = per(float64(r.Spend.Minutes), r.Spend.Activated)
 	}
 	return nil
+}
+
+func (r *Report) requests(ctx context.Context, q store.Q, p *product.Product, since time.Time) error {
+	rows, err := q.Query(ctx, `
+		SELECT lower(btrim(reported_source)) AS s, count(*) FROM form_submissions
+		WHERE product_id = $1 AND submitted_at >= $2 GROUP BY 1 ORDER BY 2 DESC, 1`, p.ID, since)
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+	r.Requests = Requests{Sources: []ReportedSource{}}
+	for rows.Next() {
+		var s string
+		var n int
+		if err := rows.Scan(&s, &n); err != nil {
+			return err
+		}
+		r.Requests.Total += n
+		if s == "" {
+			r.Requests.Unanswered = n
+			continue
+		}
+		r.Requests.Sources = append(r.Requests.Sources, ReportedSource{Source: s, Requests: n})
+	}
+	for i := range r.Requests.Sources {
+		r.Requests.Sources[i].Percent = r.Requests.Sources[i].Requests * 100 / r.Requests.Total
+	}
+	return rows.Err()
 }

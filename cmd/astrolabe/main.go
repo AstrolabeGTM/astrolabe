@@ -272,7 +272,7 @@ func serve(ctx context.Context, cfg app.Config) error {
 	products := loadProducts(ctx, a)
 
 	w := &web.Server{S: a.Outreach, Signals: a.Signals, Writer: a.Writer, Accounts: a.Accounts,
-		Hooks:  &hooks.Handler{Signals: a.Signals, Out: a.Outreach, Secret: hooks.EnvSecret},
+		Hooks:  &hooks.Handler{Signals: a.Signals, Out: a.Outreach, Secret: hooks.EnvSecret, Forms: a.Forms},
 		Studio: a.Studio, Mode: a.Cfg.Mode, Mail: a.Mail, Password: cfg.Password,
 		Products: func() []*product.Product { return *products.Load() },
 		Reload: func(ctx context.Context) error {

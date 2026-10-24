@@ -20,6 +20,7 @@ import (
 	"github.com/AstrolabeGTM/astrolabe/internal/content"
 	"github.com/AstrolabeGTM/astrolabe/internal/digest"
 	"github.com/AstrolabeGTM/astrolabe/internal/draft"
+	"github.com/AstrolabeGTM/astrolabe/internal/forms"
 	"github.com/AstrolabeGTM/astrolabe/internal/github"
 	"github.com/AstrolabeGTM/astrolabe/internal/gmail"
 	"github.com/AstrolabeGTM/astrolabe/internal/llm"
@@ -46,6 +47,7 @@ type Config struct {
 	GoogleSecret string
 	GitHubToken  string
 	StackKey     string
+	NetlifyToken string
 	// Mode is sandbox (everything goes to a local outbox) or live.
 	Mode string
 }
@@ -70,6 +72,7 @@ func ConfigFromEnv() Config {
 		GoogleSecret: os.Getenv("ASTROLABE_GOOGLE_CLIENT_SECRET"),
 		GitHubToken:  os.Getenv("ASTROLABE_GITHUB_TOKEN"),
 		StackKey:     os.Getenv("ASTROLABE_STACKEXCHANGE_KEY"),
+		NetlifyToken: os.Getenv("ASTROLABE_NETLIFY_TOKEN"),
 		Mode:         getenv("ASTROLABE_MODE", "live"),
 	}
 }
@@ -81,6 +84,7 @@ type App struct {
 	Outreach *outreach.Service
 	Accounts *gmail.Accounts
 	Signals  *signal.Service
+	Forms    *forms.Intake
 	Sources  *signal.Sources
 	GitHub   *github.Client
 	LLM      *llm.Client
@@ -116,6 +120,8 @@ func Open(ctx context.Context, cfg Config, work bool) (*App, error) {
 	a.GitHub = &github.Client{Token: cfg.GitHubToken}
 	a.Sources = &signal.Sources{GitHub: a.GitHub, StackKey: cfg.StackKey}
 	a.Signals = &signal.Service{Pool: pool}
+	a.Forms = &forms.Intake{Pool: pool, Signals: a.Signals, Netlify: &forms.Netlify{Token: cfg.NetlifyToken}}
+	a.Signals.Forms = a.Forms
 	a.LLM = llm.FromEnv(pool)
 	a.Writer = &draft.Writer{Pool: pool, LLM: a.LLM, Out: a.Outreach}
 	a.Plays = &play.Engine{Pool: pool, Out: a.Outreach}

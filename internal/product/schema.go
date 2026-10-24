@@ -100,7 +100,7 @@ var descriptions = map[string]string{
 	"When.min_tier":                      "Only priority A, B, C or better.",
 	"When.not_contacted_within":          "Skip people messaged within this long, e.g. 30d.",
 	"When.not_stage":                     "Skip people who reached this stage.",
-	"Monitor.type":                       "github_search, github_repo, community, or github_release (download, star and issue counts; no people).",
+	"Monitor.type":                       "github_search, github_repo, community, github_release (download, star and issue counts; no people), netlify_forms (polls a Netlify form's verified submissions; needs ASTROLABE_NETLIFY_TOKEN), or form_webhook (receives signed POSTs at /hooks/forms/<product>; never polled).",
 	"Monitor.reception":                  "Also file each result in the reception log as a public mention.",
 	"Monitor.signal":                     "Signal type it produces, e.g. github.issue_pain.",
 	"Monitor.strength":                   "How strong each signal is (1-100); 25 is a strong buying signal.",
@@ -112,6 +112,11 @@ var descriptions = map[string]string{
 	"Monitor.keywords":                   "Phrases to look for.",
 	"Monitor.sources":                    "hn, stackoverflow, rss.",
 	"Monitor.feeds":                      "RSS/Atom feed URLs.",
+	"Monitor.site":                       "For netlify_forms: the Netlify site id or name (like mysite.netlify.app).",
+	"Monitor.form":                       "For netlify_forms: the form's name (the name attribute of the HTML form).",
+	"Monitor.fields":                     "Form field names by Astrolabe key (email, name, company, domain, role, source, campaign, message). Common names are matched when a key is not set.",
+	"Monitor.account":                    "Open a pipeline account for the requester's company in the first stage, with the next action \"Reply to the request\". Needs a pipeline.",
+	"Monitor.respond":                    "How soon to reply, e.g. 1d (default); the account's next action is due then.",
 }
 
 var enums = map[string][]string{
@@ -122,7 +127,7 @@ var enums = map[string][]string{
 	"Sequence.experiment_unit": {"person", "company"},
 	"Step.channel":             {"email", "linkedin_task", "x_task", "task", "whatsapp", "push", "in_app", "webhook"},
 	"When.min_tier":            {"A", "B", "C", "D"},
-	"Monitor.type":             {"github_search", "github_repo", "community", "github_release"},
+	"Monitor.type":             {"github_search", "github_repo", "community", "github_release", "netlify_forms", "form_webhook"},
 }
 
 // schemaAliases adds sales-vocabulary keys: struct.alias -> canonical key.
@@ -154,6 +159,8 @@ func schemaFor(t reflect.Type) map[string]any {
 		return map[string]any{"type": "boolean"}
 	case reflect.Slice:
 		return map[string]any{"type": "array", "items": schemaFor(t.Elem())}
+	case reflect.Map:
+		return map[string]any{"type": "object", "additionalProperties": schemaFor(t.Elem())}
 	case reflect.Struct:
 		props := map[string]any{}
 		for i := 0; i < t.NumField(); i++ {
