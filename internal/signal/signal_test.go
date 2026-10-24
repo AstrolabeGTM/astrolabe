@@ -192,6 +192,13 @@ func TestMonitorsEnrichmentAndScoring(t *testing.T) {
 		t.Fatalf("profile not applied: %+v", ana)
 	}
 
+	// The profile email was found through GitHub: it must say so.
+	var emailSrc string
+	svc.Pool.QueryRow(ctx, `SELECT source FROM identities WHERE kind = 'email' AND value = 'ana@acmepay.example'`).Scan(&emailSrc)
+	if emailSrc != people.SourceGitHub {
+		t.Fatalf("profile email source = %q, want github", emailSrc)
+	}
+
 	sc, err := score.Recompute(ctx, svc.Pool, "demo", personID, now)
 	if err != nil {
 		t.Fatal(err)
@@ -228,4 +235,38 @@ func pgxCollect(rows interface {
 		out = append(out, s)
 	}
 	return out, nil
+}
+
+func TestIdentitySourcesFollowTheSignal(t *testing.T) {
+	svc, _ := setup(t)
+	ctx := context.Background()
+	now := time.Now()
+	ingest := func(key, typ, monitor string, sub signal.Subject) {
+		t.Helper()
+		if _, err := svc.Ingest(ctx, &signal.Signal{Product: "demo", Monitor: monitor, Type: typ, OccurredAt: now, Strength: 10, DedupeKey: key, Subject: sub}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	source := func(kind, v string) string {
+		var s string
+		svc.Pool.QueryRow(ctx, `SELECT source FROM identities WHERE kind = $1 AND value = $2`, kind, v).Scan(&s)
+		return s
+	}
+	ingest("1", "github.issue_pain", "pain", signal.Subject{GitHub: "octo"})
+	ingest("2", "product.signup", "", signal.Subject{Email: "dev@own.example", User: "u1"})
+	ingest("3", "stripe.paid", "", signal.Subject{Email: "pay@own.example"})
+	ingest("4", "manual.note", "", signal.Subject{Email: "hand@own.example"})
+	for k, want := range map[string]string{"github:octo": "github", "email:dev@own.example": "event", "email:pay@own.example": "stripe", "email:hand@own.example": "manual"} {
+		kind, v, _ := strings.Cut(k, ":")
+		if got := source(kind, v); got != want {
+			t.Errorf("%s source = %q, want %q", k, got, want)
+		}
+	}
+	// A GitHub person who later signs up with their own address: that
+	// address is theirs, and a click re-presenting it later changes nothing.
+	ingest("5", "product.signup", "", signal.Subject{Email: "octo@own.example", GitHub: "octo"})
+	ingest("6", "link.click", "", signal.Subject{Email: "octo@own.example"})
+	if got := source("email", "octo@own.example"); got != "event" {
+		t.Errorf("signup email source = %q, want event", got)
+	}
 }

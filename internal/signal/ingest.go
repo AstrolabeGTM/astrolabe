@@ -92,6 +92,25 @@ func (s *Signal) identities() [][2]string {
 	return ids
 }
 
+// identitySource says where an identity of this signal came from. A signal
+// from a monitor found its subject on GitHub or a public community site; the
+// rest were supplied by the person (product events), a payment provider or me.
+func (s *Signal) identitySource(kind string) string {
+	switch {
+	case kind == "github":
+		return people.SourceGitHub
+	case strings.HasPrefix(s.Type, "stripe."):
+		return people.SourceStripe
+	case strings.HasPrefix(s.Type, "manual."):
+		return people.SourceManual
+	case strings.HasPrefix(s.Type, "form."):
+		return people.SourceForm
+	case s.Monitor != "":
+		return people.SourceGitHub
+	}
+	return people.SourceEvent
+}
+
 // NormalizePhone returns E.164-style "+<digits>" (numbers must include the
 // country code), or "" if there are no digits.
 func NormalizePhone(p string) string {
@@ -219,7 +238,7 @@ func ingestTx(ctx context.Context, tx pgx.Tx, s *Signal) (Result, error) {
 
 func linkPerson(ctx context.Context, tx pgx.Tx, personID int64, ids [][2]string, companyID *int64, s *Signal) error {
 	for _, id := range ids {
-		if _, err := tx.Exec(ctx, `INSERT INTO identities (kind, value, person_id) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING`, id[0], id[1], personID); err != nil {
+		if err := people.LinkIdentity(ctx, tx, id[0], id[1], personID, s.identitySource(id[0]), !strings.HasPrefix(s.Type, "link.")); err != nil {
 			return err
 		}
 	}

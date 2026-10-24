@@ -116,6 +116,13 @@ func (s *Service) EnrollTx(ctx context.Context, tx pgx.Tx, o EnrollOpts) (int64,
 	if p.Suppressed != "" {
 		return 0, "suppressed (" + p.Suppressed + ")", nil
 	}
+	if HasEmailStep(seq) {
+		if ok, reason, err := MayEmail(ctx, tx, o.Product, o.PersonID); err != nil {
+			return 0, "", err
+		} else if !ok {
+			return 0, "email refused: " + reason, nil
+		}
+	}
 	first, _ := product.AfterDuration(seq.Steps[0].After)
 	var eid int64
 	err = tx.QueryRow(ctx, `
@@ -261,7 +268,7 @@ func (s *Service) draftNextStep(ctx context.Context, enrollmentID int64) (bool, 
 		// approved text already contains it.
 		var linkCode *string
 		d.Link = prod.Offer.Destination
-		if s.PublicURL != "" && prod.Offer.Destination != "" && st.Channel != "whatsapp" {
+		if prod.PersonalLinks() && s.PublicURL != "" && prod.Offer.Destination != "" && st.Channel != "whatsapp" {
 			campaign := sequenceID
 			if playID != "" {
 				campaign = playID
@@ -294,6 +301,11 @@ func (s *Service) draftNextStep(ctx context.Context, enrollmentID int64) (bool, 
 			}
 			if a.recipient == "" {
 				a.status, a.errMsg = "blocked", "no email address for this person"
+			} else if ok, reason, err := MayEmail(ctx, tx, productID, personID); err != nil {
+				return err
+			} else if !ok {
+				// Enrolled before the guard existed, or the product changed.
+				a.status, a.errMsg = "blocked", "not emailed, "+reason
 			}
 			// Follow-ups reply in the thread of the last email that went out.
 			var prevSubject string

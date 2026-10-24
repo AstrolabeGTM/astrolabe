@@ -273,7 +273,7 @@ func (w *Writer) DraftAction(ctx context.Context, actionID int64) error {
 		}
 	}
 	// Point the offer link at this message's tracked link.
-	if a.LinkCode != nil && w.Out.PublicURL != "" && p.Offer.Destination != "" {
+	if p.PersonalLinks() && a.LinkCode != nil && w.Out.PublicURL != "" && p.Offer.Destination != "" {
 		body = strings.ReplaceAll(body, p.Offer.Destination, links.URL(w.Out.PublicURL, *a.LinkCode))
 	}
 	flags := Check(p, subject+"\n"+body, trigger)

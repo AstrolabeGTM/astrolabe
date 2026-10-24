@@ -93,6 +93,16 @@ func (s *Service) SendAction(ctx context.Context, id int64) (SendOutcome, error)
 		} else if !errors.Is(err, pgx.ErrNoRows) {
 			return err
 		}
+		// The GitHub-only policy is checked again here, not just at enrolment:
+		// the person may have been enrolled before the guard existed, or the
+		// address they gave may be gone.
+		if a.Channel == "email" {
+			if ok, reason, err := MayEmail(ctx, tx, a.ProductID, a.PersonID); err != nil {
+				return err
+			} else if !ok {
+				return setStatus("blocked", "not sent, "+reason)
+			}
+		}
 		if scope, err := pausedScope(ctx, tx, a.ProductID, a.SequenceID); err != nil {
 			return err
 		} else if scope != "" {
