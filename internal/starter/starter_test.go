@@ -10,6 +10,8 @@ import (
 	"github.com/google/jsonschema-go/jsonschema"
 	"gopkg.in/yaml.v3"
 
+	"github.com/AstrolabeGTM/astrolabe/internal/campaign"
+	"github.com/AstrolabeGTM/astrolabe/internal/draft"
 	"github.com/AstrolabeGTM/astrolabe/internal/product"
 )
 
@@ -144,5 +146,50 @@ func TestExamplesMatchDemoTemplate(t *testing.T) {
 			}
 			return nil
 		})
+	}
+}
+
+// The renderer sidecar is optional: it sits behind a compose profile and
+// publishes no port.
+func TestComposeHasOptionalRenderer(t *testing.T) {
+	i := strings.Index(ComposeFile, "  gotenberg:")
+	if i < 0 {
+		t.Fatal("compose file has no gotenberg service")
+	}
+	svc := ComposeFile[i:]
+	if j := strings.Index(svc, "\nvolumes:"); j > 0 {
+		svc = svc[:j]
+	}
+	if !strings.Contains(svc, "gotenberg/gotenberg:8") || !strings.Contains(svc, "profiles: [creative]") || strings.Contains(svc, "ports:") {
+		t.Errorf("sidecar must be pinned to 8, in the creative profile, with no ports:\n%s", svc)
+	}
+	if !strings.Contains(ComposeFile, "ASTROLABE_RENDER_URL") {
+		t.Error("astrolabe needs ASTROLABE_RENDER_URL")
+	}
+}
+
+// The demo has a small campaign with a creative, and its copy passes the
+// claims check so the sandbox shows something approvable.
+func TestDemoHasCampaign(t *testing.T) {
+	dir := t.TempDir()
+	if _, err := Init(Options{Dir: dir, Template: "demo"}); err != nil {
+		t.Fatal(err)
+	}
+	p, err := product.Load(filepath.Join(dir, "products", "pipewrench-demo"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	c := p.Campaign("launch")
+	if c == nil || len(c.Creatives) != 1 || len(c.Creatives[0].Sizes) != 2 || len(c.Gate) == 0 || len(c.Tasks) == 0 {
+		t.Fatalf("%+v", c)
+	}
+	cr := c.Creatives[0]
+	if flags := campaign.CopyFlags(p, cr, cr.Copy, cr.Alt); len(flags) != 0 {
+		t.Errorf("demo creative copy is flagged: %v", flags)
+	}
+	for _, task := range c.Tasks {
+		if flags := draft.CheckCopy(p, strings.ReplaceAll(task.Body, "{{link}}", c.Landing), ""); len(flags) != 0 {
+			t.Errorf("demo post %s is flagged: %v", task.ID, flags)
+		}
 	}
 }

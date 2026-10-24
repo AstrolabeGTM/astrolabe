@@ -56,6 +56,7 @@ type Product struct {
 	Sequences map[string]*Sequence `yaml:"-" json:"-"`
 	Monitors  []*Monitor           `yaml:"-" json:"monitors"`
 	Plays     []*Play              `yaml:"-" json:"plays"`
+	Campaigns []*Campaign          `yaml:"-" json:"campaigns,omitempty"`
 	// File contents, so background jobs write from the same text as the files.
 	ClaimsText     string `yaml:"-" json:"claims_text"`
 	VoiceText      string `yaml:"-" json:"voice_text"`
@@ -275,6 +276,10 @@ func Load(dir string) (*Product, error) {
 			problems = append(problems, fmt.Sprintf("monitors.yaml: %v", err))
 		}
 	}
+	problems = append(problems, p.loadCampaigns(func(name string, b []byte) {
+		h.Write([]byte(name))
+		h.Write(b)
+	})...)
 	read := func(f string) string {
 		if f == "" || strings.Contains(f, "..") || filepath.IsAbs(f) {
 			return ""
@@ -417,6 +422,7 @@ func (p *Product) validate() []string {
 	bad = append(bad, p.validatePipeline()...)
 	bad = append(bad, p.validateMonitors()...)
 	bad = append(bad, p.validatePlays(seen)...)
+	bad = append(bad, p.validateCampaigns()...)
 
 	ids := make([]string, 0, len(p.Sequences))
 	for id := range p.Sequences {

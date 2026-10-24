@@ -18,6 +18,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/riverqueue/river"
 
+	"github.com/AstrolabeGTM/astrolabe/internal/campaign"
 	"github.com/AstrolabeGTM/astrolabe/internal/channel"
 	"github.com/AstrolabeGTM/astrolabe/internal/counters"
 	"github.com/AstrolabeGTM/astrolabe/internal/experiment"
@@ -48,6 +49,8 @@ type ProductDigest struct {
 	// Conversations: notes logged this week (assisted apart), survey answers
 	// so far and the week's saved themes.
 	Conversations *notes.Section `json:"conversations,omitempty"`
+	// Campaigns that are running now, with spend against the cap and warnings.
+	Campaigns []campaign.Summary `json:"campaigns,omitempty"`
 }
 
 // Moved: people entering a stage this week vs the week before.
@@ -144,6 +147,12 @@ func Build(ctx context.Context, pool *pgxpool.Pool, products []*product.Product,
 		if pd.Conversations, err = notes.DigestSection(ctx, pool, p.ID, now); err != nil {
 			return nil, err
 		}
+		if pd.Campaigns, err = campaign.Summaries(ctx, pool, p, now, true); err != nil {
+			return nil, err
+		}
+		if len(pd.Campaigns) == 0 {
+			pd.Campaigns = nil // no running campaign: leave the section out
+		}
 		pd.Actions = actions(p, &pd)
 		d.Products = append(d.Products, pd)
 	}
@@ -215,6 +224,13 @@ func actions(p *product.Product, pd *ProductDigest) []string {
 	return out
 }
 
+func endOrOpen(end string) string {
+	if end == "" {
+		return "no end date"
+	}
+	return end
+}
+
 func orID(name string, id int64) string {
 	if name != "" {
 		return name
@@ -253,6 +269,12 @@ func (d *Digest) Text() string {
 		}
 		if p.Reception != nil {
 			b.WriteString(p.Reception.Text())
+		}
+		for _, c := range p.Campaigns {
+			fmt.Fprintf(&b, "Campaign %s (%s): %s of %s %s spent, gate %s, until %s\n", c.Label, c.Code, c.Spent, c.Cap, c.Currency, c.Gate, endOrOpen(c.End))
+			for _, w := range c.Warnings {
+				fmt.Fprintf(&b, "  WARNING: %s\n", w)
+			}
 		}
 		if p.Drop != "" {
 			fmt.Fprintf(&b, "Biggest drop (30d): %s\n", p.Drop)

@@ -22,6 +22,7 @@ import (
 	"github.com/AstrolabeGTM/astrolabe/internal/outreach"
 	"github.com/AstrolabeGTM/astrolabe/internal/people"
 	"github.com/AstrolabeGTM/astrolabe/internal/product"
+	"github.com/AstrolabeGTM/astrolabe/internal/render"
 	"github.com/AstrolabeGTM/astrolabe/internal/score"
 	"github.com/AstrolabeGTM/astrolabe/internal/signal"
 )
@@ -32,6 +33,7 @@ type Server struct {
 	Sources     *signal.Sources // nil disables run_monitor
 	Writer      *draft.Writer   // nil or disabled without an API key
 	Studio      *content.Studio
+	Render      *render.Client              // optional Chromium sidecar for creatives; nil or unconfigured is fine
 	Reload      func(context.Context) error // re-read product folders
 	Mode        string                      // sandbox or live
 	ProductsDir string
@@ -48,7 +50,7 @@ func (s *Server) Build(version string) *sdk.Server {
 		Instructions: `Astrolabe is go-to-market for developers: it finds people who need your product, drafts outreach you approve, and measures what converts. Each product is a folder of YAML + Markdown (products/<id>/).
 
 The operator may use developer or sales words; both mean the same things here. Answer in whichever vocabulary they use.
-Sales term -> Astrolabe term: lead/contact/prospect -> person; ICP/persona -> target and fit rules; lead scoring/MQL -> score/priority; intent data/buying signal -> signal; cadence/campaign/nurture -> sequence; enroll -> start_sequence; play/playbook/workflow -> automation; suppress/unsubscribe/DNC -> do_not_contact; lifecycle stage -> funnel stage; outbound -> kind cold; lifecycle/retention messaging -> kind users; brief/account research -> research; disposition -> label_reply or close_task outcome.
+Sales term -> Astrolabe term: lead/contact/prospect -> person; ICP/persona -> target and fit rules; lead scoring/MQL -> score/priority; intent data/buying signal -> signal; cadence/drip/email campaign/nurture -> sequence; enroll -> start_sequence; play/playbook/workflow -> automation; suppress/unsubscribe/DNC -> do_not_contact; lifecycle stage -> funnel stage; ad campaign/flight/insertion order/launch plan -> campaign (a file in campaigns/ with a budget cap, dates, stop rule and gate checklist); creative review/ad creative -> creative (copy plus an HTML template, rendered at each size, approved by hash); outbound -> kind cold; lifecycle/retention messaging -> kind users; brief/account research -> research; disposition -> label_reply or close_task outcome.
 
 Words, in developer terms:
 - signal: an event about a person (a GitHub issue they opened, a star, an HN post, a product event). Stored once per dedupe key.
@@ -124,6 +126,7 @@ Rules: use only claims from product_context.claims; never use never_claim phrase
 	register(srv, "content_mark", "Mark a content item posted (with its URL) or skipped.", s.contentMark)
 	s.registerPipeline(srv) // account pipeline: pipeline.go
 	s.registerNotes(srv)    // conversation notes: notes.go
+	s.registerCampaigns(srv)
 	return srv
 }
 
@@ -148,7 +151,7 @@ var salesTerms = map[string]string{
 	"monitors":          "intent/social listening sources",
 	"run_monitor":       "refresh listening, pull new intent",
 	"do_not_contact":    "suppress, unsubscribe, opt out, DNC list, blacklist",
-	"start_sequence":    "enroll in a cadence/sequence/campaign, start nurture",
+	"start_sequence":    "enroll in a cadence/sequence/drip, start an email campaign or nurture",
 	"inbox":             "tasks queue, approvals, rep inbox",
 	"write_draft":       "edit email copy",
 	"ai_draft":          "AI copywriting, personalize an email",
@@ -160,7 +163,7 @@ var salesTerms = map[string]string{
 	"add_task":          "follow-up task, reminder, next step",
 	"close_task":        "log the outcome, disposition, closed won/lost",
 	"record_stage":      "move a lead to a lifecycle/pipeline stage, conversion",
-	"pause":             "pause a campaign or cadence",
+	"pause":             "pause an email campaign or cadence",
 	"automations":       "plays, playbooks, workflows, triggers",
 	"automation_runs":   "play/workflow history",
 	"funnel":            "pipeline, conversion rates, attribution, revenue, CAC",
@@ -170,7 +173,7 @@ var salesTerms = map[string]string{
 	"reception":         "brand mentions, social listening, press and buzz, sentiment",
 	"log_mention":       "log a brand mention, coverage or press hit",
 	"set_tone":          "tag sentiment of a mention",
-	"content":           "social posts, launch campaign, content marketing",
+	"content":           "social posts, launch posts, content marketing",
 }
 
 func register[In any](srv *sdk.Server, name, desc string, f func(context.Context, In) (any, error)) {

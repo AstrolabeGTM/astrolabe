@@ -21,7 +21,8 @@ Developers who ship products (dev tools, SaaS, apps) and would rather write code
 | Fit rules (firmographics, technographics) | Machine-checkable version of the target: facts like `ci:github-actions` or `lang:typescript` with weights. |
 | Score / priority (lead score, MQL) | `0.4·fit + 0.4·intent + 0.2·why_now`, 0–100. Priority A (≥70) means contact now; D means just watch. |
 | Intent / why now | Recent signals, decaying with a 10-day half-life / time-sensitive signals in the last 14 days. |
-| Sequence (cadence, campaign, nurture) | A timed list of message steps (`sequences/*.yaml`). `kind: cold` for people who don't know you yet, `kind: users` for existing users. |
+| Sequence (cadence, drip, email campaign, nurture) | A timed list of message steps (`sequences/*.yaml`). `kind: cold` for people who don't know you yet, `kind: users` for existing users. |
+| Campaign (ad campaign, flight, insertion order) | A planned push with a goal, landing page, budget cap, dates, gate checklist, launch tasks and creatives (`campaigns/*.yaml`, §15.9). Not the same as a sequence. |
 | Automation (play, playbook, workflow) | A rule in `automations.yaml`: *trigger → when → action*, like a CI workflow. "On a `github.issue_pain` signal, if fit ≥ 50, start the `technical-intro` sequence." |
 | Funnel / stages (pipeline, lifecycle stages) | Your product's pipeline states (`reached → replied → installed → first_report → paid`). A person's furthest stage is their state. |
 | Activation | The stage where a user first gets real value (the "aha" moment). The number to move. |
@@ -150,6 +151,7 @@ Other files in the folder:
 | `objections.md` | Common objections and honest answers, used for reply drafts |
 | `monitors.yaml` | Which signal sources are on and their settings (§4) |
 | `automations.yaml` | Trigger → action rules (§6) |
+| `campaigns/*.yaml` | One file per campaign: goal, landing page, budget cap, dates, stop rule, gate, launch tasks and creatives (§15.9) |
 
 **One concrete offer.** Each product starts with the offer above; an automation may override it. The message, landing page and next step must make the same promise. Use the existing product site or onboarding flow, carrying a automation/link ID through signup where possible. If people click but never reach value, improve that step before finding more people. Astrolabe does not need a landing-page builder.
 
@@ -350,6 +352,7 @@ It must cite the signal it references. Drafts are flagged for a never-claim, a l
 
 - **Repurpose:** a release note, blog post or changelog becomes drafts for X, LinkedIn, HN, Reddit and a newsletter, each in the product's voice.
 - **Launch checklist per product:** HN, Product Hunt, relevant subreddits, newsletters and directories. Each gets a drafted post and is tracked as a task.
+- **Campaigns** (§15.9) group posts, launch tasks, creatives and a budget into one plan with a report.
 - **Posting stays manual:** each draft can become a task; you post it and mark it posted with the URL (API posting to X/LinkedIn is not built).
 - Every public link gets a tracked short link (`<ASTROLABE_PUBLIC_URL>/l/<code>`) with UTM tags and `ref=<code>`, so the funnel can attribute it (§9). Outreach drafts get a per-message link too (`{{.Link}}` in templates; AI drafts have the offer URL swapped for it before approval). A click on a personal link is a `link.click` signal and a `site_visit` stage if the funnel has one; mail-scanner clicks are ignored. A signup event carrying `data.ref` credits its first touch to that link.
 
@@ -414,6 +417,9 @@ At low volume, run one offer and read the replies before adding variants. Once v
 | `automations`, `automation_runs` | "Why did pain-issue-outreach skip people today?" |
 | `funnel`, `experiments`, `digest` | "Why did activation drop last week?", "which intro variant wins?" |
 | `content`, `content_list`, `content_mark` | "Turn the v0.4 release notes into launch posts" |
+| `campaigns`, `campaign`, `set_campaign`, `campaign_history`, `check_gate` | "How is the launch week doing?", "raise the cap to 300 and note why", "tick the landing-page check" |
+| `record_spend`, `import_spend`, `campaign_report` | "I spent 25 on LinkedIn today", "import this Reddit CSV", "what did the launch produce?" |
+| `creatives`, `render_creative`, `edit_creative`, `approve_creative`, `export_pack`, `make_campaign_tasks`, `campaigns_json` | "Render the social card at both sizes", "approve it", "export the pack", "make the launch tasks" |
 
 Monitors, automations and sequences are files: ask Claude to edit `monitors.yaml` or `automations.yaml`, then reload (Settings, or restart).
 
@@ -427,7 +433,7 @@ Monitors, automations and sequences are files: ask Claude to edit `monitors.yaml
 - **Digest:** the latest weekly summary and a preview
 - **Settings:** pause switches, mailboxes, webhook URLs and secrets, product reload
 
-**CLI.** `astrolabe init`, `astrolabe doctor [-connect]`, `astrolabe mailbox add|list|test|remove`, `astrolabe mode [set sandbox|live]`, `astrolabe schema [dir]`, `astrolabe serve` (migrates on start), `astrolabe migrate`, `astrolabe product validate [dir]`, `astrolabe import -product <id> <csv>`, `astrolabe monitor run <product> <monitor>`, `astrolabe score [product]`, `astrolabe gmail auth <address>` (one-time OAuth for a sending mailbox), `astrolabe mcp` (stdio MCP server for Claude and Codex), `astrolabe mcp token [-rotate]` (bearer token for MCP over HTTP), `astrolabe mcp tools [-md]` (list the tools).
+**CLI.** `astrolabe init`, `astrolabe doctor [-connect]`, `astrolabe mailbox add|list|test|remove`, `astrolabe mode [set sandbox|live]`, `astrolabe schema [dir]`, `astrolabe serve` (migrates on start), `astrolabe migrate`, `astrolabe product validate [dir]`, `astrolabe import -product <id> <csv>`, `astrolabe monitor run <product> <monitor>`, `astrolabe score [product]`, `astrolabe gmail auth <address>` (one-time OAuth for a sending mailbox), `astrolabe mcp` (stdio MCP server for Claude and Codex), `astrolabe mcp token [-rotate]` (bearer token for MCP over HTTP), `astrolabe mcp tools [-md]` (list the tools), `astrolabe campaigns export|report`.
 
 ## 11. Architecture
 
@@ -510,6 +516,8 @@ astrolabe/
     funnel/                 # stage counts and the full report (times, stuck, cohorts, attribution, spend)
     experiment/             # variant assignment and results
     content/                # repurposing and launch tasks
+    campaign/               # campaigns: settings with history, gate, spend, creatives, posting tasks, report
+    render/                 # optional Chromium sidecar client (Gotenberg 8 over HTTP) for creatives
     digest/                 # weekly digest
     web/                    # html/template pages
     mcp/                    # MCP tools over stdio
@@ -539,7 +547,7 @@ After M1, use it with real prospects for your first product and help them reach 
 
 ## 13. Not doing (until a product needs it)
 
-- Paid ads management. Track ad clicks with UTM links now; add campaign automation later.
+- Ad-platform automation: no ad-platform APIs, no tracking pixels, no automatic bidding, budget changes or posting. Paid ads management is partly in scope as records, budgets, creative and a report (§15.9): you buy and post by hand, Astrolabe keeps the plan, the money, the approved copy and the counts.
 - Automated LinkedIn or X DMs, and posting to X/LinkedIn through their APIs. They stay manual tasks.
 - Reddit search: its unauthenticated API is blocked; add subreddit RSS feeds to a `community` monitor instead.
 - Paid email finders (enrichment step 3) and company-website enrichment (step 2): only public GitHub data is used today.
@@ -845,7 +853,88 @@ _In progress._
 
 ### 15.9 Campaigns and creative
 
-_In progress._
+A campaign is a planned push with a goal, a landing page, a budget cap and work to do: a launch week (organic posts and launch tasks), or a small paid test (a boosted post, a newsletter sponsorship, search ads). Astrolabe keeps the plan, the money, the approved copy and the counts. You buy and post by hand: nothing is ever posted automatically, there is no ad-platform API and no tracking pixel. Sales words: ad campaign, flight, insertion order, creative review. The MCP tools list them.
+
+**The file.** `products/<id>/campaigns/<id>.yaml` (JSON schema `schemas/campaign.schema.json`; a product without the folder is fine). It gives the defaults:
+
+```yaml
+# products/pipewrench/campaigns/launch-week.yaml
+code: launch                     # short code for landing-page variants and attribution
+label: Launch week
+goal: "Tell teams with flaky CI that Pipewrench exists, and get them to try it on one repo."
+audience: "Engineers whose CI is slowed down by flaky tests."
+channels: [hn, x, newsletter]
+offer: "Run Pipewrench on one repo and see the three flakiest tests."
+landing: https://pipewrench.example/c/launch
+success_event: signed_up         # a funnel stage, or a signal type such as form.request
+budget: {cap: 150, currency: USD}  # 0 means nothing is planned to be spent
+start: "2026-11-02"
+end: "2026-11-09"                # optional
+stop_rule:
+  text: "Stop paid spend when half the budget has produced no signups."
+  when: {spend_pct: 50, max_events: 0}   # optional, checkable
+gate:                            # checks before any spend
+  - "Landing page is live and says what Pipewrench does"
+  - "Every claim in the copy is in claims.md"
+tasks:                           # launch tasks; {{link}} becomes the campaign link
+  - {id: show-hn, title: "Post Show HN", channel: hn, day: 0, body: "Show HN: Pipewrench finds flaky CI tests. {{link}}"}
+creatives:
+  - id: social-card
+    template: creative/card.html     # HTML with {{field}} placeholders, in the product folder
+    sizes: [1200x630, 1080x1080]
+    formats: [png]                   # png (default) and/or pdf
+    copy: {headline: "Find your flakiest tests", detail: "...", cta: "Try it on one repo", url: "pipewrench.example/c/launch"}
+    alt: "A dark card that reads: Find your flakiest tests."
+    source: ""                       # where numbers in the copy come from, if it has any
+```
+
+Money is written as a number (`200` or `200.50`) and kept in minor units, with no floating point. A currency is not converted: spend must be in the campaign's currency, and the currency cannot change once spend is recorded. The demo template has a small campaign like this one.
+
+**Runtime settings and history.** Budget cap, currency, dates, stop rule and gate checks are changed by the operator while the campaign runs (`set_campaign`, `check_gate`; the browser app later), and the YAML only gives the defaults. A runtime value overrides the YAML value; a field never set follows the YAML. Every change is kept in `campaign_history`: field, old value, new value, who (`mcp`, later `web`), when and an optional note. Setting a value to what it already is records nothing. `campaign_history` shows it. Astrolabe never raises or lowers a budget itself.
+
+**The gate.** A checklist of things to check before spending. It blocks nothing: spend recorded while the gate is not fully checked is allowed but flagged on that entry (`before_gate`), and that flag is a fact about the moment it was recorded, so checking the gate afterwards does not erase it. The report and digest warn about it. A campaign with no gate items has a complete gate.
+
+**Spend.** `record_spend` takes a date, amount, platform and note, and optionally the platform's clicks and impressions. `import_spend` reads a platform's CSV (header row with `date` or `day`, `spend`, `cost` or `amount`, and optionally `clicks`, `impressions` and `platform`; amounts may carry a currency symbol; dates are `YYYY-MM-DD` or like `Dec 3, 2026`, never `02/03/2026`). Rows for the same platform and day are added together, and importing the same file again replaces those days rather than adding to them; unreadable rows are skipped and listed. Warnings come back with every spend and show in the report and digest:
+- near the cap at 80% of it, and over it (a cap of 0 means any spend is over); nothing is stopped
+- spend recorded before the gate was complete, and the gate still open with money spent
+- spend dated outside the campaign dates
+- the stop rule met: the checkable form (`when`) is spend at `spend_pct` of the cap with at most `max_events` success events; Astrolabe only warns
+
+**Creative.** A creative is an HTML template plus copy fields, rendered at each size to PNG (and PDF where asked). The template is a file in the product folder; `{{name}}` placeholders take the copy fields (HTML-escaped), `{{alt}}` the alt text, and `{{width}}` and `{{height}}` the size, so one template serves every size. CSS and images beside the template are sent with it, by file name.
+- **Renderer.** An optional headless-Chromium sidecar, [Gotenberg](https://gotenberg.dev) 8 (`gotenberg/gotenberg:8`), called over HTTP: `POST /forms/chromium/screenshot/html` with the viewport (`width`, `height`, `format=png`, `clip=true`, which makes the image exactly that size) for PNG, and `/forms/chromium/convert/html` with `preferCssPageSize` for PDF. Astrolabe pins the page to the viewport (one page, no margin). No image library is in the Astrolabe binary and there is no new Go dependency. The image is large (about 1.7 GB), which is why it is off by default.
+- **Turning it on.** The sidecar is in `compose.yaml` and the `init` compose file behind a profile and publishes no port: `docker compose --profile creative up -d`. Set `ASTROLABE_RENDER_URL=http://gotenberg:3000` (the compose files default to that). Without a renderer, creatives still work (copy, flags, approval), and `render_creative` says plainly what to start.
+- **The copy check** runs on the creative's copy and alt text and on a campaign's posts, exactly as on email drafts (`draft.Check`: never-claims, leftover placeholders, length), plus numbers without a source: a number counts as sourced if it is in `claims.md` or in the creative's `source` text (numbers inside URLs are ignored). Flagged copy cannot be approved, exported or made into a task; it waits for a fix.
+- **Approval** covers the exact copy, the template with its files, and every rendered file, by hash. Any edit (`edit_creative`: a copy field or the alt text) withdraws the approval and deletes the rendered files, which no longer show the copy. Rendering again also withdraws it, since the new files are not the ones that were approved. A template or asset that changes on disk voids the approval too, because the hash no longer matches. Approval is allowed with no rendered files at all (the copy alone) but not with only some sizes rendered.
+- **Export.** `export_pack` writes an approved pack to a folder (default `exports/<campaign>` in the product folder): each creative's rendered files and alt text, `copy.md` with the copy and the posts, `landing.txt`, and a `manifest.json` with the hashes. It uses the stored approved bytes and never renders again, and refuses while any creative is unapproved or any post is flagged. You post by hand.
+
+**Posting tasks.** `make_campaign_tasks` turns the `tasks` into content items and tasks in the existing launch machinery (§8): due on the start date plus `day`, with the post text as the task's draft. With `ASTROLABE_PUBLIC_URL` set, `{{link}}` is a tracked short link for the campaign (`utm_campaign=<code>`); otherwise it is the landing page. Mark one posted with `content_mark` and its URL, which closes the task. Running it again adds only missing tasks.
+
+**Report.** `campaign_report` (and `astrolabe campaigns report <product> <campaign>`) covers the campaign window, from the start date to the end date, or to today if it is open-ended or not over yet, and says which. It shows:
+- spend against the cap, with the number of entries
+- the platform's clicks as entered, and on how many spend entries they were entered
+- success events attributed to the campaign, out of the platform clicks entered
+- clicks on the campaign's tracked short links, signals carrying the campaign code, posting tasks posted out of made, gate items checked out of all
+- warnings, and what is not measured: downloads per campaign, anyone who visited and did nothing (no pixel), impressions you did not enter, and successes that did not carry the code
+
+Zero shows as zero. There are counts with what they are out of, and no rates. Cost per success event appears only when there is at least one event, with the spend and the count it came from. These are counts of events that carried the code, not proof that the campaign caused them.
+
+**Attribution contract.** A success event is attributed to a campaign when it carries `campaign=<code>` in one of two places, checked in one function (`campaign.CountEvents`) so other features can plug in:
+- a **signal** whose `data.campaign` is the code and whose type is the success event or `product.<success event>` (product events become `product.<type>` signals carrying their `data`, so `{"type": "signed_up", "data": {"campaign": "launch"}}` counts)
+- a **funnel event** of the success stage whose `source` is `campaign:<code>`
+
+A person counts once however many of these they have. A later form-intake feature credits a form submission by setting `campaign` in its signal data. Make the landing page pass the code along (for example a hidden form field, or the code in the product's signup call).
+
+**`campaigns.json`.** `campaigns_json` (MCP) and `astrolabe campaigns export [-product id] [-o file]` give a website the landing-page variants of campaigns that have not ended (so a page exists before the first day), using the runtime end date:
+
+```json
+[{"code": "launch", "label": "Launch week"}]
+```
+
+Each entry is exactly `code` and `label`. Codes must be unique across the products exported together.
+
+**Digest.** Each running campaign shows its spend against the cap, gate status and warnings.
+
+**Tables** (migration 0014): `campaign_settings` (nullable overrides of the YAML), `campaign_history`, `campaign_gate`, `campaign_spend` (with the gate state at the time), `creatives` (copy edits, version, approval hash) and `creative_renders` (the rendered bytes), plus `campaign_id` and `campaign_task` on `content_items`. Code: `internal/campaign` (plain functions, reusable by the browser app), `internal/render`, tools in `internal/mcp/campaigns.go`.
 
 ### 15.10 Weekly review
 

@@ -328,6 +328,30 @@ func Check(p *product.Product, text string, trigger *sig) []string {
 	return flags
 }
 
+var (
+	numberToken = regexp.MustCompile(`\d[\d,]*(?:\.\d+)?%?`)
+	urlToken    = regexp.MustCompile(`https?://\S+`)
+)
+
+// CheckCopy is Check for marketing copy that is not a reply to anyone (a
+// creative's text, a campaign post): the same never-claims, placeholder and
+// length checks, plus numbers without a source. A number is sourced when it
+// appears in claims.md or in source (where the copy says its numbers come
+// from); numbers inside URLs are ignored. Flagged copy always waits.
+func CheckCopy(p *product.Product, text, source string) []string {
+	flags := Check(p, text, nil)
+	seen := map[string]bool{}
+	for _, n := range numberToken.FindAllString(urlToken.ReplaceAllString(text, " "), -1) {
+		n = strings.TrimRight(n, ",")
+		if seen[n] || strings.Contains(p.ClaimsText, n) || strings.Contains(source, n) {
+			continue
+		}
+		seen[n] = true
+		flags = append(flags, "number without a source: "+n)
+	}
+	return flags
+}
+
 var numberRef = regexp.MustCompile(`#\d+`)
 
 func mentions(lower string, s *sig) bool {

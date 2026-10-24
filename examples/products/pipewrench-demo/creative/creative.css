@@ -1,0 +1,21 @@
+html, body { margin: 0; }
+body {
+  background: #101820;
+  color: #f3f1ea;
+  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+.card {
+  box-sizing: border-box;
+  width: 100%;
+  height: 100%;
+  padding: calc(var(--u) * 7);
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+.brand { font-size: calc(var(--u) * 4); letter-spacing: 0.04em; color: #e8b04a; }
+h1 { margin: 0 0 calc(var(--u) * 3); font-size: calc(var(--u) * 11); line-height: 1.05; }
+p { margin: 0; font-size: calc(var(--u) * 4.2); line-height: 1.35; color: #c9d1d9; max-width: 90%; }
+.foot { display: flex; justify-content: space-between; align-items: baseline; gap: calc(var(--u) * 3); font-size: calc(var(--u) * 3.6); }
+.cta { color: #101820; background: #e8b04a; padding: calc(var(--u) * 1.4) calc(var(--u) * 3); border-radius: calc(var(--u) * 1); font-weight: 600; }
+.url { color: #9aa7b4; }

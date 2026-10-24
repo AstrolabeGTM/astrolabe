@@ -21,6 +21,7 @@ var SchemaFiles = map[string]string{
 	"sequence.schema.json":    "sequences/*.yaml",
 	"automations.schema.json": "automations.yaml",
 	"monitors.schema.json":    "monitors.yaml",
+	"campaign.schema.json":    "campaigns/*.yaml",
 }
 
 var descriptions = map[string]string{
@@ -45,6 +46,39 @@ var descriptions = map[string]string{
 	"Product.links":                      "Tracked links in drafts.",
 	"Product.outreach":                   "Guards on who may be emailed.",
 	"Product.pipeline":                   "Companies (accounts) through deal stages, beside the per-person funnel (sales: deal pipeline). b2b only.",
+	"Campaign.code":                      "Short code for landing-page variants and attribution: a signal or funnel event carrying campaign=<code> counts for this campaign.",
+	"Campaign.label":                     "Human name; also shown in campaigns.json for per-campaign landing pages.",
+	"Campaign.goal":                      "What this campaign is for, in a sentence.",
+	"Campaign.audience":                  "Who it is aimed at (sales: ICP, segment).",
+	"Campaign.channels":                  "Where it runs, e.g. hn, x, newsletter, search (sales: media mix).",
+	"Campaign.offer":                     "The one thing it asks people to do.",
+	"Campaign.landing":                   "https URL of this campaign's landing page (a per-campaign page measures better than shared ones).",
+	"Campaign.success_event":             "What counts as a result: a funnel stage (e.g. signup) or a signal type (e.g. form.request).",
+	"Campaign.budget":                    "Default spend cap (sales: insertion order, flight budget). Changed at runtime; every change is kept.",
+	"Campaign.start":                     "First day, YYYY-MM-DD (sales: flight start). Can be changed at runtime.",
+	"Campaign.end":                       "Last day, YYYY-MM-DD; empty means open-ended.",
+	"Campaign.stop_rule":                 "When to stop, in words and optionally as a rule a machine can check. Astrolabe warns; it never stops or spends by itself.",
+	"Campaign.gate":                      "Checklist that must be fully checked before any spend (sales: pre-flight checklist). Spend before it is complete is allowed but flagged.",
+	"Campaign.tasks":                     "Launch tasks, such as posting a Show HN. Each becomes a task with the posted URL recorded when done.",
+	"Campaign.creatives":                 "Creatives (ad creative, social cards): an HTML template plus copy fields, rendered at each size.",
+	"Budget.cap":                         "Most to spend, as a number such as 200 or 200.50; 0 means nothing is planned to be spent.",
+	"Budget.currency":                    "3-letter currency code, e.g. USD. Spend must be recorded in the same currency.",
+	"StopRule.text":                      "The rule in plain words.",
+	"StopRule.when":                      "Machine-checkable form: spend has reached spend_pct percent of the cap and success events are at most max_events.",
+	"StopCheck.spend_pct":                "Percent of the cap spent (1-100).",
+	"StopCheck.max_events":               "Most success events so far for the rule to apply (default 0: zero results).",
+	"PostTask.id":                        "Unique name, lowercase.",
+	"PostTask.title":                     "What to do, e.g. Post Show HN.",
+	"PostTask.channel":                   "Where, e.g. hn, x, linkedin, reddit, newsletter.",
+	"PostTask.day":                       "Days after the campaign start (negative is before) when it is due.",
+	"PostTask.body":                      "The post text. {{link}} becomes the campaign link. Checked against claims; flagged posts wait.",
+	"Creative.id":                        "Unique name, lowercase.",
+	"Creative.template":                  "HTML file in the product folder with {{field}} placeholders; {{width}} and {{height}} are filled per size. Keep CSS and images beside it.",
+	"Creative.sizes":                     "Sizes to render, WIDTHxHEIGHT in pixels, e.g. 1200x627.",
+	"Creative.formats":                   "png (default) and/or pdf.",
+	"Creative.copy":                      "Text for each placeholder in the template. Checked against claims; an edit withdraws approval.",
+	"Creative.alt":                       "Alt text, kept with the image and used as {{alt}}.",
+	"Creative.source":                    "Where numbers in the copy come from (a study, claims.md). Numbers found neither here nor in claims.md are flagged.",
 	"Links.personal":                     "Swap the offer link in each draft for a personal tracked link (default true). false keeps the plain link.",
 	"Outreach.email_from_github":         "Allow email to people known only through GitHub (default false). GitHub's Acceptable Use Policies forbid using GitHub data to send unsolicited email.",
 	"Pipeline.stages":                    "Ordered account stages, e.g. identified, contacted, qualified, evaluation, won. Paused and lost are built in.",
@@ -138,12 +172,16 @@ var schemaAliases = map[string]map[string]string{
 	"Limits":      {"outbound_per_day": "cold_per_day"},
 }
 
+var datePatternJS = `^\d{4}-\d{2}-\d{2}$`
+
 var durationPatternJS = `^\d+[dhm]$`
 
 var patterns = map[string]string{
 	"Step.after": durationPatternJS, "Play.delay": durationPatternJS, "Offer.window": durationPatternJS,
 	"Monitor.every": durationPatternJS, "When.not_contacted_within": durationPatternJS,
-	"Product.id": `^[a-z0-9][a-z0-9-]*$`, "Pipeline.stuck_after": durationPatternJS,
+	"Campaign.start": datePatternJS, "Campaign.end": datePatternJS, "Budget.currency": `^[A-Z]{3}$`,
+	"Campaign.code": `^[a-z0-9][a-z0-9_-]{1,23}$`,
+	"Product.id":    `^[a-z0-9][a-z0-9-]*$`, "Pipeline.stuck_after": durationPatternJS,
 }
 
 func schemaFor(t reflect.Type) map[string]any {
@@ -154,13 +192,16 @@ func schemaFor(t reflect.Type) map[string]any {
 	case reflect.String:
 		return map[string]any{"type": "string"}
 	case reflect.Int, reflect.Int64:
+		if t == reflect.TypeOf(Money(0)) {
+			return map[string]any{"type": "number", "minimum": 0}
+		}
 		return map[string]any{"type": "integer"}
 	case reflect.Bool:
 		return map[string]any{"type": "boolean"}
-	case reflect.Slice:
-		return map[string]any{"type": "array", "items": schemaFor(t.Elem())}
 	case reflect.Map:
 		return map[string]any{"type": "object", "additionalProperties": schemaFor(t.Elem())}
+	case reflect.Slice:
+		return map[string]any{"type": "array", "items": schemaFor(t.Elem())}
 	case reflect.Struct:
 		props := map[string]any{}
 		for i := 0; i < t.NumField(); i++ {
@@ -209,8 +250,10 @@ func Schemas() map[string][]byte {
 		"sequence.schema.json":    schemaFor(reflect.TypeOf(Sequence{})),
 		"automations.schema.json": schemaFor(reflect.TypeOf([]*Play{})),
 		"monitors.schema.json":    schemaFor(reflect.TypeOf([]*Monitor{})),
+		"campaign.schema.json":    schemaFor(reflect.TypeOf(Campaign{})),
 	}
 	docs["product.schema.json"]["required"] = []string{"id", "name", "url", "one_liner", "audience", "funnel", "activation", "offer", "claims", "voice", "sender", "limits"}
+	docs["campaign.schema.json"]["required"] = []string{"code", "label", "goal", "audience", "channels", "offer", "landing", "success_event", "budget", "start"}
 	docs["sequence.schema.json"]["required"] = []string{"steps", "stop_on"}
 	out := map[string][]byte{}
 	names := make([]string, 0, len(docs))

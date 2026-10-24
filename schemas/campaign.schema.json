@@ -1,0 +1,194 @@
+{
+  "$id": "https://raw.githubusercontent.com/AstrolabeGTM/astrolabe/main/schemas/campaign.schema.json",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "additionalProperties": false,
+  "properties": {
+    "audience": {
+      "description": "Who it is aimed at (sales: ICP, segment).",
+      "type": "string"
+    },
+    "budget": {
+      "additionalProperties": false,
+      "description": "Default spend cap (sales: insertion order, flight budget). Changed at runtime; every change is kept.",
+      "properties": {
+        "cap": {
+          "description": "Most to spend, as a number such as 200 or 200.50; 0 means nothing is planned to be spent.",
+          "minimum": 0,
+          "type": "number"
+        },
+        "currency": {
+          "description": "3-letter currency code, e.g. USD. Spend must be recorded in the same currency.",
+          "pattern": "^[A-Z]{3}$",
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "channels": {
+      "description": "Where it runs, e.g. hn, x, newsletter, search (sales: media mix).",
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "code": {
+      "description": "Short code for landing-page variants and attribution: a signal or funnel event carrying campaign=\u003ccode\u003e counts for this campaign.",
+      "pattern": "^[a-z0-9][a-z0-9_-]{1,23}$",
+      "type": "string"
+    },
+    "creatives": {
+      "description": "Creatives (ad creative, social cards): an HTML template plus copy fields, rendered at each size.",
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "alt": {
+            "description": "Alt text, kept with the image and used as {{alt}}.",
+            "type": "string"
+          },
+          "copy": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "description": "Text for each placeholder in the template. Checked against claims; an edit withdraws approval.",
+            "type": "object"
+          },
+          "formats": {
+            "description": "png (default) and/or pdf.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "id": {
+            "description": "Unique name, lowercase.",
+            "type": "string"
+          },
+          "sizes": {
+            "description": "Sizes to render, WIDTHxHEIGHT in pixels, e.g. 1200x627.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "source": {
+            "description": "Where numbers in the copy come from (a study, claims.md). Numbers found neither here nor in claims.md are flagged.",
+            "type": "string"
+          },
+          "template": {
+            "description": "HTML file in the product folder with {{field}} placeholders; {{width}} and {{height}} are filled per size. Keep CSS and images beside it.",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "type": "array"
+    },
+    "end": {
+      "description": "Last day, YYYY-MM-DD; empty means open-ended.",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+      "type": "string"
+    },
+    "gate": {
+      "description": "Checklist that must be fully checked before any spend (sales: pre-flight checklist). Spend before it is complete is allowed but flagged.",
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "goal": {
+      "description": "What this campaign is for, in a sentence.",
+      "type": "string"
+    },
+    "label": {
+      "description": "Human name; also shown in campaigns.json for per-campaign landing pages.",
+      "type": "string"
+    },
+    "landing": {
+      "description": "https URL of this campaign's landing page (a per-campaign page measures better than shared ones).",
+      "type": "string"
+    },
+    "offer": {
+      "description": "The one thing it asks people to do.",
+      "type": "string"
+    },
+    "start": {
+      "description": "First day, YYYY-MM-DD (sales: flight start). Can be changed at runtime.",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+      "type": "string"
+    },
+    "stop_rule": {
+      "additionalProperties": false,
+      "description": "When to stop, in words and optionally as a rule a machine can check. Astrolabe warns; it never stops or spends by itself.",
+      "properties": {
+        "text": {
+          "description": "The rule in plain words.",
+          "type": "string"
+        },
+        "when": {
+          "additionalProperties": false,
+          "description": "Machine-checkable form: spend has reached spend_pct percent of the cap and success events are at most max_events.",
+          "properties": {
+            "max_events": {
+              "description": "Most success events so far for the rule to apply (default 0: zero results).",
+              "type": "integer"
+            },
+            "spend_pct": {
+              "description": "Percent of the cap spent (1-100).",
+              "type": "integer"
+            }
+          },
+          "type": "object"
+        }
+      },
+      "type": "object"
+    },
+    "success_event": {
+      "description": "What counts as a result: a funnel stage (e.g. signup) or a signal type (e.g. form.request).",
+      "type": "string"
+    },
+    "tasks": {
+      "description": "Launch tasks, such as posting a Show HN. Each becomes a task with the posted URL recorded when done.",
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "body": {
+            "description": "The post text. {{link}} becomes the campaign link. Checked against claims; flagged posts wait.",
+            "type": "string"
+          },
+          "channel": {
+            "description": "Where, e.g. hn, x, linkedin, reddit, newsletter.",
+            "type": "string"
+          },
+          "day": {
+            "description": "Days after the campaign start (negative is before) when it is due.",
+            "type": "integer"
+          },
+          "id": {
+            "description": "Unique name, lowercase.",
+            "type": "string"
+          },
+          "title": {
+            "description": "What to do, e.g. Post Show HN.",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "type": "array"
+    }
+  },
+  "required": [
+    "code",
+    "label",
+    "goal",
+    "audience",
+    "channels",
+    "offer",
+    "landing",
+    "success_event",
+    "budget",
+    "start"
+  ],
+  "title": "Astrolabe campaigns/*.yaml",
+  "type": "object"
+}

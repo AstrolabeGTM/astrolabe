@@ -31,6 +31,7 @@ import (
 	"github.com/AstrolabeGTM/astrolabe/internal/pipeline"
 	"github.com/AstrolabeGTM/astrolabe/internal/play"
 	"github.com/AstrolabeGTM/astrolabe/internal/product"
+	"github.com/AstrolabeGTM/astrolabe/internal/render"
 	"github.com/AstrolabeGTM/astrolabe/internal/sandbox"
 	"github.com/AstrolabeGTM/astrolabe/internal/score"
 	"github.com/AstrolabeGTM/astrolabe/internal/signal"
@@ -48,6 +49,9 @@ type Config struct {
 	GitHubToken  string
 	StackKey     string
 	NetlifyToken string
+	// RenderURL is the optional Chromium sidecar that renders creatives
+	// (ASTROLABE_RENDER_URL, e.g. http://gotenberg:3000).
+	RenderURL string
 	// Mode is sandbox (everything goes to a local outbox) or live.
 	Mode string
 }
@@ -74,6 +78,7 @@ func ConfigFromEnv() Config {
 		StackKey:     os.Getenv("ASTROLABE_STACKEXCHANGE_KEY"),
 		NetlifyToken: os.Getenv("ASTROLABE_NETLIFY_TOKEN"),
 		Mode:         getenv("ASTROLABE_MODE", "live"),
+		RenderURL:    os.Getenv("ASTROLABE_RENDER_URL"),
 	}
 }
 
@@ -91,6 +96,7 @@ type App struct {
 	Writer   *draft.Writer
 	Plays    *play.Engine
 	Studio   *content.Studio
+	Render   *render.Client
 	Mail     *mail.Store
 }
 
@@ -126,6 +132,7 @@ func Open(ctx context.Context, cfg Config, work bool) (*App, error) {
 	a.Writer = &draft.Writer{Pool: pool, LLM: a.LLM, Out: a.Outreach}
 	a.Plays = &play.Engine{Pool: pool, Out: a.Outreach}
 	a.Studio = &content.Studio{Pool: pool, LLM: a.LLM, Out: a.Outreach, PublicURL: a.Outreach.PublicURL}
+	a.Render = render.New(cfg.RenderURL)
 	a.Outreach.Recheck = a.Plays.Recheck
 	// Enrichment can change fit: re-run plays on the person's recent signals.
 	a.Signals.AfterEnrich = func(ctx context.Context, tx pgx.Tx, personID int64) error {
