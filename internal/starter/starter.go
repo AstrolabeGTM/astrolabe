@@ -194,6 +194,7 @@ ASTROLABE_PASSWORD=` + randomPassword() + `
 
 # Optional, add as you need them:
 # ASTROLABE_PUBLIC_URL=https://gtm.yourdomain.com      # tracked links and webhooks
+# ASTROLABE_MCP_TOKEN=                                 # bearer token for MCP over HTTP; default: generated
 # ASTROLABE_ANTHROPIC_API_KEY=                         # AI research, drafts, reply sorting
 # ASTROLABE_GITHUB_TOKEN=                              # GitHub monitors (strongly recommended)
 # ASTROLABE_DIGEST_TO=you@yourdomain.com               # weekly digest
