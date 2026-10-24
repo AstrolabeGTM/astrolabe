@@ -73,7 +73,7 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .sidebar-foot button { background: none; border: 1px solid var(--night-2); color: var(--night-ink); border-radius: 8px; padding: 6px 12px; cursor: pointer; }
 .sidebar-foot button:hover { background: var(--night-2); }
 
-.workspace { min-width: 0; display: flex; flex-direction: column; }
+.workspace { min-width: 0; display: flex; flex-direction: column; background: var(--bg); }
 .topbar { position: sticky; top: 0; z-index: 10; display: flex; align-items: center; justify-content: space-between;
   gap: 12px; flex-wrap: wrap; padding: 10px 28px; min-height: 58px; background: var(--bg); border-bottom: 1px solid var(--line); }
 .breadcrumbs ol { list-style: none; display: flex; flex-wrap: wrap; gap: 6px; margin: 0; padding: 0; font-size: 14px; color: var(--muted); }

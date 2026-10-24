@@ -124,6 +124,8 @@ function restoreFocus(t) {
   else main.focus({ preventScroll: true });
 }
 
+let firstShow = true;
+
 async function show({ keepFocus = false, target } = {}) {
   const { id, params } = parseHash();
   const screen = screens.find(s => s.id === id);
@@ -155,9 +157,13 @@ async function show({ keepFocus = false, target } = {}) {
   }
   renderNav();
   renderCrumbs();
+  const wasFirst = firstShow;
+  firstShow = false;
   if (changed) {
     window.scrollTo(0, 0);
-    main.focus({ preventScroll: true });
+    // Moving between screens puts focus at the new screen's start; the
+    // first load leaves it alone, so the first Tab reaches the skip link.
+    if (!wasFirst) main.focus({ preventScroll: true });
   } else {
     window.scrollTo(0, scroll);
     restoreFocus(focus);
@@ -212,6 +218,12 @@ async function runForm(form, submitter) {
 function wire() {
   initDialog();
   document.addEventListener("click", ev => {
+    // The skip link moves focus; it must not change the route.
+    if (ev.target.closest(".skip-link")) {
+      ev.preventDefault();
+      $("#main").focus();
+      return;
+    }
     const btn = ev.target.closest("[data-action]");
     if (btn && !btn.disabled) { if (btn.tagName !== "A") ev.preventDefault(); runAction(btn); }
   });

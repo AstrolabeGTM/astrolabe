@@ -28,7 +28,7 @@ function emailPolicy(v) {
 }
 
 function scores(v) {
-  if (!v.scores.length) return empty("Not scored yet", "Scores appear once they belong to a product: start a sequence, import them, or add a signal about them.");
+  if (!v.scores.length) return empty("Not scored yet", "A score is computed when a signal, an import or new facts change something, and again every day. Adding facts (right) rescores them now.");
   return v.scores.map(s => {
     const part = (label, n, lines) => `<div><dt>${label} <span class="num">${n}/100</span></dt><dd>${lines?.length ? `<ul>${lines.map(l => `<li>${e(l)}</li>`).join("")}</ul>` : `<span class="muted">nothing yet</span>`}</dd></div>`;
     return `<div class="card"><div class="row"><span class="tag brass">Priority ${e(s.tier)}</span><strong class="num">${s.priority}/100</strong>
