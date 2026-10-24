@@ -43,11 +43,16 @@ type world struct {
 	people []int64
 }
 
-func newWorld(t *testing.T, n int) *world {
+func newWorld(t *testing.T, n int) *world { return newWorldWith(t, n, nil) }
+
+func newWorldWith(t *testing.T, n int, tweak func(*product.Product)) *world {
 	t.Helper()
 	ctx := context.Background()
 	pool := store.TestDB(t)
 	p := product.TestProduct(t)
+	if tweak != nil {
+		tweak(p)
+	}
 	if err := product.Sync(ctx, pool, []*product.Product{p}); err != nil {
 		t.Fatal(err)
 	}

@@ -211,6 +211,11 @@ func (s *Service) AnswerReply(ctx context.Context, replyID int64, body string) (
 		if enrollmentID == nil || personID == nil {
 			return invalid("reply %d is not from someone I contacted; answer it in the mailbox", replyID)
 		}
+		if ok, reason, err := MayEmail(ctx, tx, *productID, *personID); err != nil {
+			return err
+		} else if !ok {
+			return invalid("not answered by email, %s", reason)
+		}
 		var recipient string
 		tx.QueryRow(ctx, `SELECT recipient FROM actions WHERE id = $1`, actionID).Scan(&recipient)
 		if recipient == "" {
@@ -286,6 +291,13 @@ func (s *Service) Approve(ctx context.Context, id int64) error {
 
 		if a.Recipient == "" || a.Sender == "" {
 			return invalid("action %d has no recipient or sender", id)
+		}
+		if a.Channel == "email" {
+			if ok, reason, err := MayEmail(ctx, tx, a.ProductID, a.PersonID); err != nil {
+				return err
+			} else if !ok {
+				return invalid("action %d: not approved, %s", id, reason)
+			}
 		}
 		if a.Step == 0 || a.ThreadID == "" {
 			if strings.TrimSpace(a.Subject) == "" {

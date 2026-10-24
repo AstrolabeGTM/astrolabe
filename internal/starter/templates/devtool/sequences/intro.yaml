@@ -1,3 +1,5 @@
+# For people who gave you their address (an import, a form, a reply): not started
+# from GitHub signals, and refused for anyone known only from GitHub.
 kind: cold                        # people who don't know you yet
 steps:
   - {channel: email, after: 0d, brief: true, goal: "point at their specific issue and offer to help with one case"}

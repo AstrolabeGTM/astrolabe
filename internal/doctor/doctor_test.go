@@ -85,6 +85,17 @@ func TestDoctor(t *testing.T) {
 		t.Fatalf("only the non-https public URL should fail now: %v", f)
 	}
 
+	// Opting in to email from GitHub data warns and cites the policy.
+	if find(checks, "policy", Warn, "") {
+		t.Fatal("no policy warning by default")
+	}
+	py := filepath.Join(pdir, "product.yaml")
+	raw, _ := os.ReadFile(py)
+	os.WriteFile(py, append(raw, []byte("\noutreach: {email_from_github: true}\n")...), 0o644)
+	if !find(Run(ctx, in), "policy", Warn, "Acceptable Use Policies") {
+		t.Fatal("email_from_github: true should warn")
+	}
+
 	// No database at all.
 	in.DatabaseURL = "postgres://nobody@127.0.0.1:1/none"
 	if !find(Run(ctx, in), "database", Fail, "Postgres") {

@@ -18,6 +18,34 @@ import (
 	"github.com/AstrolabeGTM/astrolabe/internal/store"
 )
 
+// Where an identity came from. Only email matters to the outreach guard:
+// an address with source "github" was found through GitHub and may not be
+// emailed on its own; every other source is an address the person (or the
+// operator) supplied.
+const (
+	SourceGitHub = "github" // monitors, profile enrichment, commits
+	SourceEvent  = "event"  // product events and tracked links
+	SourceStripe = "stripe"
+	SourceReply  = "reply" // the person wrote to us from this address
+	SourceImport = "import"
+	SourceManual = "manual"
+	SourceForm   = "form"
+)
+
+// LinkIdentity attaches an identity to a person, recording its source. If
+// the identity already belongs to this person and was only known from GitHub,
+// a person-supplied source (upgrade true) replaces it: they have now given us
+// the address themselves. It never moves an identity between people.
+func LinkIdentity(ctx context.Context, q store.Q, kind, value string, personID int64, source string, upgrade bool) error {
+	_, err := q.Exec(ctx, `
+		INSERT INTO identities (kind, value, person_id, source) VALUES ($1, $2, $3, $4)
+		ON CONFLICT (kind, value) DO UPDATE SET source = EXCLUDED.source
+		WHERE $5 AND identities.person_id = EXCLUDED.person_id
+		  AND identities.source = 'github' AND EXCLUDED.source <> 'github'`,
+		kind, value, personID, source, upgrade)
+	return err
+}
+
 type Person struct {
 	ID        int64  `json:"id"`
 	Name      string `json:"name"`
@@ -216,7 +244,11 @@ func upsert(ctx context.Context, tx pgx.Tx, productID string, r Row) (bool, erro
 		if v == "" {
 			continue
 		}
-		if _, err := tx.Exec(ctx, `INSERT INTO identities (kind, value, person_id) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING`, kind, v, personID); err != nil {
+		src := SourceImport
+		if kind == "github" {
+			src = SourceGitHub
+		}
+		if err := LinkIdentity(ctx, tx, kind, v, personID, src, true); err != nil {
 			return false, err
 		}
 	}
@@ -231,7 +263,7 @@ func upsert(ctx context.Context, tx pgx.Tx, productID string, r Row) (bool, erro
 
 const personSelect = `
 	SELECT p.id, p.name, p.first_name, p.title, COALESCE(c.name, ''), COALESCE(c.domain, ''),
-		COALESCE((SELECT value FROM identities WHERE person_id = p.id AND kind = 'email' ORDER BY value LIMIT 1), ''),
+		COALESCE((SELECT value FROM identities WHERE person_id = p.id AND kind = 'email' ORDER BY (source = 'github'), value LIMIT 1), ''),
 		COALESCE((SELECT value FROM identities WHERE person_id = p.id AND kind = 'github' ORDER BY value LIMIT 1), ''),
 		p.notes, COALESCE(s.reason, '')
 	FROM people p

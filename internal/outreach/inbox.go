@@ -131,6 +131,13 @@ func (s *Service) RecordReply(ctx context.Context, in Inbound) (bool, error) {
 		if err := stopEnrollment(ctx, tx, a.EnrollmentID, "replied", s.now()); err != nil {
 			return err
 		}
+		// Writing to us from an address is giving it to us: from now on it
+		// counts as theirs, not as something found on GitHub.
+		if e := people.NormalizeEmail(in.From); e != "" && (in.Channel == "" || in.Channel == "email") {
+			if err := people.LinkIdentity(ctx, tx, "email", e, a.PersonID, people.SourceReply, true); err != nil {
+				return err
+			}
+		}
 		// Messaging opt-out keywords unsubscribe at once.
 		switch strings.ToUpper(strings.TrimSpace(in.Body)) {
 		case "STOP", "UNSUBSCRIBE", "STOP ALL":
