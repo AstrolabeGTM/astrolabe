@@ -1,6 +1,6 @@
 # Try Astrolabe from source in sandbox mode (nothing is really sent):
 #   docker compose up --build
-# then open http://localhost:8080; the password is printed in the logs
+# then open http://localhost:8080/app/; the password is printed in the logs
 # (docker compose logs astrolabe). For your own workspace use `astrolabe init`,
 # whose compose file runs the published image.
 services:

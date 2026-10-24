@@ -88,19 +88,3 @@ func (s *Server) formSubmissions(ctx context.Context, a formSubmissionsArg) (any
 	}
 	return map[string]any{"submissions": out}, err
 }
-
-// reportedSources is what a person said, per product, about how they heard
-// of it; the person view shows it beside the first-touch source.
-func (s *Server) reportedSources(ctx context.Context, personID int64) ([]map[string]any, error) {
-	rows, err := s.S.Pool.Query(ctx, `
-		SELECT product_id, source, reported_source FROM product_people
-		WHERE person_id = $1 AND reported_source <> '' ORDER BY product_id`, personID)
-	if err != nil {
-		return nil, err
-	}
-	return pgx.CollectRows(rows, func(r pgx.CollectableRow) (map[string]any, error) {
-		var prod, first, said string
-		err := r.Scan(&prod, &first, &said)
-		return map[string]any{"product": prod, "self_reported": said, "first_touch": first}, err
-	})
-}

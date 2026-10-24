@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <meta name="theme-color" content="#172036">
+  <title>Astrolabe</title>
+  <link rel="icon" href="/app/mark.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/app/app.css">
+  <script type="module" src="/app/js/main.js"></script>
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to content</a>
+  <div class="app-shell">
+    <header class="sidebar">
+      <div class="sidebar-top">
+        <a class="brand" href="#today" aria-label="Astrolabe, go to Today">
+          <svg class="mark" viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="16" cy="4.5" r="2.25" stroke-width="1.8"/><path d="M16 6.75V8" stroke-width="1.8"/><circle cx="16" cy="19" r="11" stroke-width="2"/><circle cx="16" cy="19" r="6.5" stroke-width="1.4"/><path d="M16 8v2.2M16 27.8V30M5 19h2.2M24.8 19H27" stroke-width="1.4"/><path d="M8.6 26.4 23.4 11.6" stroke-width="2"/><path d="m11 11.2.9 2.1 2.1.9-2.1.9-.9 2.1-.9-2.1-2.1-.9 2.1-.9z" fill="currentColor" stroke="none"/></svg>
+          <span>Astrolabe</span>
+        </a>
+        <button type="button" class="menu-toggle" aria-expanded="false" aria-controls="navigation">Menu</button>
+      </div>
+      <nav id="navigation" aria-label="Main"></nav>
+    </header>
+    <div class="workspace">
+      <div class="topbar" role="region" aria-label="Status and page actions">
+        <nav class="breadcrumbs" aria-label="Breadcrumb"><ol id="breadcrumbs"><li>Astrolabe</li></ol></nav>
+        <div class="topbar-actions">
+          <div id="status-badges" class="badges"></div>
+          <label class="product-filter"><span class="sr-only">Product</span><select id="product-filter"></select></label>
+          <div id="page-actions" class="page-actions"></div>
+        </div>
+      </div>
+      <main id="main" tabindex="-1"><p class="loading">Loading…</p></main>
+    </div>
+  </div>
+  <dialog id="dialog" aria-labelledby="dialog-title"></dialog>
+  <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+  <noscript><p class="noscript">The Astrolabe app needs JavaScript. The <a href="/">classic pages</a> work without it.</p></noscript>
+</body>
+</html>

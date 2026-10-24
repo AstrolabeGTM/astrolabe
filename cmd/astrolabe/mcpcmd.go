@@ -13,11 +13,9 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"sync/atomic"
 
 	"github.com/AstrolabeGTM/astrolabe/internal/app"
 	"github.com/AstrolabeGTM/astrolabe/internal/mcp"
-	"github.com/AstrolabeGTM/astrolabe/internal/product"
 )
 
 // mcpCommand handles `astrolabe mcp [token [-rotate] | tools [-md]]`.
@@ -69,14 +67,9 @@ func mcpCommand(ctx context.Context, cfg app.Config, args []string, out io.Write
 	return newMCPServer(ctx, a, cfg, loadProducts(ctx, a)).Run(ctx, version)
 }
 
-func newMCPServer(ctx context.Context, a *app.App, cfg app.Config, products *atomic.Pointer[[]*product.Product]) *mcp.Server {
+func newMCPServer(ctx context.Context, a *app.App, cfg app.Config, products *loaded) *mcp.Server {
 	return &mcp.Server{S: a.Outreach, Signals: a.Signals, Sources: a.Sources, Writer: a.Writer, Studio: a.Studio, Render: a.Render, Updates: a.Updates, Netlify: a.Forms.Netlify, ProductsDir: cfg.ProductsDir, Mode: a.Cfg.Mode,
-		Products: func() []*product.Product { return *products.Load() },
-		Reload: func(ctx context.Context) error {
-			list, err := a.LoadProducts(ctx)
-			products.Store(&list)
-			return err
-		}}
+		Products: products.Products, Reload: products.Reload, LoadIssues: products.Issues, Mail: a.Mail, Accounts: a.Accounts, Doctor: doctorFor(cfg)}
 }
 
 const minMCPTokenLen = 16

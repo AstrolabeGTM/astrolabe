@@ -5,11 +5,11 @@ import (
 	"errors"
 	"time"
 
-	"github.com/AstrolabeGTM/astrolabe/internal/counters"
 	"github.com/AstrolabeGTM/astrolabe/internal/digest"
 	"github.com/AstrolabeGTM/astrolabe/internal/experiment"
 	"github.com/AstrolabeGTM/astrolabe/internal/product"
 	"github.com/AstrolabeGTM/astrolabe/internal/reception"
+	"github.com/AstrolabeGTM/astrolabe/internal/views"
 )
 
 type contentArg struct {
@@ -111,33 +111,22 @@ func (s *Server) counters(ctx context.Context, a productOpt) (any, error) {
 	if err != nil {
 		return nil, err
 	}
-	var out []*counters.Report
-	for _, p := range ps {
-		r, err := counters.Weekly(ctx, s.S.Pool, p.ID, time.Now())
-		if err != nil {
-			return nil, err
-		}
-		if len(r.Repos) > 0 || a.Product != "" {
-			out = append(out, r)
-		}
-	}
-	return map[string]any{"counters": out}, nil
+	out, err := views.Counters(ctx, s.S.Pool, ps, a.Product != "", time.Now())
+	return map[string]any{"counters": out}, err
 }
 
-func (s *Server) reception(ctx context.Context, a productOpt) (any, error) {
+type receptionArg struct {
+	Product string `json:"product,omitempty" jsonschema:"product id; omit for all products"`
+	Days    int    `json:"days,omitempty" jsonschema:"window in days, default 7"`
+}
+
+func (s *Server) reception(ctx context.Context, a receptionArg) (any, error) {
 	ps, err := s.productsFor(a.Product)
 	if err != nil {
 		return nil, err
 	}
-	var out []*reception.Report
-	for _, p := range ps {
-		r, err := reception.Week(ctx, s.S.Pool, p.ID, time.Now(), 50)
-		if err != nil {
-			return nil, err
-		}
-		out = append(out, r)
-	}
-	return map[string]any{"reception": out}, nil
+	out, err := views.Reception(ctx, s.S.Pool, ps, a.Days, time.Now(), 50)
+	return map[string]any{"reception": out}, err
 }
 
 func (s *Server) logMention(ctx context.Context, a mentionArg) (any, error) {

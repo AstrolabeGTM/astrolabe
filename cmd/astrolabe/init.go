@@ -77,8 +77,8 @@ func initCmd(args []string, in io.Reader, out io.Writer) error {
 	}
 	fmt.Fprintln(out)
 	if o.Template == "demo" {
-		fmt.Fprintln(out, `Next: docker compose up -d, open http://localhost:8080 and sign in with ASTROLABE_PASSWORD from .env.
-The demo runs in sandbox mode: nothing is really sent; try People → Start sequence, approve in the Inbox,
+		fmt.Fprintln(out, `Next: docker compose up -d, open http://localhost:8080/app/ and sign in with ASTROLABE_PASSWORD from .env.
+The demo runs in sandbox mode: nothing is really sent; try People → Start a sequence, approve on Today,
 then reply from the Outbox.
 
 Use it from Claude Code or Codex (see README, "Use it from Claude or Codex"):

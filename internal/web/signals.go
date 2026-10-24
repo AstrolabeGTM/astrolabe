@@ -150,23 +150,13 @@ func (srv *Server) signalsPage(w http.ResponseWriter, r *http.Request) {
 
 func (srv *Server) signalAdd(w http.ResponseWriter, r *http.Request) {
 	strength, _ := strconv.Atoi(r.FormValue("strength"))
-	who := strings.TrimSpace(r.FormValue("who"))
-	sub := signal.Subject{}
-	switch {
-	case strings.Contains(who, "@"):
-		sub.Email = who
-	case who != "":
-		sub.GitHub = who
-	}
-	note := strings.TrimSpace(r.FormValue("note"))
-	sig := &signal.Signal{Product: r.FormValue("product"), Type: "manual." + strings.TrimPrefix(r.FormValue("type"), "manual."),
-		OccurredAt: time.Now(), Strength: strength, WhyNow: r.FormValue("why_now") == "on", Title: note,
-		EvidenceURL: r.FormValue("url"), Subject: sub, DedupeKey: fmt.Sprintf("manual:%d", time.Now().UnixNano())}
-	_, err := srv.Signals.Ingest(r.Context(), sig)
+	prod := r.FormValue("product")
+	_, err := srv.Signals.AddManual(r.Context(), signal.Manual{Product: prod, Who: r.FormValue("who"), Type: r.FormValue("type"),
+		Strength: strength, WhyNow: r.FormValue("why_now") == "on", Note: r.FormValue("note"), URL: r.FormValue("url")}, time.Now())
 	if err != nil {
 		err = fmt.Errorf("%w: %v", outreach.ErrInvalid, err)
 	}
-	done(w, r, "/signals?product="+url.QueryEscape(sig.Product), "Signal added", err)
+	done(w, r, "/signals?product="+url.QueryEscape(prod), "Signal added", err)
 }
 
 func (srv *Server) reviewResolve(w http.ResponseWriter, r *http.Request) {

@@ -28,8 +28,14 @@ func (s *Service) Pause(ctx context.Context, scope string) error {
 }
 
 func (s *Service) Resume(ctx context.Context, scope string) error {
-	_, err := s.Pool.Exec(ctx, `DELETE FROM pauses WHERE scope = $1`, scope)
-	return err
+	return pgx.BeginFunc(ctx, s.Pool, func(tx pgx.Tx) error {
+		if _, err := tx.Exec(ctx, `DELETE FROM pauses WHERE scope = $1`, scope); err != nil {
+			return err
+		}
+		// Sends held by this pause no longer are; the next try goes ahead.
+		_, err := tx.Exec(ctx, `UPDATE actions SET error = '' WHERE status = 'approved' AND error = $1`, "held: paused: "+scope)
+		return err
+	})
 }
 
 func (s *Service) Pauses(ctx context.Context) ([]string, error) {
@@ -302,6 +308,36 @@ func (s *Service) Classify(ctx context.Context, replyID int64, class string, rem
 			VALUES ($1, $2, $3, $4, $5, $6)`, *productID, *personID, enrollmentID, replyID, next, due)
 		return err
 	})
+}
+
+// RepliesToLabel lists replies nobody has labelled yet, oldest first (the
+// longest waiting), with how many there are in all. A product limits them to
+// replies matched to that product.
+func (s *Service) RepliesToLabel(ctx context.Context, productID string, limit int) ([]*Reply, int, error) {
+	var total int
+	if err := s.Pool.QueryRow(ctx, `SELECT count(*) FROM replies WHERE classification = '' AND ($1 = '' OR product_id = $1)`, productID).Scan(&total); err != nil {
+		return nil, 0, err
+	}
+	rows, err := s.Pool.Query(ctx, `
+		SELECT r.id, COALESCE(r.product_id, ''), r.person_id, COALESCE(p.name, ''), r.action_id, r.from_addr,
+			r.subject, r.snippet, r.body, r.received_at, r.classification, r.suggested_class
+		FROM replies r LEFT JOIN people p ON p.id = r.person_id
+		WHERE r.classification = '' AND ($1 = '' OR r.product_id = $1)
+		ORDER BY r.received_at, r.id LIMIT $2`, productID, limit)
+	if err != nil {
+		return nil, 0, err
+	}
+	defer rows.Close()
+	out := []*Reply{}
+	for rows.Next() {
+		r := &Reply{}
+		if err := rows.Scan(&r.ID, &r.ProductID, &r.PersonID, &r.PersonName, &r.ActionID, &r.From,
+			&r.Subject, &r.Snippet, &r.Body, &r.ReceivedAt, &r.Classification, &r.Suggested); err != nil {
+			return nil, 0, err
+		}
+		out = append(out, r)
+	}
+	return out, total, rows.Err()
 }
 
 // Replies lists replies; unclassifiedOnly limits to ones I haven't labelled.

@@ -20,8 +20,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/AstrolabeGTM/astrolabe/internal/channel"
 	"github.com/AstrolabeGTM/astrolabe/internal/content"
+	"github.com/AstrolabeGTM/astrolabe/internal/doctor"
 	"github.com/AstrolabeGTM/astrolabe/internal/draft"
 	"github.com/AstrolabeGTM/astrolabe/internal/experiment"
 	"github.com/AstrolabeGTM/astrolabe/internal/funnel"
@@ -33,8 +33,10 @@ import (
 	"github.com/AstrolabeGTM/astrolabe/internal/product"
 	"github.com/AstrolabeGTM/astrolabe/internal/sandbox"
 	"github.com/AstrolabeGTM/astrolabe/internal/score"
+	"github.com/AstrolabeGTM/astrolabe/internal/sentmail"
 	"github.com/AstrolabeGTM/astrolabe/internal/signal"
 	"github.com/AstrolabeGTM/astrolabe/internal/updates"
+	"github.com/AstrolabeGTM/astrolabe/internal/views"
 )
 
 //go:embed templates/*.html
@@ -55,6 +57,10 @@ type Server struct {
 	Products func() []*product.Product
 	// Reload re-reads product folders.
 	Reload func(context.Context) error
+	// LoadIssues lists product folders that failed to load, and why.
+	LoadIssues func() []views.LoadIssue
+	// Doctor runs the setup checks; connect also tests logins and DNS.
+	Doctor func(ctx context.Context, connect bool) []doctor.Check
 
 	tmpl *template.Template
 }
@@ -159,6 +165,12 @@ func (srv *Server) Handler() http.Handler {
 	app.HandleFunc("POST /mailboxes", srv.mailboxAdd)
 	app.HandleFunc("POST /mailboxes/remove", srv.mailboxRemove)
 	mux.Handle("/", srv.requireLogin(sameOrigin(app)))
+
+	// The browser app (/app/) and its JSON API (/api/).
+	mux.Handle("/api/", srv.apiGuard(srv.apiMux()))
+	mux.Handle("GET /app", http.RedirectHandler("/app/", http.StatusMovedPermanently))
+	mux.Handle("GET /app/mark.svg", appHandler()) // the login page shows it
+	mux.Handle("/app/", srv.requireLogin(appHandler()))
 	return securityHeaders(mux)
 }
 
@@ -193,11 +205,53 @@ func (srv *Server) validSession(r *http.Request) bool {
 func (srv *Server) requireLogin(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if !srv.validSession(r) {
-			http.Redirect(w, r, "/login", http.StatusSeeOther)
+			to := "/login"
+			if r.Method == http.MethodGet && r.URL.Path != "/" {
+				to += "?next=" + url.QueryEscape(r.URL.RequestURI())
+			}
+			http.Redirect(w, r, to, http.StatusSeeOther)
 			return
 		}
 		next.ServeHTTP(w, r)
 	})
+}
+
+// csrfToken is the token the browser app sends in X-CSRF-Token with every
+// request that changes something. It is derived from the session cookie, so
+// only a page that can read our API (same origin, signed in) can learn it.
+func (srv *Server) csrfToken(r *http.Request) string {
+	c, err := r.Cookie(cookieName)
+	if err != nil || c.Value == "" {
+		return ""
+	}
+	m := hmac.New(sha256.New, srv.sessionKey())
+	m.Write([]byte("csrf\x00" + c.Value))
+	return hex.EncodeToString(m.Sum(nil))
+}
+
+// fromThisSite rejects requests a browser marks as coming from another site,
+// and any whose Origin is not this host.
+func fromThisSite(r *http.Request) bool {
+	switch r.Header.Get("Sec-Fetch-Site") {
+	case "", "same-origin", "none":
+	default:
+		return false
+	}
+	if o := r.Header.Get("Origin"); o != "" {
+		u, err := url.Parse(o)
+		if err != nil || u.User != nil || !strings.EqualFold(u.Host, r.Host) || (u.Path != "" && u.Path != "/") {
+			return false
+		}
+	}
+	return true
+}
+
+// safeNext keeps a post-login redirect on this site.
+func safeNext(next string) string {
+	if !strings.HasPrefix(next, "/") || strings.HasPrefix(next, "//") || strings.ContainsAny(next, "\\\r\n") {
+		return "/"
+	}
+	return next
 }
 
 // sameOrigin rejects cross-site form posts (with SameSite=Strict cookies this
@@ -220,7 +274,12 @@ func sameOrigin(next http.Handler) http.Handler {
 func securityHeaders(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		h := w.Header()
-		h.Set("Content-Security-Policy", "default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; frame-ancestors 'none'")
+		if strings.HasPrefix(r.URL.Path, "/app/") || strings.HasPrefix(r.URL.Path, "/api/") {
+			// The browser app has no inline script or style.
+			h.Set("Content-Security-Policy", "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'")
+		} else {
+			h.Set("Content-Security-Policy", "default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; frame-ancestors 'none'")
+		}
 		h.Set("X-Content-Type-Options", "nosniff")
 		h.Set("Referrer-Policy", "same-origin")
 		next.ServeHTTP(w, r)
@@ -228,19 +287,20 @@ func securityHeaders(next http.Handler) http.Handler {
 }
 
 func (srv *Server) loginPage(w http.ResponseWriter, r *http.Request) {
-	srv.render(w, "login", map[string]any{"Failed": r.URL.Query().Has("failed")})
+	srv.render(w, "login", map[string]any{"Failed": r.URL.Query().Has("failed"), "Next": safeNext(r.URL.Query().Get("next"))})
 }
 
 func (srv *Server) login(w http.ResponseWriter, r *http.Request) {
 	time.Sleep(300 * time.Millisecond) // slows guessing
+	next := safeNext(r.FormValue("next"))
 	if subtle.ConstantTimeCompare([]byte(r.FormValue("password")), []byte(srv.Password)) != 1 {
-		http.Redirect(w, r, "/login?failed", http.StatusSeeOther)
+		http.Redirect(w, r, "/login?failed&next="+url.QueryEscape(next), http.StatusSeeOther)
 		return
 	}
 	exp := time.Now().Add(30 * 24 * time.Hour).Unix()
 	http.SetCookie(w, &http.Cookie{Name: cookieName, Value: srv.sign(exp), Path: "/", HttpOnly: true,
 		Secure: r.TLS != nil || r.Header.Get("X-Forwarded-Proto") == "https", SameSite: http.SameSiteStrictMode, MaxAge: 30 * 24 * 3600})
-	http.Redirect(w, r, "/", http.StatusSeeOther)
+	http.Redirect(w, r, next, http.StatusSeeOther)
 }
 
 func (srv *Server) logout(w http.ResponseWriter, r *http.Request) {
@@ -390,62 +450,8 @@ func (srv *Server) actionResolve(w http.ResponseWriter, r *http.Request) {
 
 // actionCheck looks for an uncertain send in the mailbox's Sent folder.
 func (srv *Server) actionCheck(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-	a, err := srv.S.Action(ctx, pathID(r))
-	if err != nil {
-		done(w, r, "", "", err)
-		return
-	}
-	if a.MessageID == "" {
-		done(w, r, "", "", fmt.Errorf("%w: no Message-ID recorded; check the mailbox by hand", outreach.ErrInvalid))
-		return
-	}
-	if acct, _ := srv.mailStore().Get(a.Sender); acct != nil {
-		found, err := mail.FindSent(acct, a.MessageID)
-		if err != nil {
-			done(w, r, "", "", err)
-			return
-		}
-		if found {
-			done(w, r, "", fmt.Sprintf("Found #%d in %s; recorded as sent", a.ID, acct.SentFolder), srv.S.Resolve(ctx, a.ID, true, &channel.Result{ProviderID: a.MessageID, ThreadID: a.MessageID}))
-			return
-		}
-		note := ""
-		if !acct.SavesSent {
-			note = " This provider doesn't file SMTP sends in Sent by itself, so a missing copy isn't proof; check with the recipient if it matters."
-		}
-		done(w, r, "", fmt.Sprintf("#%d is not in %s.%s", a.ID, acct.SentFolder, note), nil)
-		return
-	}
-	mb, err := srv.Accounts.Mailbox(a.Sender)
-	if err != nil {
-		done(w, r, "", "", err)
-		return
-	}
-	found, err := mb.FindSent(ctx, a.MessageID)
-	if err != nil {
-		done(w, r, "", "", err)
-		return
-	}
-	if found.ProviderID != "" {
-		done(w, r, "", fmt.Sprintf("Found #%d in Sent mail; recorded as sent", a.ID), srv.S.Resolve(ctx, a.ID, true, &found))
-		return
-	}
-	// Not found by Message-ID. Gmail may not keep the id we set, so this is
-	// not proof it wasn't sent: show what was sent to them around then.
-	since := a.CreatedAt.Add(-time.Hour)
-	subjects, err := mb.SentTo(ctx, a.Recipient, since)
-	if err != nil {
-		done(w, r, "", "", err)
-		return
-	}
-	msg := fmt.Sprintf("#%d was not found by Message-ID. Nothing else was sent to %s since %s either, so it most likely did not go out; check by hand before returning it to drafts.",
-		a.ID, a.Recipient, since.Local().Format("2 Jan 15:04"))
-	if len(subjects) > 0 {
-		msg = fmt.Sprintf("#%d was not found by Message-ID, but Sent mail has %d message(s) to %s since %s: %q. If one is this message, choose \"It was sent\".",
-			a.ID, len(subjects), a.Recipient, since.Local().Format("2 Jan 15:04"), subjects)
-	}
-	done(w, r, "", msg, nil)
+	res, err := sentmail.Check(r.Context(), srv.S, srv.mailStore(), srv.Accounts, pathID(r))
+	done(w, r, "", res.Message, err)
 }
 
 func (srv *Server) replyClassify(w http.ResponseWriter, r *http.Request) {

@@ -27,6 +27,7 @@ import (
 	"github.com/AstrolabeGTM/astrolabe/internal/sandbox"
 	"github.com/AstrolabeGTM/astrolabe/internal/score"
 	"github.com/AstrolabeGTM/astrolabe/internal/store"
+	"github.com/AstrolabeGTM/astrolabe/internal/views"
 	"github.com/AstrolabeGTM/astrolabe/internal/web"
 )
 
@@ -245,15 +246,40 @@ func run(ctx context.Context, args []string, out io.Writer) error {
 	}
 }
 
+// doctorFor runs the setup checks with this process's configuration.
+func doctorFor(cfg app.Config) func(context.Context, bool) []doctor.Check {
+	return func(ctx context.Context, connect bool) []doctor.Check {
+		return doctor.Run(ctx, doctor.Input{DatabaseURL: cfg.DatabaseURL, ProductsDir: cfg.ProductsDir, SecretsDir: cfg.SecretsDir,
+			Mode: cfg.Mode, Password: cfg.Password, Connect: connect})
+	}
+}
+
+// loaded holds the valid products and the problems with the others, and
+// reloads both together.
+type loaded struct {
+	a    *app.App
+	list atomic.Pointer[[]*product.Product]
+	errs atomic.Pointer[[]views.LoadIssue]
+}
+
+func (l *loaded) Products() []*product.Product { return *l.list.Load() }
+func (l *loaded) Issues() []views.LoadIssue    { return *l.errs.Load() }
+
+func (l *loaded) Reload(ctx context.Context) error {
+	list, err := l.a.LoadProducts(ctx)
+	problems := views.LoadIssues(err)
+	l.list.Store(&list)
+	l.errs.Store(&problems)
+	return err
+}
+
 // loadProducts loads valid products and logs problems with the others.
-func loadProducts(ctx context.Context, a *app.App) *atomic.Pointer[[]*product.Product] {
-	var p atomic.Pointer[[]*product.Product]
-	list, err := a.LoadProducts(ctx)
-	if err != nil {
+func loadProducts(ctx context.Context, a *app.App) *loaded {
+	l := &loaded{a: a}
+	if err := l.Reload(ctx); err != nil {
 		slog.Warn("some products were not loaded", "err", err)
 	}
-	p.Store(&list)
-	return &p
+	return l
 }
 
 func serve(ctx context.Context, cfg app.Config) error {
@@ -284,12 +310,7 @@ func serve(ctx context.Context, cfg app.Config) error {
 	w := &web.Server{S: a.Outreach, Signals: a.Signals, Writer: a.Writer, Accounts: a.Accounts,
 		Hooks:  &hooks.Handler{Signals: a.Signals, Out: a.Outreach, Secret: hooks.EnvSecret, Forms: a.Forms},
 		Studio: a.Studio, Updates: a.Updates, Mode: a.Cfg.Mode, Mail: a.Mail, Password: cfg.Password,
-		Products: func() []*product.Product { return *products.Load() },
-		Reload: func(ctx context.Context) error {
-			list, err := a.LoadProducts(ctx)
-			products.Store(&list)
-			return err
-		}}
+		Products: products.Products, Reload: products.Reload, LoadIssues: products.Issues, Doctor: doctorFor(cfg)}
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, r *http.Request) {
 		if err := a.Pool.Ping(r.Context()); err != nil {

@@ -59,6 +59,10 @@ func (s *Service) now() time.Time {
 // ErrInvalid is returned for requests that break a rule; the message says which.
 var ErrInvalid = errors.New("invalid")
 
+// ErrStale is returned when something changed after the operator looked at
+// it (for example a draft rewritten while it was on screen): look again.
+var ErrStale = errors.New("changed")
+
 func invalid(format string, a ...any) error {
 	return fmt.Errorf("%w: %s", ErrInvalid, fmt.Sprintf(format, a...))
 }
@@ -439,6 +443,12 @@ func (s *Service) advance(ctx context.Context, tx pgx.Tx, enrollmentID int64, fi
 	}
 	_, err = tx.Exec(ctx, `UPDATE enrollments SET next_step = $2, next_due_at = $3 WHERE id = $1`, enrollmentID, next, due)
 	return err
+}
+
+// ContentHash is the hash approval covers, for text that is about to be
+// saved (see Action.ContentHash).
+func ContentHash(channel, sender, recipient, subject, body string) string {
+	return approvalHash(channel, sender, recipient, subject, body)
 }
 
 // approvalHash covers exactly what is approved: changing any part of it

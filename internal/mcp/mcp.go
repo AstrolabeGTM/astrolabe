@@ -16,17 +16,20 @@ import (
 	sdk "github.com/modelcontextprotocol/go-sdk/mcp"
 
 	"github.com/AstrolabeGTM/astrolabe/internal/content"
+	"github.com/AstrolabeGTM/astrolabe/internal/doctor"
 	"github.com/AstrolabeGTM/astrolabe/internal/draft"
 	"github.com/AstrolabeGTM/astrolabe/internal/forms"
 	"github.com/AstrolabeGTM/astrolabe/internal/funnel"
-	"github.com/AstrolabeGTM/astrolabe/internal/notes"
+	"github.com/AstrolabeGTM/astrolabe/internal/gmail"
+	"github.com/AstrolabeGTM/astrolabe/internal/mail"
 	"github.com/AstrolabeGTM/astrolabe/internal/outreach"
 	"github.com/AstrolabeGTM/astrolabe/internal/people"
 	"github.com/AstrolabeGTM/astrolabe/internal/product"
 	"github.com/AstrolabeGTM/astrolabe/internal/render"
-	"github.com/AstrolabeGTM/astrolabe/internal/score"
+	"github.com/AstrolabeGTM/astrolabe/internal/sentmail"
 	"github.com/AstrolabeGTM/astrolabe/internal/signal"
 	"github.com/AstrolabeGTM/astrolabe/internal/updates"
+	"github.com/AstrolabeGTM/astrolabe/internal/views"
 )
 
 type Server struct {
@@ -42,6 +45,14 @@ type Server struct {
 	Mode        string                      // sandbox or live
 	ProductsDir string
 	Products    func() []*product.Product
+	// LoadIssues lists product folders that failed to load, and why.
+	LoadIssues func() []views.LoadIssue
+	// Mail and Accounts are the sending mailboxes (check_sent, setup).
+	Mail     *mail.Store
+	Accounts *gmail.Accounts
+	// Doctor runs the setup checks (astrolabe doctor); connect also tests
+	// logins, keys and DNS.
+	Doctor func(ctx context.Context, connect bool) []doctor.Check
 }
 
 // Run serves MCP over stdin/stdout until the client disconnects.
@@ -74,12 +85,16 @@ Rules: use only claims from product_context.claims; never use never_claim phrase
 	// Products and setup
 	register(srv, "product_setup", "Create products/<id>/ from a short interview: name, one-liner, who it's for, funnel stages, activation stage, one offer (promise, call to action, URL), sender mailboxes, never-claims, and (if the operator agreed them) claims and voice text. Ask for each before calling. Without claims/voice the files are STUB and the product won't load until filled in. Never overwrites.", s.productSetup)
 	register(srv, "products", "List loaded products: offer, funnel stages, sequences and their steps.", s.products)
+	register(srv, "setup", "Configuration as the operator checks it: loaded products with their folders, product folders that failed to load with each problem and its fix, sending mailboxes and whether each is connected, every pause switch (all sending, per product, per sequence) and webhook endpoints with whether their secret is set.", s.setup)
+	register(srv, "doctor", "Run the setup checks (astrolabe doctor): database, mode, password, products, mailboxes, channel secrets, public URL, webhooks and tokens, each ok, a warning or a problem, with the fix. connect=true also tests mailbox logins, the GitHub token, the Claude key and SPF/DMARC, without sending anything.", s.doctor)
+	register(srv, "reload_products", "Re-read the product folders (after editing product.yaml, sequences, automations or monitors) and report any that failed to load.", s.reloadProducts)
+	register(srv, "status", "The instance at a glance: mode (sandbox or live), loaded products with their sequences, how many product folders failed to load, active pauses, and whether AI drafting is on.", s.status)
 	register(srv, "product_context", "Everything needed to write for a product: one-liner, who it's for (target), offer, allowed claims (claims.md), never-claims and voice (voice.md). Call before drafting.", s.productContext)
 
 	// People and signals
 	register(srv, "top_prospects", "Highest-priority people for a product who aren't excluded, with the score breakdown (fit/intent/why_now) and whether they were already contacted. min_tier defaults to B.", s.hot)
-	register(srv, "people", "List or search a product's people by name, email or company domain.", s.people)
-	register(srv, "person", "Everything about one person (id or email): facts, how they said they heard of you (reported_source, apart from first touch), scores, research notes, sequences, messages and replies.", s.person)
+	register(srv, "people", "List or search a product's people by name, email or company domain, best priority first: score (fit, intent, why now), sequences, and the outreach guard's reason if the product may not email them. total counts all matches; limit defaults to 100.", s.people)
+	register(srv, "person", "Everything about one person (id or email): identities and where each came from, how they said they heard of you (reported_source, apart from first touch), conversation notes, facts, scores with breakdown, research notes, sequences, messages, replies, signals, open tasks, do-not-contact, and for each product whether the outreach guard lets it email them (and why not).", s.person)
 	register(srv, "import_people", "Import people from CSV text with a header row. Columns: email, github, name, first_name, title, company, company_domain, notes, facts (';'-separated, e.g. dep:bullmq). Matches existing people by email or GitHub.", s.importPeople)
 	register(srv, "import_companies", "Import companies (no people needed) from CSV text with a header row: domain, company (or name), facts (';'-separated lowercase kind:value, e.g. fact:sells_to_enterprise;dep:bullmq), notes. Other columns are ignored. Matches existing companies by domain, so re-importing is safe. Returns each company's fit against the product's fit rules.", s.importCompanies)
 	register(srv, "set_company_facts", "Add kind:value facts to a company (id or domain) by hand; they count toward the company's fit and toward everyone who works there. Rescores.", s.setCompanyFacts)
@@ -96,9 +111,11 @@ Rules: use only claims from product_context.claims; never use never_claim phrase
 	// Sequences and messages
 	register(srv, "start_sequence", "Start a sequence for people (by id). One active sequence per person per product; the first draft appears immediately. A person known only from GitHub is refused for any sequence with an email step (GitHub's Acceptable Use Policies); the reason is in `skipped`.", s.enroll)
 	register(srv, "inbox", "Everything waiting on the operator: sends needing a decision, replies to label, due tasks, drafts, and queued sends.", s.inbox)
+	register(srv, "today", "What is waiting on the operator, most urgent first: replies to label, drafts to approve (exact sender, recipient, text and flags), held, blocked, failed or unknown sends with their reason, and tasks due today. Each item has its age and its response target (replies 2 hours, drafts and held sends 1 day, tasks their due time) and whether it is past or near it; counts are complete even when the list is capped. Same as the browser app's Today screen.", s.today)
+	register(srv, "check_sent", "For a send whose delivery is unknown: look for it in the sending mailbox's Sent folder by Message-ID. If found it is recorded as sent; otherwise nothing changes and the result says what to check by hand.", s.checkSent)
 	register(srv, "write_draft", "Set a draft's text (email subject/body, or the note for a manual LinkedIn/X task). Any earlier approval is withdrawn.", s.writeDraft)
 	register(srv, "ai_draft", "Have the Claude API write a draft now from claims, voice, research and the triggering signal. Returns it with flags; never sends.", s.aiDraft)
-	register(srv, "approve", "Approve drafts exactly as saved. Emails queue for sending (still checked against do-not-contact, limits and pauses); manual tasks are marked done.", s.approve)
+	register(srv, "approve", "Approve drafts exactly as saved. Emails queue for sending (still checked against do-not-contact, limits and pauses); manual tasks are marked done. Pass content_hashes (from inbox/today, one per id) to refuse a draft that changed after the operator saw it.", s.approve)
 	register(srv, "skip", "Skip drafts; the sequence moves on to its next step.", s.skip)
 	register(srv, "resolve_send", "For a send whose delivery is unknown or failed: sent=true records it as sent; sent=false puts it back in drafts for a fresh approval. Nothing is ever re-sent automatically.", s.resolve)
 	register(srv, "label_reply", "Label a reply: interested, question, not_now, no, out_of_office, unsubscribe. no/unsubscribe add the person to do-not-contact; interested/question create a task; not_now creates a reminder (remind_on, default 30 days).", s.classify)
@@ -117,7 +134,7 @@ Rules: use only claims from product_context.claims; never use never_claim phrase
 	register(srv, "experiments", "A/B results per sequence step: sends, replies, reached goal with 95% intervals, and a verdict (says when there is too little data).", s.experiments)
 	register(srv, "digest", "This week's summary per product: what moved, automations, experiments, stuck people, uncontacted A-tier people, biggest drop, and up to three concrete actions.", s.digestNow)
 	register(srv, "counters", "Public counters from github_release monitors: release download counts per asset and in total, plus stars, forks, watchers, open issues and discussions, with the change over the last 7 days against the 7 before (both windows stated). A download count counts downloads of a release file, not installs or people. These numbers are never tied to a person and make no signals. Omit product for all.", s.counters)
-	register(srv, "reception", "The week's public mentions of a product (HN, Stack Overflow, RSS, GitHub, or logged by hand) with counts by tone (positive, mixed, negative, unknown), how many ask a question, and the 7-day window. Monitors with reception: true fill it. Omit product for all.", s.reception)
+	register(srv, "reception", "Public mentions of a product (HN, Stack Overflow, RSS, GitHub, or logged by hand) over the last days days (default 7) with counts by tone (positive, mixed, negative, unknown), how many ask a question, and the window's dates. Monitors with reception: true fill it. Omit product for all.", s.reception)
 	register(srv, "log_mention", "Log a public mention of a product by hand: URL, optional title/excerpt, source (hn, stackoverflow, rss, github, manual, ...), date (YYYY-MM-DD, default today), tone and whether it asks a question. A URL already logged is kept once.", s.logMention)
 	register(srv, "set_tone", "Set the tone of a logged mention by id: positive, mixed, negative or unknown.", s.setTone)
 	register(srv, "content", "Turn release notes or a post into drafts for x, linkedin, hn, reddit, newsletter, producthunt, directories, each with a tracked link. launch=true also adds a posting task per platform.", s.content)
@@ -238,6 +255,13 @@ type idsArg struct {
 	ActionIDs []int64 `json:"action_ids"`
 }
 
+type approveArg struct {
+	ActionIDs []int64 `json:"action_ids"`
+	// ContentHashes, if given, holds one content_hash per action id: the
+	// version the operator saw.
+	ContentHashes []string `json:"content_hashes,omitempty" jsonschema:"optional: the content_hash of each draft as the operator saw it, in the order of action_ids; a draft that changed since is refused"`
+}
+
 type resolveArg struct {
 	ActionID int64 `json:"action_id"`
 	Sent     bool  `json:"sent"`
@@ -335,11 +359,10 @@ func (s *Server) productContext(ctx context.Context, a productArg) (any, error) 
 }
 
 func (s *Server) people(ctx context.Context, a peopleArg) (any, error) {
-	if a.Limit <= 0 {
-		a.Limit = 100
+	if _, err := s.find(a.Product); err != nil {
+		return nil, err
 	}
-	list, err := people.List(ctx, s.S.Pool, a.Product, a.Search, a.Limit)
-	return map[string]any{"people": list}, err
+	return views.GetPeople(ctx, s.S.Pool, a.Product, a.Search, a.Limit)
 }
 
 func (s *Server) resolvePerson(ctx context.Context, who string) (*people.Person, error) {
@@ -358,108 +381,19 @@ func (s *Server) person(ctx context.Context, a personArg) (any, error) {
 	if err != nil {
 		return nil, err
 	}
-	type enrollment struct {
-		Product, Sequence, Status, StopReason string
-		NextStep                              int
-	}
-	rows, err := s.S.Pool.Query(ctx, `SELECT product_id, sequence_id, status, stop_reason, next_step + 1 FROM enrollments WHERE person_id = $1`, p.ID)
-	if err != nil {
-		return nil, err
-	}
-	var enrolls []enrollment
-	for rows.Next() {
-		var e enrollment
-		if err := rows.Scan(&e.Product, &e.Sequence, &e.Status, &e.StopReason, &e.NextStep); err != nil {
-			return nil, err
-		}
-		enrolls = append(enrolls, e)
-	}
-	rows.Close()
-	type msg struct {
-		ID                             int64
-		Channel, Status, Subject, Body string
-		SentAt                         *time.Time
-	}
-	rows, err = s.S.Pool.Query(ctx, `SELECT id, channel, status, subject, body, sent_at FROM actions WHERE person_id = $1 ORDER BY id`, p.ID)
-	if err != nil {
-		return nil, err
-	}
-	var msgs []msg
-	for rows.Next() {
-		var m msg
-		if err := rows.Scan(&m.ID, &m.Channel, &m.Status, &m.Subject, &m.Body, &m.SentAt); err != nil {
-			return nil, err
-		}
-		msgs = append(msgs, m)
-	}
-	rows.Close()
-	type reply struct {
-		ID                            int64
-		Subject, Body, Classification string
-		ReceivedAt                    time.Time
-	}
-	rows, err = s.S.Pool.Query(ctx, `SELECT id, subject, body, classification, received_at FROM replies WHERE person_id = $1 ORDER BY received_at`, p.ID)
-	if err != nil {
-		return nil, err
-	}
-	var replies []reply
-	for rows.Next() {
-		var r reply
-		if err := rows.Scan(&r.ID, &r.Subject, &r.Body, &r.Classification, &r.ReceivedAt); err != nil {
-			return nil, err
-		}
-		replies = append(replies, r)
-	}
-	rows.Close()
-	var briefs []map[string]any
-	brows, err := s.S.Pool.Query(ctx, `SELECT DISTINCT ON (product_id) product_id, body, created_at FROM briefs WHERE person_id = $1 ORDER BY product_id, id DESC`, p.ID)
-	if err != nil {
-		return nil, err
-	}
-	for brows.Next() {
-		var prod, body string
-		var at time.Time
-		if err := brows.Scan(&prod, &body, &at); err != nil {
-			return nil, err
-		}
-		briefs = append(briefs, map[string]any{"product": prod, "brief": body, "written": at})
-	}
-	brows.Close()
-	var scores []any
-	for _, pr := range s.Products() {
-		if sc, ok, _ := score.Get(ctx, s.S.Pool, pr.ID, p.ID); ok {
-			scores = append(scores, map[string]any{"product": pr.ID, "tier": sc.Tier, "priority": sc.Priority, "why": sc.Summary()})
-		}
-	}
-	facts, _ := people.Facts(ctx, s.S.Pool, p.ID)
-	convos, err := notes.List(ctx, s.S.Pool, notes.ListOpts{PersonID: p.ID}, time.Now())
-	if err != nil {
-		return nil, err
-	}
-	reported, err := s.reportedSources(ctx, p.ID)
-	if err != nil {
-		return nil, err
-	}
-	return map[string]any{"person": p, "facts": facts, "conversations": convos, "reported_source": reported, "scores": scores, "briefs": briefs, "enrollments": enrolls, "messages": msgs, "replies": replies}, nil
+	return views.GetPerson(ctx, s.S, s.Products(), p.ID, time.Now())
 }
 
 func (s *Server) importPeople(ctx context.Context, a importArg) (any, error) {
 	if _, err := s.find(a.Product); err != nil {
 		return nil, err
 	}
-	rows, err := people.ReadCSV(strings.NewReader(a.CSV))
-	if err != nil {
-		return nil, err
-	}
-	return people.Import(ctx, s.S.Pool, a.Product, rows)
+	return views.ImportPeople(ctx, s.S.Pool, a.Product, a.CSV)
 }
 
 func (s *Server) enroll(ctx context.Context, a enrollArg) (any, error) {
-	res, err := s.S.Enroll(ctx, a.Product, a.Sequence, a.PersonIDs)
+	res, err := views.StartSequence(ctx, s.S, a.Product, a.Sequence, a.PersonIDs)
 	if err != nil {
-		return nil, err
-	}
-	if _, err := s.S.Tick(ctx); err != nil {
 		return nil, err
 	}
 	return res, nil
@@ -498,6 +432,22 @@ func (s *Server) inbox(ctx context.Context, a inboxArg) (any, error) {
 		"drafts": drafts, "queued": queued, "paused": pauses}, nil
 }
 
+func (s *Server) today(ctx context.Context, a inboxArg) (any, error) {
+	t, err := views.GetToday(ctx, s.S, a.Product, time.Now())
+	if err != nil {
+		return nil, err
+	}
+	mode := s.Mode
+	if mode == "" {
+		mode = "live"
+	}
+	return map[string]any{"mode": mode, "today": t}, nil
+}
+
+func (s *Server) checkSent(ctx context.Context, a actionArg) (any, error) {
+	return sentmail.Check(ctx, s.S, s.Mail, s.Accounts, a.ActionID)
+}
+
 func (s *Server) writeDraft(ctx context.Context, a draftArg) (any, error) {
 	cur, err := s.S.Action(ctx, a.ActionID)
 	if err != nil {
@@ -513,8 +463,15 @@ func (s *Server) writeDraft(ctx context.Context, a draftArg) (any, error) {
 	return s.S.Action(ctx, a.ActionID)
 }
 
-func (s *Server) approve(ctx context.Context, a idsArg) (any, error) {
-	res, err := each(a.ActionIDs, func(id int64) error { return s.S.Approve(ctx, id) })
+func (s *Server) approve(ctx context.Context, a approveArg) (any, error) {
+	if len(a.ContentHashes) > 0 && len(a.ContentHashes) != len(a.ActionIDs) {
+		return nil, errors.New("content_hashes must have one entry per action id")
+	}
+	seen := map[int64]string{}
+	for i, h := range a.ContentHashes {
+		seen[a.ActionIDs[i]] = h
+	}
+	res, err := each(a.ActionIDs, func(id int64) error { return s.S.ApproveSeen(ctx, id, seen[id]) })
 	if m, ok := res.(map[string]any); ok && s.Mode == "sandbox" {
 		m["note"] = "Sandbox mode: approved messages go to the local outbox, not to real people."
 	}

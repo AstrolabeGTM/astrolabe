@@ -194,6 +194,22 @@ Keep it under 180 words.`})
 
 var subjectLine = regexp.MustCompile(`(?i)^\s*subject:\s*(.+)$`)
 
+// Redraft has Claude (re)write a draft now, replacing its text. The web
+// app and the MCP tool ai_draft use it. Only drafts can be redrafted.
+func (w *Writer) Redraft(ctx context.Context, actionID int64) error {
+	if !w.LLM.Enabled() {
+		return fmt.Errorf("%w: the Claude API is not configured (ASTROLABE_ANTHROPIC_API_KEY); write the text yourself", outreach.ErrInvalid)
+	}
+	tag, err := w.Pool.Exec(ctx, `UPDATE actions SET ai_state = 'pending' WHERE id = $1 AND status = 'draft'`, actionID)
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() == 0 {
+		return fmt.Errorf("%w: action %d is not a draft", outreach.ErrInvalid, actionID)
+	}
+	return w.DraftAction(ctx, actionID)
+}
+
 // DraftAction writes the text of a pending draft and, if auto_approve allows
 // and nothing was flagged, approves it.
 func (w *Writer) DraftAction(ctx context.Context, actionID int64) error {
