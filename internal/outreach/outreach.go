@@ -55,6 +55,10 @@ func (s *Service) now() time.Time {
 // ErrInvalid is returned for requests that break a rule; the message says which.
 var ErrInvalid = errors.New("invalid")
 
+// ErrStale is returned when something changed after the operator looked at
+// it (for example a draft rewritten while it was on screen): look again.
+var ErrStale = errors.New("changed")
+
 func invalid(format string, a ...any) error {
 	return fmt.Errorf("%w: %s", ErrInvalid, fmt.Sprintf(format, a...))
 }

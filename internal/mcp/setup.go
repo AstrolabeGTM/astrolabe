@@ -5,6 +5,7 @@ import (
 	"errors"
 
 	"github.com/AstrolabeGTM/astrolabe/internal/product"
+	"github.com/AstrolabeGTM/astrolabe/internal/views"
 )
 
 func (s *Server) productSetup(ctx context.Context, a product.Spec) (any, error) {
@@ -28,4 +29,19 @@ func (s *Server) productSetup(ctx context.Context, a product.Spec) (any, error) 
 	}
 	res["status"] = "loaded; add fit rules, monitors.yaml and plays.yaml next"
 	return res, nil
+}
+
+func (s *Server) loadErrors() []string {
+	if s.LoadErrors == nil {
+		return nil
+	}
+	return s.LoadErrors()
+}
+
+func (s *Server) status(ctx context.Context, _ noArgs) (any, error) {
+	mode := s.Mode
+	if mode == "" {
+		mode = "live"
+	}
+	return views.GetStatus(ctx, s.S, mode, s.Products(), s.loadErrors(), s.aiEnabled() == nil)
 }

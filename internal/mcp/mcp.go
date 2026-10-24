@@ -35,6 +35,8 @@ type Server struct {
 	Mode        string                      // sandbox or live
 	ProductsDir string
 	Products    func() []*product.Product
+	// LoadErrors lists product folders that failed to load, in plain words.
+	LoadErrors func() []string
 }
 
 // Run serves MCP over stdin/stdout until the client disconnects.
@@ -67,6 +69,7 @@ Rules: use only claims from product_context.claims; never use never_claim phrase
 	// Products and setup
 	register(srv, "product_setup", "Create products/<id>/ from a short interview: name, one-liner, who it's for, funnel stages, activation stage, one offer (promise, call to action, URL), sender mailboxes, never-claims, and (if the operator agreed them) claims and voice text. Ask for each before calling. Without claims/voice the files are STUB and the product won't load until filled in. Never overwrites.", s.productSetup)
 	register(srv, "products", "List loaded products: offer, funnel stages, sequences and their steps.", s.products)
+	register(srv, "status", "The instance at a glance: mode (sandbox or live), loaded products with their sequences, how many product folders failed to load, active pauses, and whether AI drafting is on.", s.status)
 	register(srv, "product_context", "Everything needed to write for a product: one-liner, who it's for (target), offer, allowed claims (claims.md), never-claims and voice (voice.md). Call before drafting.", s.productContext)
 
 	// People and signals

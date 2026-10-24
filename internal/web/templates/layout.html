@@ -37,6 +37,7 @@ pre{white-space:pre-wrap;margin:6px 0;font:inherit}.bar{height:22px;background:v
 <a href="/content" class="{{if eq .Active "content"}}on{{end}}">Content</a>
 <a href="/digest" class="{{if eq .Active "digest"}}on{{end}}">Digest</a>
 <a href="/settings" class="{{if eq .Active "settings"}}on{{end}}">Settings</a>
+<a href="/app/" style="color:var(--acc);font-weight:600">Try the new app →</a>
 <form method="post" action="/logout"><button>Log out</button></form></nav>
 <main>
 {{if .Flash}}<div class="flash">{{.Flash}}</div>{{end}}
@@ -53,8 +54,23 @@ document.addEventListener('keydown', e => {
 });
 </script></body></html>{{end}}
 
-{{define "login"}}<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Astrolabe</title>
-<style>body{font:15px system-ui;display:grid;place-items:center;height:100vh;margin:0;background:#fbfbfa}@media (prefers-color-scheme:dark){body{background:#161615;color:#ecebe8}}input,button{font:inherit;padding:8px 10px}</style></head>
-<body><form method="post" action="/login"><h1 style="font-size:20px">Astrolabe</h1>
-{{if .Failed}}<p style="color:#b3261e">Wrong password.</p>{{end}}
-<input type="password" name="password" placeholder="Password" autofocus required> <button>Sign in</button></form></body></html>{{end}}
+{{define "login"}}<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Sign in · Astrolabe</title>
+<link rel="icon" href="/app/mark.svg" type="image/svg+xml">
+<style>
+:root{--bg:#f5f4ef;--card:#fffefb;--ink:#1b2130;--mut:#565e6e;--line:#dcd9cf;--btn:#24325a;--btn-ink:#fff;--brass:#9a6b1f;--bad:#a1281f;--focus:#2f6fe0}
+@media (prefers-color-scheme:dark){:root{--bg:#11141c;--card:#181c27;--ink:#e8e6df;--mut:#a3a9b6;--line:#2b3140;--btn:#d6a755;--btn-ink:#17130a;--brass:#d6a755;--bad:#f28b82;--focus:#8fb1ff}}
+*{box-sizing:border-box}body{margin:0;min-height:100vh;display:grid;place-items:center;background:var(--bg);color:var(--ink);font:16px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif;padding:16px}
+main{width:min(380px,100%);background:var(--card);border:1px solid var(--line);border-radius:14px;padding:32px}
+.mark{color:var(--brass);width:40px;height:40px}h1{font-size:24px;margin:12px 0 4px;letter-spacing:-.01em}p{color:var(--mut);margin:0 0 20px}
+label{display:block;font-weight:550;margin-bottom:6px}input{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:inherit;font:inherit}
+button{margin-top:16px;width:100%;padding:11px;border:0;border-radius:8px;background:var(--btn);color:var(--btn-ink);font:inherit;font-weight:600;cursor:pointer}
+:focus-visible{outline:3px solid var(--focus);outline-offset:2px}.err{color:var(--bad);font-weight:550}
+</style></head>
+<body><main>
+<svg class="mark" viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="16" cy="4.5" r="2.25" stroke-width="1.8"/><path d="M16 6.75V8" stroke-width="1.8"/><circle cx="16" cy="19" r="11" stroke-width="2"/><circle cx="16" cy="19" r="6.5" stroke-width="1.4"/><path d="M16 8v2.2M16 27.8V30M5 19h2.2M24.8 19H27" stroke-width="1.4"/><path d="M8.6 26.4 23.4 11.6" stroke-width="2"/><path d="m11 11.2.9 2.1 2.1.9-2.1.9-.9 2.1-.9-2.1-2.1-.9 2.1-.9z" fill="currentColor" stroke="none"/></svg>
+<h1>Astrolabe</h1><p>Sign in with the password from <code>ASTROLABE_PASSWORD</code>.</p>
+{{if .Failed}}<p class="err" role="alert">Wrong password. Try again.</p>{{end}}
+<form method="post" action="/login"><input type="hidden" name="next" value="{{.Next}}">
+<label for="password">Password</label>
+<input id="password" type="password" name="password" autocomplete="current-password" autofocus required>
+<button>Sign in</button></form></main></body></html>{{end}}
