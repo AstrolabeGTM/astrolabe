@@ -319,7 +319,9 @@ func serve(ctx context.Context, cfg app.Config) error {
 		}
 		w.Write([]byte("ok"))
 	})
-	if err := mountMCP(mux, newMCPServer(ctx, a, cfg, products), cfg); err != nil {
+	tools := newMCPServer(ctx, a, cfg, products)
+	w.Tools = tools.Handlers() // the browser app's API calls the same tools
+	if err := mountMCP(mux, tools, cfg); err != nil {
 		return err
 	}
 	mux.Handle("/", w.Handler())

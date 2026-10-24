@@ -173,3 +173,78 @@ func (s *Studio) Mark(ctx context.Context, id int64, status, postedURL string) e
 		return nil
 	})
 }
+
+// Entry is a content item on the calendar, on the day it is due (its
+// posting task's due date) or, without a task, the day it was made.
+type Entry struct {
+	Item
+	Day      string `json:"day"` // YYYY-MM-DD
+	Due      bool   `json:"has_due_date"`
+	Overdue  bool   `json:"overdue,omitempty"` // due before today and not posted or skipped
+	Campaign string `json:"campaign,omitempty"`
+	Task     string `json:"task,omitempty"` // the posting task's next action
+}
+
+// Calendar is a window of content days.
+type Calendar struct {
+	Product string  `json:"product,omitempty"`
+	From    string  `json:"from"`
+	To      string  `json:"to"`
+	Entries []Entry `json:"entries"`
+	Total   int     `json:"total"`
+	Posted  int     `json:"posted"`
+	Skipped int     `json:"skipped"`
+	Overdue int     `json:"overdue"`
+}
+
+// Calendar lists content items whose day falls from from to to (inclusive,
+// local days), oldest first, with how many of them are posted, skipped and
+// overdue.
+func (s *Studio) Calendar(ctx context.Context, productID string, from, to, today time.Time) (*Calendar, error) {
+	rows, err := s.Pool.Query(ctx, `
+		SELECT c.id, c.product_id, c.batch, c.platform, c.body, COALESCE(c.link_code, ''), c.status, c.posted_url,
+			(SELECT count(*) FROM clicks k WHERE k.code = c.link_code), c.task_id, c.created_at, c.posted_at,
+			COALESCE(t.due_at, c.created_at), t.due_at IS NOT NULL, COALESCE(c.campaign_id, ''), COALESCE(t.next_action, '')
+		FROM content_items c LEFT JOIN tasks t ON t.id = c.task_id
+		WHERE ($1 = '' OR c.product_id = $1) AND COALESCE(t.due_at, c.created_at) >= $2 AND COALESCE(t.due_at, c.created_at) < $3
+		ORDER BY COALESCE(t.due_at, c.created_at), c.id`, productID, from, to.AddDate(0, 0, 1))
+	if err != nil {
+		return nil, err
+	}
+	cal := &Calendar{Product: productID, From: from.Format("2006-01-02"), To: to.Format("2006-01-02"), Entries: []Entry{}}
+	todayStr := today.Format("2006-01-02")
+	err = forEach(rows, func(r pgx.Rows) error {
+		var e Entry
+		var code string
+		var at time.Time
+		if err := r.Scan(&e.ID, &e.Product, &e.Batch, &e.Platform, &e.Body, &code, &e.Status, &e.PostedURL, &e.Clicks, &e.TaskID,
+			&e.CreatedAt, &e.PostedAt, &at, &e.Due, &e.Campaign, &e.Task); err != nil {
+			return err
+		}
+		e.Link = links.URL(s.PublicURL, code)
+		e.Day = at.In(today.Location()).Format("2006-01-02")
+		e.Overdue = e.Due && e.Status == "draft" && e.Day < todayStr
+		cal.Total++
+		switch {
+		case e.Status == "posted":
+			cal.Posted++
+		case e.Status == "skipped":
+			cal.Skipped++
+		case e.Overdue:
+			cal.Overdue++
+		}
+		cal.Entries = append(cal.Entries, e)
+		return nil
+	})
+	return cal, err
+}
+
+func forEach(rows pgx.Rows, f func(pgx.Rows) error) error {
+	defer rows.Close()
+	for rows.Next() {
+		if err := f(rows); err != nil {
+			return err
+		}
+	}
+	return rows.Err()
+}

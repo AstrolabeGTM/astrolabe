@@ -2,6 +2,7 @@
 import { e, api, post, state, pageHead, empty, ago, day, dateTime, ext, productName, field, formData, openDialog, words, plural } from "./lib.js";
 import { startSequenceDialog, actions as seqActions, forms as seqForms } from "./sequences.js";
 import { taskDialog } from "./today.js";
+import { conversationDialog, submitConversation, notesList } from "./conversation.js";
 
 const SOURCE = {
   github: "found through GitHub", event: "from your product's events", stripe: "from a Stripe payment", reply: "they wrote from it",
@@ -81,7 +82,11 @@ function aside(v) {
       <form class="form" data-form="facts">${field("facts", "Add facts", { help: "kind:value, separated by commas, e.g. dep:bullmq, team:5-50. Fit rules in product.yaml match on these." })}
       <div class="form-actions"><button class="btn btn-sm">Add facts</button></div></form>`) +
     section("p-research", "Research notes", (briefs || `<p class="muted">None yet.</p>`) + research) +
-    section("p-tasks", "Open tasks", tasks ? `<ul class="plain-list">${tasks}</ul><p class="help">Close them on <a href="#today">Today</a>.</p>` : `<p class="muted">None.</p>`);
+    section("p-tasks", "Open tasks", tasks ? `<ul class="plain-list">${tasks}</ul><p class="help">Close them on <a href="#today">Today</a>.</p>` : `<p class="muted">None.</p>`) +
+    section("p-stop", "Stop contact or erase", `<p class="help">Do not contact keeps them but no product will message them again (you can undo it). Forget erases everything about them on their request, after showing what would go.</p>
+      <div class="row">${v.do_not_contact ? `<button type="button" class="btn btn-sm" data-action="person-allow">Allow contact again</button>`
+        : `<button type="button" class="btn btn-sm btn-danger" data-action="person-dnc">Do not contact…</button>`}
+      <button type="button" class="btn btn-sm btn-danger" data-action="person-forget">Forget this person…</button></div>`);
 }
 
 function render(v) {
@@ -97,6 +102,7 @@ function render(v) {
     ? `<p class="notice bad"><strong>Do not contact</strong> since ${e(day(v.do_not_contact.since))}: ${e(words(v.do_not_contact.reason))}${v.do_not_contact.detail ? ` (${e(v.do_not_contact.detail)})` : ""}. No product will message them.</p>` : "";
   return `${pageHead(nameOf(p), "One person across your products. Score is 0.4 × fit + 0.4 × intent + 0.2 × why now, out of 100; priority A is 70 or more. Scores rank people; they never allow contact on their own.")}
     <p class="item-meta">${sub}${v.products.length ? ` · in ${v.products.map(x => e(productName(x))).join(", ")}` : ""}</p>
+    ${(v.reported_source || []).map(r => `<p class="item-meta">Said they came from: <q>${e(r.self_reported)}</q> (${e(productName(r.product))}; first touch: ${e(r.first_touch || "unknown")})</p>`).join("")}
     ${p.notes ? `<p>${e(p.notes)}</p>` : ""}${dnc}
     <div class="person-grid"><div>
       ${section("p-email", "Email", emailPolicy(v), `<p class="muted">The outreach guard, per product</p>`)}
@@ -104,8 +110,21 @@ function render(v) {
       ${section("p-seq", "Sequences", enrollments(v))}
       ${section("p-msg", "Messages", messages(v), `<p class="muted">Newest first</p>`)}
       ${section("p-rep", "Replies", replies(v))}
+      ${section("p-notes", "Conversations", notesList(v.conversations, { showPerson: false, showCompany: true }))}
       ${section("p-sig", "Signals", signals(v))}
     </div><aside aria-label="Identities, facts and notes">${aside(v)}</aside></div>`;
+}
+
+// forgetReport shows what forgetting erases (or erased), table by table,
+// and what must be deleted by hand.
+function forgetReport(r) {
+  const rows = Object.entries(r.deleted || {}).filter(([, n]) => n > 0).sort().map(([t, n]) => `<li><span>${e(words(t))}</span><span class="num">${n}</span></li>`).join("");
+  const scrub = Object.entries(r.scrubbed || {}).filter(([, n]) => n > 0).map(([t, n]) => `<li><span>${e(words(t))} (mentions removed from text)</span><span class="num">${n}</span></li>`).join("");
+  const remote = [...(r.remote_planned || []), ...(r.remote_left || [])];
+  return `<h3>${r.dry_run ? "Would be erased" : "Erased"}</h3>${rows || scrub ? `<ul class="tally">${rows}${scrub}</ul>` : `<p class="muted">Nothing found.</p>`}
+    ${remote.length ? `<h3 class="section">Copies elsewhere</h3><ul class="flags">${remote.map(x => `<li>${e(x.source)} ${e(x.form || "")} submission ${e(x.id)}${x.error ? `: ${e(x.error)}` : r.dry_run ? ": deleted through its API" : ": delete it by hand"}</li>`).join("")}</ul>` : ""}
+    ${(r.review || []).length ? `<h3 class="section">Look at these yourself</h3><ul class="plain-list">${r.review.map(x => `<li>${e(x)}</li>`).join("")}</ul>` : ""}
+    ${(r.not_covered || []).length ? `<details><summary>What Astrolabe cannot reach (${r.not_covered.length})</summary><ul class="plain-list help">${r.not_covered.map(x => `<li>${e(x)}</li>`).join("")}</ul></details>` : ""}`;
 }
 
 export default {
@@ -113,15 +132,15 @@ export default {
   load: params => api(`/api/people/${encodeURIComponent(params.id || "")}`),
   render,
   crumbs: v => [{ label: "People", href: "#people" }, { label: v ? nameOf(v.person) : "Person" }],
-  pageActions: v => v ? `<button type="button" class="btn btn-sm" data-action="person-start">Start a sequence</button>
-    <button type="button" class="btn btn-sm" data-action="person-task">Add a task</button>
-    ${v.do_not_contact ? `<button type="button" class="btn btn-sm" data-action="person-allow">Allow contact again</button>`
-      : `<button type="button" class="btn btn-sm btn-danger" data-action="person-dnc">Do not contact</button>`}` : "",
+  pageActions: v => v ? `<button type="button" class="btn btn-sm btn-primary" data-action="person-log">Log a conversation</button>
+    <button type="button" class="btn btn-sm" data-action="person-start">Start a sequence</button>
+    <button type="button" class="btn btn-sm" data-action="person-task">Add a task</button>` : "",
   actions: {
     ...seqActions,
     "person-start": (b, ctx) => startSequenceDialog([ctx.data.person.id], { productId: ctx.data.products[0] || state.boot.products[0]?.id,
       who: nameOf(ctx.data.person), names: { [ctx.data.person.id]: nameOf(ctx.data.person) } }),
     "person-task": (b, ctx) => taskDialog(ctx.data.person.id),
+    "person-log": (b, ctx) => conversationDialog({ product: ctx.data.products.length === 1 ? ctx.data.products[0] : "", person: String(ctx.data.person.id), personName: nameOf(ctx.data.person) }),
     "person-dnc": (b, ctx) => openDialog({
       title: `Do not contact ${nameOf(ctx.data.person)}?`,
       description: "No product will message them again: sequences stop and unsent messages are held. You can undo this.",
@@ -129,11 +148,32 @@ export default {
         <div class="form-actions"><button type="button" class="btn" data-close>Cancel</button><button class="btn btn-primary">Do not contact</button></div></form>`,
     }),
     "person-allow": async (b, ctx) => ctx.done((await post(`/api/people/${ctx.data.person.id}/do-not-contact`, { allow: true })).status),
+    "person-forget": async (b, ctx) => {
+      const p = ctx.data.person;
+      const r = (await post("/api/people/forget", { person: String(p.id) })).report;
+      const word = p.email || "forget";
+      openDialog({
+        title: `Forget ${nameOf(p)}?`, wide: true,
+        description: "This erases everything about them, on their request. Nothing has been deleted yet: below is what would go. It cannot be undone.",
+        body: `<form class="form" data-form="person-forget" data-word="${e(word)}">${forgetReport(r)}
+          <p class="help">Accounts and companies stay. A salted hash of their addresses and GitHub login is kept so a later import, form, monitor or reply is dropped and they are never contacted again.</p>
+          ${field("confirm", `Type ${word} to confirm`, { required: true, attrs: 'autocomplete="off"' })}
+          <div class="form-actions"><button type="button" class="btn" data-close>Keep them</button><button class="btn btn-primary btn-destructive">Erase everything</button></div></form>`,
+      });
+    },
   },
   forms: {
     ...seqForms,
+    "log-conversation": async (f, ctx) => { await submitConversation(f); await ctx.done("Conversation saved."); },
     facts: async (f, ctx) => ctx.done((await post(`/api/people/${ctx.data.person.id}/facts`, { facts: formData(f).facts })).status),
     research: async (f, ctx) => ctx.done((await post(`/api/people/${ctx.data.person.id}/research`, { product: formData(f).product })).status),
     "person-dnc": async (f, ctx) => ctx.done((await post(`/api/people/${ctx.data.person.id}/do-not-contact`, { reason: formData(f).reason })).status),
+    "person-forget": async (f, ctx) => {
+      if (formData(f).confirm.trim() !== f.dataset.word) throw new Error(`Type ${f.dataset.word} exactly to confirm.`);
+      const r = (await post("/api/people/forget", { person: String(ctx.data.person.id), confirm: true })).report;
+      location.hash = "#people";
+      openDialog({ title: "Forgotten", description: "Everything about them in Astrolabe is erased.",
+        body: `${forgetReport(r)}<div class="form-actions"><button type="button" class="btn btn-primary" data-close>Done</button></div>` });
+    },
   },
 };

@@ -21,6 +21,7 @@ func (srv *Server) peopleRoutes() []apiRoute {
 		{"POST /api/people/{id}/do-not-contact", "do_not_contact", srv.apiDoNotContact},
 		{"POST /api/people/{id}/research", "research", srv.apiResearch},
 		{"POST /api/sequences/start", "start_sequence", srv.apiStartSequence},
+		srv.toolRoute("POST /api/people/forget", "forget_person"),
 	}
 }
 

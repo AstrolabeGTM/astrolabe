@@ -3,7 +3,7 @@
 **Go-to-market for the everyday programmer.** You built something. Astrolabe finds people who have the problem it solves, drafts outreach you approve, follows up, and shows which efforts turn into users and revenue, without learning five sales tools.
 
 - **Talk to it from Claude** (MCP): "who should I contact this week?", "draft intros for the top 5", "why did activation drop?"
-- **Or use the web app** at `/app/`: Today (everything waiting on you, oldest past its target first), people, signals, reception and setup. It can do exactly what the MCP tools can.
+- **Or use the web app** at `/app/`: Today (everything waiting on you, oldest past its target first), the account pipeline, people, signals, campaigns and creatives, the content calendar, the updates list, and results (reception, funnel, the weekly review). It can do exactly what the MCP tools can.
 - **Configure it like code**: each product is a folder of YAML and Markdown in git. Your editor autocompletes it, and `astrolabe doctor` checks it.
 - **Self-host it**: one Docker image plus Postgres, like Mattermost or Penpot. Open source under AGPL-3.0.
 
@@ -21,11 +21,11 @@ Open http://localhost:8080/app/ and sign in with `ASTROLABE_PASSWORD` from `.env
 
 1. **People:** tick a few demo people, then **Start a sequence** with `intro`.
 2. **Today:** read the draft (the exact sender, recipient and text), then **Approve**, or **Edit** it first.
-3. **Outbox** (under Classic pages in the sidebar): the message is there. Play the recipient: **Simulate reply** (or bounce).
+3. **Outbox** (in the sidebar in sandbox mode): the message is there. Play the recipient: **Simulate a reply** (or a bounce).
 4. **Today:** the sequence stopped and the reply waits to be labelled. Mark it *Interested* and a task appears.
 5. **Signals → Add a signal by hand** with type `referral`: the `referral-intro` automation starts a sequence by itself.
 
-The classic pages (the Inbox at http://localhost:8080 and the rest) still work while their screens move to the new app.
+Then look at **Pipeline** (the demo's accounts by stage; open one and **Log a conversation**), **Campaigns** (the launch-week campaign and its creative) and the **Weekly review**. The classic pages (the Inbox at http://localhost:8080 and the rest) still work for now.
 
 ## Use it from Claude or Codex
 

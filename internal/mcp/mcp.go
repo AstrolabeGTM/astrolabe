@@ -60,7 +60,11 @@ func (s *Server) Run(ctx context.Context, version string) error {
 	return s.Build(version).Run(ctx, &sdk.StdioTransport{})
 }
 
-func (s *Server) Build(version string) *sdk.Server {
+func (s *Server) Build(version string) *sdk.Server { return s.build(version, nil) }
+
+// build makes the server; with capture, register also records every tool
+// there (see Handlers).
+func (s *Server) build(version string, capture map[string]Handler) *sdk.Server {
 	srv := sdk.NewServer(&sdk.Implementation{Name: "astrolabe", Version: version}, &sdk.ServerOptions{
 		Instructions: `Astrolabe is go-to-market for developers: it finds people who need your product, drafts outreach you approve, and measures what converts. Each product is a folder of YAML + Markdown (products/<id>/).
 
@@ -81,6 +85,10 @@ Drafts may already be written by the Claude API (ai_state "done"; "flags" lists 
 If inbox reports mode "sandbox", nothing reaches real people: say "sent to the sandbox outbox", never "sent", and offer simulate_reply to try the rest of the flow.
 Rules: use only claims from product_context.claims; never use never_claim phrases; approve sends exactly the saved text, so never approve without the operator's say-so.` + pipelineInstructions + notesInstructions + reviewInstructions + updatesInstructions + forgetInstructions,
 	})
+	if capture != nil {
+		capturing.Store(srv, capture)
+		defer capturing.Delete(srv)
+	}
 
 	// Products and setup
 	register(srv, "product_setup", "Create products/<id>/ from a short interview: name, one-liner, who it's for, funnel stages, activation stage, one offer (promise, call to action, URL), sender mailboxes, never-claims, and (if the operator agreed them) claims and voice text. Ask for each before calling. Without claims/voice the files are STUB and the product won't load until filled in. Never overwrites.", s.productSetup)
@@ -111,7 +119,7 @@ Rules: use only claims from product_context.claims; never use never_claim phrase
 	// Sequences and messages
 	register(srv, "start_sequence", "Start a sequence for people (by id). One active sequence per person per product; the first draft appears immediately. A person known only from GitHub is refused for any sequence with an email step (GitHub's Acceptable Use Policies); the reason is in `skipped`.", s.enroll)
 	register(srv, "inbox", "Everything waiting on the operator: sends needing a decision, replies to label, due tasks, drafts, and queued sends.", s.inbox)
-	register(srv, "today", "What is waiting on the operator, most urgent first: replies to label, drafts to approve (exact sender, recipient, text and flags), held, blocked, failed or unknown sends with their reason, and tasks due today. Each item has its age and its response target (replies 2 hours, drafts and held sends 1 day, tasks their due time) and whether it is past or near it; counts are complete even when the list is capped. Same as the browser app's Today screen.", s.today)
+	register(srv, "today", "What is waiting on the operator, most urgent first: replies to label, drafts to approve (exact sender, recipient, text and flags), held, blocked, failed or unknown sends with their reason, tasks due today (form requests included, with how long ago they arrived), pipeline accounts whose next action is overdue, and paused or lost accounts whose revisit date has come. Each item has its age and its response target (replies 2 hours, drafts and held sends 1 day, tasks their due time) and whether it is past or near it; counts are complete even when the list is capped. Same as the browser app's Today screen.", s.today)
 	register(srv, "check_sent", "For a send whose delivery is unknown: look for it in the sending mailbox's Sent folder by Message-ID. If found it is recorded as sent; otherwise nothing changes and the result says what to check by hand.", s.checkSent)
 	register(srv, "write_draft", "Set a draft's text (email subject/body, or the note for a manual LinkedIn/X task). Any earlier approval is withdrawn.", s.writeDraft)
 	register(srv, "ai_draft", "Have the Claude API write a draft now from claims, voice, research and the triggering signal. Returns it with flags; never sends.", s.aiDraft)
@@ -132,7 +140,7 @@ Rules: use only claims from product_context.claims; never use never_claim phrase
 	register(srv, "automation_runs", "Recent automation runs with outcome and the reason for skips.", s.playRuns)
 	register(srv, "funnel", "Funnel report for the last N days: people per stage, median days between stages, who is stuck, weekly cohorts, what brought people in (first touch and automation), form requests by the source people reported, revenue, spend, task outcomes.", s.funnel)
 	register(srv, "experiments", "A/B results per sequence step: sends, replies, reached goal with 95% intervals, and a verdict (says when there is too little data).", s.experiments)
-	register(srv, "digest", "This week's summary per product: what moved, automations, experiments, stuck people, uncontacted A-tier people, biggest drop, and up to three concrete actions.", s.digestNow)
+	register(srv, "digest", "This week's summary per product: what moved, automations, experiments, stuck people, uncontacted A-tier people, biggest drop, and up to three concrete actions. latest=true returns the last digest as it was emailed instead.", s.digestNow)
 	register(srv, "counters", "Public counters from github_release monitors: release download counts per asset and in total, plus stars, forks, watchers, open issues and discussions, with the change over the last 7 days against the 7 before (both windows stated). A download count counts downloads of a release file, not installs or people. These numbers are never tied to a person and make no signals. Omit product for all.", s.counters)
 	register(srv, "reception", "Public mentions of a product (HN, Stack Overflow, RSS, GitHub, or logged by hand) over the last days days (default 7) with counts by tone (positive, mixed, negative, unknown), how many ask a question, and the window's dates. Monitors with reception: true fill it. Omit product for all.", s.reception)
 	register(srv, "log_mention", "Log a public mention of a product by hand: URL, optional title/excerpt, source (hn, stackoverflow, rss, github, manual, ...), date (YYYY-MM-DD, default today), tone and whether it asks a question. A URL already logged is kept once.", s.logMention)
@@ -144,6 +152,7 @@ Rules: use only claims from product_context.claims; never use never_claim phrase
 		register(srv, "simulate_reply", "Sandbox only: play the recipient and reply to an outbox message; runs the real reply handling (sequence stops, reply appears to label).", s.simulateReply)
 		register(srv, "simulate_bounce", "Sandbox only: make an outbox email bounce; the person goes on do-not-contact.", s.simulateBounce)
 	}
+	register(srv, "content_calendar", "Content by day: drafts and posts (launch posts, campaign posting tasks, repurposed release notes) on the day their posting task is due, or the day they were made, for a window (default from 7 days ago, 28 days). Each says whether it is posted (with its URL and clicks), skipped or overdue; counts out of the total.", s.contentCalendar)
 	register(srv, "content_mark", "Mark a content item posted (with its URL) or skipped.", s.contentMark)
 	s.registerPipeline(srv) // account pipeline: pipeline.go
 	s.registerNotes(srv)    // conversation notes: notes.go
@@ -198,12 +207,14 @@ var salesTerms = map[string]string{
 	"log_mention":       "log a brand mention, coverage or press hit",
 	"set_tone":          "tag sentiment of a mention",
 	"content":           "social posts, launch posts, content marketing",
+	"content_calendar":  "editorial calendar, content calendar, social media schedule, posting schedule",
 }
 
 func register[In any](srv *sdk.Server, name, desc string, f func(context.Context, In) (any, error)) {
 	if aka := salesTerms[name]; aka != "" {
 		desc += " (Sales terms: " + aka + ".)"
 	}
+	record(srv, name, f)
 	sdk.AddTool(srv, &sdk.Tool{Name: name, Description: desc},
 		func(ctx context.Context, _ *sdk.CallToolRequest, in In) (*sdk.CallToolResult, any, error) {
 			out, err := f(ctx, in)
@@ -433,7 +444,7 @@ func (s *Server) inbox(ctx context.Context, a inboxArg) (any, error) {
 }
 
 func (s *Server) today(ctx context.Context, a inboxArg) (any, error) {
-	t, err := views.GetToday(ctx, s.S, a.Product, time.Now())
+	t, err := views.GetToday(ctx, s.S, s.Products(), a.Product, time.Now())
 	if err != nil {
 		return nil, err
 	}

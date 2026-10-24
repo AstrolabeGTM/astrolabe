@@ -68,7 +68,21 @@ func (s *Server) experiments(ctx context.Context, a productArg) (any, error) {
 	return map[string]any{"experiments": res}, err
 }
 
-func (s *Server) digestNow(ctx context.Context, _ noArgs) (any, error) {
+type digestArg struct {
+	Latest bool `json:"latest,omitempty" jsonschema:"the last digest as it was emailed, instead of building this week's now"`
+}
+
+func (s *Server) digestNow(ctx context.Context, a digestArg) (any, error) {
+	if a.Latest {
+		body, at, err := digest.Latest(ctx, s.S.Pool)
+		if err != nil {
+			return nil, err
+		}
+		if body == "" {
+			return map[string]any{"latest": true, "text": "", "note": "No digest has been made yet; one is built every Monday from 08:00."}, nil
+		}
+		return map[string]any{"latest": true, "text": body, "made_at": at}, nil
+	}
 	d, err := digest.Build(ctx, s.S.Pool, s.Products(), time.Now())
 	if err != nil {
 		return nil, err
@@ -150,4 +164,37 @@ func (s *Server) logMention(ctx context.Context, a mentionArg) (any, error) {
 
 func (s *Server) setTone(ctx context.Context, a toneArg) (any, error) {
 	return ok(reception.SetTone(ctx, s.S.Pool, a.ID, a.Tone))
+}
+
+type calendarArg struct {
+	Product string `json:"product,omitempty" jsonschema:"product id; omit for all"`
+	From    string `json:"from,omitempty" jsonschema:"YYYY-MM-DD; default 7 days ago"`
+	Days    int    `json:"days,omitempty" jsonschema:"how many days from 'from', default 28"`
+}
+
+// contentCalendar lists content items and their posting tasks by day.
+func (s *Server) contentCalendar(ctx context.Context, a calendarArg) (any, error) {
+	if s.Studio == nil {
+		return nil, errors.New("content is not configured")
+	}
+	if a.Product != "" {
+		if _, err := s.find(a.Product); err != nil {
+			return nil, err
+		}
+	}
+	now := time.Now()
+	y, m, d := now.Date()
+	today := time.Date(y, m, d, 0, 0, 0, 0, time.Local)
+	from := today.AddDate(0, 0, -7)
+	if a.From != "" {
+		t, err := time.ParseInLocation("2006-01-02", a.From, time.Local)
+		if err != nil {
+			return nil, errors.New("from must be YYYY-MM-DD")
+		}
+		from = t
+	}
+	if a.Days <= 0 {
+		a.Days = 28
+	}
+	return s.Studio.Calendar(ctx, a.Product, from, from.AddDate(0, 0, a.Days-1), today)
 }

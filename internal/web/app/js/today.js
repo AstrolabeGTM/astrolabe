@@ -1,8 +1,8 @@
 // Today: everything waiting on the operator, most urgent first.
-import { e, api, post, query, state, pageHead, empty, plural, span, ago, dateTime, ext, productName, productOptions,
+import { e, api, post, query, state, pageHead, empty, plural, span, ago, day, dateTime, ext, productName, productOptions,
   currentProduct, field, formData, openDialog, words } from "./lib.js";
 
-const KIND = { reply: "Reply", approval: "Draft", held: "Held send", task: "Task", queued: "Queued" };
+const KIND = { reply: "Reply", approval: "Draft", held: "Held send", task: "Task", queued: "Queued", account: "Account", revisit: "Revisit" };
 const LABEL = { interested: "Interested", question: "Question", not_now: "Not now…", no: "No", out_of_office: "Out of office", unsubscribe: "Unsubscribe" };
 const OUTCOME = {
   activated: "Activated (records the activation stage)", paid: "Paid (records the paid stage)", wrong_fit: "Wrong fit",
@@ -18,8 +18,10 @@ function targetWords(sec) {
 function timing(it) {
   const age = it.age_seconds;
   let text;
-  if (it.kind === "task") {
+  if (it.kind === "task" || it.kind === "account") {
     text = age >= 0 ? `due ${span(age)} ago` : `due in ${span(-age)}`;
+  } else if (it.kind === "revisit") {
+    text = age >= 86400 ? `revisit date ${span(age)} ago` : "revisit date is today";
   } else if (it.kind === "queued") {
     text = `approved ${span(age)} ago`;
   } else {
@@ -171,12 +173,35 @@ function taskItem(it) {
   if (k.play) meta.push(`from automation ${e(k.play)}`);
   if (k.evidence_url) meta.push(ext(k.evidence_url, "source"));
   if (k.answer_action_id) meta.push(`your answer is draft #${e(k.answer_action_id)}`);
-  return article(it, h, `<p class="item-meta">${meta.join(" · ")} · due ${e(dateTime(k.due_at))}</p>
+  return article(it, h, `<p class="item-meta">${meta.join(" · ")} · made ${ago(k.created_at)} · due ${e(dateTime(k.due_at))}</p>
     ${k.draft ? `<details class="item-body"><summary>Suggested text</summary><pre class="message">${e(k.draft)}</pre></details>` : ""}
     <div class="item-actions"><button type="button" class="btn" data-action="close-task" data-id="${e(k.id)}">Close with an outcome…</button></div>`);
 }
 
-const RENDER = { reply: replyItem, approval: draftItem, held: heldItem, queued: queuedItem, task: taskItem };
+// ---- accounts ----
+
+function accountLink(a) {
+  return `<a href="#account/${e(a.id)}?product=${encodeURIComponent(a.product)}">${e(a.company)}</a>`;
+}
+
+function accountItem(it) {
+  const a = it.account;
+  const h = head(it, `${accountLink(a)} <span class="muted">next action overdue</span>`, `<span class="tag brass">Account</span>`);
+  return article(it, h, `<p class="item-meta">${e(productName(a.product))} · ${e(words(a.stage))} for ${plural(a.days_in_stage, "day")}${a.stuck ? " · stuck" : ""}</p>
+    <p class="reason warn">${e(a.next_action)} (due ${e(day(a.next_due))})</p>
+    <div class="item-actions"><a class="btn" href="#account/${e(a.id)}?product=${encodeURIComponent(a.product)}">Open the account</a></div>
+    <p class="help">Do it, then set the next one on the account page; an open account always has exactly one next action.</p>`);
+}
+
+function revisitItem(it) {
+  const a = it.account;
+  const h = head(it, `${accountLink(a)} <span class="muted">to look at again</span>`, `<span class="tag brass">Revisit</span>`);
+  return article(it, h, `<p class="item-meta">${e(productName(a.product))} · ${e(a.status)} from ${e(words(a.stage))} · reason ${e(words(a.reason))} · revisit on ${e(day(a.revisit_on))}</p>
+    <div class="item-actions"><a class="btn" href="#account/${e(a.id)}?product=${encodeURIComponent(a.product)}">Open the account</a></div>
+    <p class="help">Reopen it by moving it to a stage, or pause it again with a new revisit date.</p>`);
+}
+
+const RENDER = { reply: replyItem, approval: draftItem, held: heldItem, queued: queuedItem, task: taskItem, account: accountItem, revisit: revisitItem };
 
 // ---- the page ----
 
@@ -188,12 +213,13 @@ function render(t) {
   const c = t.counts;
   const tg = t.targets;
   const pastOf = (k, target) => `${c[k].past} of ${c[k].total} past the ${targetWords(target)} target`;
-  const top = pageHead("Today", `Replies to label, drafts to approve, held sends and tasks due today, oldest past its response target first. Targets: replies ${span(tg.reply_seconds)}, drafts and held sends ${span(tg.approval_seconds)}, tasks their due time.`);
+  const top = pageHead("Today", `Replies to label, drafts to approve, held sends, tasks due today (form requests included) and accounts whose next action or revisit date has come, oldest past its target first. Targets: replies ${span(tg.reply_seconds)}, drafts and held sends ${span(tg.approval_seconds)}, tasks and accounts their due date.`);
   const stats = `<dl class="stats" aria-label="Waiting on you${t.product ? ` for ${e(productName(t.product))}` : ""}">
     ${stat("Replies to label", c.reply, pastOf("reply", tg.reply_seconds))}
     ${stat("Drafts to approve", c.approval, pastOf("approval", tg.approval_seconds))}
     ${stat("Held sends", c.held, pastOf("held", tg.held_seconds))}
     ${stat("Tasks due today", c.task, `${c.task.past} of ${c.task.total} overdue · ${t.later_tasks} due later`)}
+    ${state.boot?.products.some(p => p.pipeline) ? `<div class="stat"><dt>Accounts needing you</dt><dd>${c.account.total + c.revisit.total}<span class="sub">${c.account.total} of ${t.open_accounts} open overdue · ${c.revisit.total} of ${t.paused_or_lost_accounts} paused or lost to revisit</span></dd></div>` : ""}
   </dl>`;
   const waiting = t.items.filter(i => i.kind !== "queued");
   if (!waiting.length && !c.queued.total) {
@@ -213,6 +239,7 @@ function render(t) {
     section("Drafts to approve", rest("approval"), `<p class="muted">${e(t.note)}</p>`) +
     section("Held sends", rest("held")) +
     section("Tasks due today", rest("task")) +
+    section("Accounts", [...rest("account"), ...rest("revisit")]) +
     section("Queued to send", t.items.filter(i => i.kind === "queued"));
 }
 

@@ -31,6 +31,12 @@ type Board struct {
 	RevisitDue []*Account `json:"revisit_due"`
 	Open       []*Account `json:"accounts,omitempty"`
 	Closed     []*Account `json:"closed,omitempty"`
+	// The qualification setup: the gate stage, its gating checks, the
+	// record-only checks, and the reasons for pausing or losing an account.
+	Gate    string   `json:"gate,omitempty"`
+	Checks  []string `json:"checks"`
+	Record  []string `json:"record_checks,omitempty"`
+	Reasons []string `json:"reasons"`
 }
 
 // BuildBoard summarises a product's pipeline at now.
@@ -42,7 +48,14 @@ func BuildBoard(ctx context.Context, q store.Q, p *product.Product, now time.Tim
 	if err != nil {
 		return nil, err
 	}
-	b := &Board{Product: p.ID, StuckAfter: p.Pipeline.StuckAfter, Stuck: []*Account{}, Overdue: []*Account{}, RevisitDue: []*Account{}}
+	b := &Board{Product: p.ID, StuckAfter: p.Pipeline.StuckAfter, Stuck: []*Account{}, Overdue: []*Account{}, RevisitDue: []*Account{},
+		Checks: []string{}, Reasons: p.PipelineReasons()}
+	if qa := p.Pipeline.Qualify; qa != nil {
+		b.Gate, b.Checks, b.Record = qa.Gate, qa.Checks, qa.Record
+	}
+	if err := fillAnswers(ctx, q, list); err != nil {
+		return nil, err
+	}
 	if b.StuckAfter == "" {
 		b.StuckAfter = "14d"
 	}
@@ -76,11 +89,45 @@ func BuildBoard(ctx context.Context, q store.Q, p *product.Product, now time.Tim
 	return b, nil
 }
 
+// fillAnswers sets each account's check answers (for chips on a board).
+func fillAnswers(ctx context.Context, q store.Q, list []*Account) error {
+	byID := map[int64]*Account{}
+	ids := make([]int64, 0, len(list))
+	for _, a := range list {
+		byID[a.ID], a.Answers = a, map[string]string{}
+		ids = append(ids, a.ID)
+	}
+	rows, err := q.Query(ctx, `SELECT account_id, name, answer FROM account_checks WHERE account_id = ANY($1)`, ids)
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var id int64
+		var n, ans string
+		if err := rows.Scan(&id, &n, &ans); err != nil {
+			return err
+		}
+		byID[id].Answers[n] = ans
+	}
+	return rows.Err()
+}
+
 // Summary drops the per-account lists, keeping counts and what needs
 // attention (for the digest).
 func (b *Board) Summary() *Board {
 	s := *b
 	s.Open, s.Closed = nil, nil
+	strip := func(l []*Account) []*Account {
+		out := make([]*Account, len(l))
+		for i, a := range l {
+			c := *a
+			c.Answers = nil
+			out[i] = &c
+		}
+		return out
+	}
+	s.Stuck, s.Overdue, s.RevisitDue = strip(s.Stuck), strip(s.Overdue), strip(s.RevisitDue)
 	return &s
 }
 

@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -27,6 +28,7 @@ import (
 	"github.com/AstrolabeGTM/astrolabe/internal/product"
 	"github.com/AstrolabeGTM/astrolabe/internal/signal"
 	"github.com/AstrolabeGTM/astrolabe/internal/store"
+	"github.com/AstrolabeGTM/astrolabe/internal/updates"
 	"github.com/AstrolabeGTM/astrolabe/internal/views"
 )
 
@@ -38,6 +40,11 @@ func apiServer(t *testing.T) (*httptest.Server, *Server) {
 	ctx := context.Background()
 	pool := store.TestDB(t)
 	p := product.TestProduct(t)
+	p.Pipeline = &product.Pipeline{
+		Stages:  []string{"identified", "contacted", "qualified", "trial", "customer"},
+		Qualify: &product.Qualify{Gate: "qualified", Checks: []string{"pain", "champion"}, Record: []string{"budget"}},
+	}
+	p.Updates = &product.Updates{Name: "Demo updates", PerDay: 10, PostalAddress: "1 Example Street"}
 	if err := product.Sync(ctx, pool, []*product.Product{p}); err != nil {
 		t.Fatal(err)
 	}
@@ -46,9 +53,13 @@ func apiServer(t *testing.T) (*httptest.Server, *Server) {
 		t.Fatal(err)
 	}
 	o := &outreach.Service{Pool: pool, River: rc}
-	srv := &Server{S: o, Signals: &signal.Service{Pool: pool, River: rc}, Accounts: &gmail.Accounts{Dir: t.TempDir()}, Password: testPassword,
-		Products: func() []*product.Product { return []*product.Product{p} }, Reload: func(context.Context) error { return nil },
-		Studio: &content.Studio{Pool: pool, LLM: &llm.Client{}, Out: o}, Mode: "sandbox"}
+	sig := &signal.Service{Pool: pool, River: rc}
+	studio := &content.Studio{Pool: pool, LLM: &llm.Client{}, Out: o}
+	products := func() []*product.Product { return []*product.Product{p} }
+	srv := &Server{S: o, Signals: sig, Accounts: &gmail.Accounts{Dir: t.TempDir()}, Password: testPassword,
+		Products: products, Reload: func(context.Context) error { return nil }, Studio: studio, Mode: "sandbox"}
+	srv.Tools = (&mcp.Server{S: o, Signals: sig, Studio: studio, Mode: "sandbox", Products: products, ProductsDir: filepath.Dir(p.Dir),
+		Updates: &updates.Service{Pool: pool}}).Handlers()
 	ts := httptest.NewServer(srv.Handler())
 	t.Cleanup(ts.Close)
 	return ts, srv
@@ -519,5 +530,215 @@ func TestSettingsAPI(t *testing.T) {
 	}
 	if boot := s.get("/api/bootstrap"); boot["products_not_loaded"].(float64) != 1 {
 		t.Fatalf("status should count the folder that failed: %v", boot)
+	}
+}
+
+// TestToolRoutes: a route served by an MCP tool takes typed arguments from
+// the query string or the JSON body and answers what the tool answers.
+func TestToolRoutes(t *testing.T) {
+	ts, srv := apiServer(t)
+	s := newSession(t, ts)
+	if len(srv.Tools) < 90 {
+		t.Fatalf("the API sees %d tools", len(srv.Tools))
+	}
+	h := srv.Tools["conversations"]
+	b, err := queryArgs(url.Values{"product": {"demo"}, "days": {"7"}, "assisted": {"true"}}, h.In)
+	if err != nil || !strings.Contains(string(b), `"days":7`) || !strings.Contains(string(b), `"assisted":true`) {
+		t.Fatalf("query args: %s %v", b, err)
+	}
+	if _, err := queryArgs(url.Values{"nope": {"1"}}, h.In); err == nil {
+		t.Fatal("an unknown parameter was accepted")
+	}
+	if _, err := queryArgs(url.Values{"days": {"seven"}}, h.In); err == nil {
+		t.Fatal("a non-number was accepted for a number")
+	}
+	board := s.get("/api/pipeline?product=demo")
+	if board["product"] != "demo" {
+		t.Fatalf("pipeline: %v", board)
+	}
+	if code, body := s.post("/api/accounts/move", map[string]any{"product": "demo", "account": "nope.example", "stage": "qualified", "evidence": "x"}); code != http.StatusBadRequest || body["error"] == nil {
+		t.Fatalf("moving a missing account: %d %v", code, body)
+	}
+	if code, _ := s.post("/api/accounts/move", map[string]any{"product": "demo", "bogus": 1}); code != http.StatusBadRequest {
+		t.Fatalf("unknown field: %d", code)
+	}
+}
+
+func TestPipelineAPI(t *testing.T) {
+	ts, srv := apiServer(t)
+	s := newSession(t, ts)
+	a := s.mustPost("/api/accounts/add", map[string]any{"product": "demo", "company": "acme.example", "evidence": "Sam asked for help", "next_action": "Reply to Sam"})
+	id := fmt.Sprint(a["id"])
+	code, body := s.post("/api/accounts/move", map[string]any{"product": "demo", "account": id, "stage": "qualified", "evidence": "good call"})
+	if code != http.StatusBadRequest || !strings.Contains(body["error"].(string), "pain is unknown") {
+		t.Fatalf("the gate should refuse with the failing checks: %d %v", code, body)
+	}
+	s.mustPost("/api/accounts/qualify", map[string]any{"product": "demo", "account": id, "answers": []map[string]string{
+		{"check": "pain", "answer": "yes", "evidence": "re-runs every day"}, {"check": "champion", "answer": "yes", "evidence": "Sam"}}})
+	s.mustPost("/api/accounts/move", map[string]any{"product": "demo", "account": id, "stage": "qualified", "evidence": "good call"})
+	board := s.get("/api/pipeline?product=demo")
+	acct := board["accounts"].([]any)[0].(map[string]any)
+	if acct["stage"] != "qualified" || acct["answers"].(map[string]any)["pain"] != "yes" || len(board["checks"].([]any)) != 2 || len(board["reasons"].([]any)) == 0 {
+		t.Fatalf("board: %v", board)
+	}
+	s.mustPost("/api/accounts/close", map[string]any{"product": "demo", "account": id, "status": "paused", "reason": "no_timing", "revisit": "2030-01-01"})
+	if b := s.get("/api/pipeline?product=demo"); b["paused"].(float64) != 1 {
+		t.Fatalf("after pausing: %v", b)
+	}
+	if pb := s.get("/api/pipeline/people?product=demo"); pb["total"].(float64) != 0 || len(pb["stages"].([]any)) != 6 {
+		t.Fatalf("people board: %v", pb)
+	}
+	detail := s.get("/api/account?product=demo&account=" + id)
+	if detail["signals"] == nil || detail["messages"] == nil || detail["conversations"] == nil {
+		t.Fatalf("account: %v", detail)
+	}
+	if _, err := people.Import(context.Background(), srv.S.Pool, "demo", []people.Row{{Email: "sam@acme.example", Name: "Sam"}}); err != nil {
+		t.Fatal(err)
+	}
+	s.mustPost("/api/conversations", map[string]any{"product": "demo", "person": "sam@acme.example", "account": id, "channel": "call",
+		"summary": "Walked through a report", "their_words": "We lose a morning a week", "pricing_feedback": []map[string]string{{"offer": "Team $29", "reaction": "fine"}}})
+	if d := s.get("/api/account?product=demo&account=" + id); len(d["conversations"].([]any)) != 1 {
+		t.Fatalf("the conversation is not on the account: %v", d["conversations"])
+	}
+	if code, _ := s.post("/api/conversations", map[string]any{"product": "demo", "person": "sam@acme.example", "channel": "call"}); code != http.StatusBadRequest {
+		t.Fatalf("an empty note was accepted: %d", code)
+	}
+	if csv := s.get("/api/pipeline/export?product=demo"); !strings.Contains(csv["csv"].(string), "acme") {
+		t.Fatalf("export: %v", csv)
+	}
+}
+
+func TestCampaignRoutes(t *testing.T) {
+	ts, _ := apiServer(t)
+	s := newSession(t, ts)
+	if l := s.get("/api/campaigns?product=demo"); len(l["campaigns"].([]any)) != 0 {
+		t.Fatalf("campaigns: %v", l)
+	}
+	if code, body := do(t, s.c, "GET", ts.URL+"/api/campaign?product=demo&campaign=nope", "", nil); code != http.StatusBadRequest || !strings.Contains(body["error"].(string), "no campaign") {
+		t.Fatalf("a missing campaign: %d %v", code, body)
+	}
+	if code, _ := do(t, s.c, "GET", ts.URL+"/api/campaign/creatives/preview?product=demo&campaign=nope&creative=x&size=10x10", "", nil); code != http.StatusBadRequest {
+		t.Fatalf("a missing creative preview: %d", code)
+	}
+	if code, _ := do(t, s.c, "GET", ts.URL+"/api/campaign/creatives/file?product=demo&campaign=nope", "", nil); code != http.StatusBadRequest {
+		t.Fatalf("a missing creative file: %d", code)
+	}
+	if j := s.get("/api/campaigns/json"); j["file"] == nil {
+		t.Fatalf("campaigns.json: %v", j)
+	}
+}
+
+func TestReviewRoutes(t *testing.T) {
+	ts, _ := apiServer(t)
+	s := newSession(t, ts)
+	r := s.get("/api/review?product=demo")
+	if r["saved"] != false || r["review"] == nil {
+		t.Fatalf("review: %v", r)
+	}
+	week := r["review"].(map[string]any)["week"].(string)
+	s.mustPost("/api/review/save", map[string]any{"product": "demo", "week": week, "answers": []map[string]any{{"number": 1, "answer": "Two activated"}}})
+	r = s.get("/api/review?product=demo&week=" + week)
+	if r["saved"] != true {
+		t.Fatalf("after saving: %v", r)
+	}
+	if l := s.get("/api/review/saved?product=demo"); len(l["reviews"].([]any)) != 1 {
+		t.Fatalf("saved list: %v", l)
+	}
+}
+
+func TestUpdatesRoutes(t *testing.T) {
+	ts, _ := apiServer(t)
+	s := newSession(t, ts)
+	l := s.get("/api/updates/subscribers?product=demo")
+	if c := l["counts"].(map[string]any); c["confirmed"].(float64) != 0 || c["pending"].(float64) != 0 {
+		t.Fatalf("counts: %v", l)
+	}
+	b := s.mustPost("/api/broadcasts/create", map[string]any{"product": "demo", "subject": "News", "body": "Hello"})
+	id := b["broadcast"].(map[string]any)["id"]
+	s.mustPost("/api/broadcasts/edit", map[string]any{"id": id, "body": "Hello again"})
+	if list := s.get("/api/broadcasts?product=demo"); len(list["broadcasts"].([]any)) != 1 {
+		t.Fatalf("broadcasts: %v", list)
+	}
+	s.mustPost("/api/broadcasts/cancel", map[string]any{"id": id})
+}
+
+func TestContentCalendarRoutes(t *testing.T) {
+	ts, srv := apiServer(t)
+	ctx := context.Background()
+	var id int64
+	if err := srv.S.Pool.QueryRow(ctx, `INSERT INTO content_items (product_id, batch, platform, body) VALUES ('demo', 'v1', 'hn', 'Show HN') RETURNING id`).Scan(&id); err != nil {
+		t.Fatal(err)
+	}
+	s := newSession(t, ts)
+	cal := s.get("/api/content/calendar?product=demo")
+	if cal["total"].(float64) != 1 || cal["posted"].(float64) != 0 {
+		t.Fatalf("calendar: %v", cal)
+	}
+	s.mustPost("/api/content/mark", map[string]any{"id": id, "status": "posted", "url": "https://news.example/1"})
+	if cal = s.get("/api/content/calendar?product=demo"); cal["posted"].(float64) != 1 {
+		t.Fatalf("after posting: %v", cal)
+	}
+	if code, _ := s.post("/api/content", map[string]any{"product": "demo", "batch": "v2", "source": "notes"}); code != http.StatusBadRequest {
+		t.Fatalf("drafting without the Claude API: %d", code)
+	}
+}
+
+func TestTodayShowsAccounts(t *testing.T) {
+	ts, _ := apiServer(t)
+	s := newSession(t, ts)
+	yesterday := time.Now().AddDate(0, 0, -2).Format("2006-01-02")
+	s.mustPost("/api/accounts/add", map[string]any{"product": "demo", "company": "acme.example", "evidence": "asked", "next_action": "Reply to Sam", "due": yesterday})
+	b := s.mustPost("/api/accounts/add", map[string]any{"product": "demo", "company": "globex.example", "evidence": "asked", "next_action": "Call Priya"})
+	s.mustPost("/api/accounts/close", map[string]any{"product": "demo", "account": fmt.Sprint(b["id"]), "status": "paused", "reason": "no_timing", "revisit": time.Now().Format("2006-01-02")})
+	today := s.get("/api/today?product=demo")
+	kinds := map[string]int{}
+	for _, it := range today["items"].([]any) {
+		kinds[it.(map[string]any)["kind"].(string)]++
+	}
+	if kinds["account"] != 1 || kinds["revisit"] != 1 || count(today, "account") != 1 || count(today, "revisit") != 1 {
+		t.Fatalf("today should list the overdue next action and the revisit: %v %v", kinds, today["counts"])
+	}
+}
+
+func TestForgetRoute(t *testing.T) {
+	ts, srv := apiServer(t)
+	if _, err := people.Import(context.Background(), srv.S.Pool, "demo", []people.Row{{Email: "ana@acme.example", Name: "Ana"}}); err != nil {
+		t.Fatal(err)
+	}
+	s := newSession(t, ts)
+	dry := s.mustPost("/api/people/forget", map[string]any{"person": "ana@acme.example"})["report"].(map[string]any)
+	if dry["dry_run"] != true || dry["deleted"].(map[string]any)["people"].(float64) != 1 {
+		t.Fatalf("dry run: %v", dry)
+	}
+	if p := s.get("/api/people/1"); p["person"] == nil {
+		t.Fatal("a dry run deleted the person")
+	}
+	s.mustPost("/api/people/forget", map[string]any{"person": "ana@acme.example", "confirm": true})
+	if code, _ := do(t, s.c, "GET", ts.URL+"/api/people/1", "", nil); code != http.StatusBadRequest {
+		t.Fatalf("the person is still there: %d", code)
+	}
+}
+
+func TestResultsRoutes(t *testing.T) {
+	ts, srv := apiServer(t)
+	if _, err := people.Import(context.Background(), srv.S.Pool, "demo", []people.Row{{Email: "ana@acme.example", Name: "Ana"}}); err != nil {
+		t.Fatal(err)
+	}
+	s := newSession(t, ts)
+	if f := s.get("/api/funnel?product=demo&days=30"); len(f["stages"].([]any)) != 5 {
+		t.Fatalf("funnel: %v", f)
+	}
+	s.mustPost("/api/stage", map[string]any{"product": "demo", "person": "ana@acme.example", "stage": "installed"})
+	if f := s.get("/api/funnel?product=demo"); f["stages"].([]any)[2].(map[string]any)["people"].(float64) != 1 {
+		t.Fatalf("after recording a stage: %v", f["stages"])
+	}
+	s.get("/api/experiments?product=demo")
+	s.get("/api/automations")
+	s.get("/api/automations/runs?limit=10")
+	if d := s.get("/api/digest?latest=true"); d["latest"] != true {
+		t.Fatalf("latest digest: %v", d)
+	}
+	if o := s.get("/api/outbox"); o["mode"] != "sandbox" {
+		t.Fatalf("outbox: %v", o)
 	}
 }

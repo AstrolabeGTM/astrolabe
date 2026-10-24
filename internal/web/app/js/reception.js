@@ -79,7 +79,7 @@ function mentionDialog() {
 }
 
 export default {
-  id: "reception", title: "Reception", icon: "reception", nav: "work",
+  id: "reception", title: "Reception", icon: "reception", nav: "insight",
   load: async params => {
     const days = Number(params.days) || 7;
     const [c, r] = await Promise.all([api("/api/counters" + query({ product: state.product })), api("/api/reception" + query({ product: state.product, days }))]);

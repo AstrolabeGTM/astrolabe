@@ -28,6 +28,7 @@ import (
 	"github.com/AstrolabeGTM/astrolabe/internal/gmail"
 	"github.com/AstrolabeGTM/astrolabe/internal/hooks"
 	"github.com/AstrolabeGTM/astrolabe/internal/mail"
+	"github.com/AstrolabeGTM/astrolabe/internal/mcp"
 	"github.com/AstrolabeGTM/astrolabe/internal/outreach"
 	"github.com/AstrolabeGTM/astrolabe/internal/people"
 	"github.com/AstrolabeGTM/astrolabe/internal/product"
@@ -61,6 +62,9 @@ type Server struct {
 	LoadIssues func() []views.LoadIssue
 	// Doctor runs the setup checks; connect also tests logins and DNS.
 	Doctor func(ctx context.Context, connect bool) []doctor.Check
+	// Tools are the MCP tools, called in-process by the API routes that
+	// mirror them one to one (see toolRoute).
+	Tools map[string]mcp.Handler
 
 	tmpl *template.Template
 }

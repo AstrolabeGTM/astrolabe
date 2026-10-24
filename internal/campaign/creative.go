@@ -3,11 +3,13 @@ package campaign
 import (
 	"context"
 	"crypto/sha256"
+	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"html"
+	"net/http"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -543,4 +545,53 @@ func ExportPack(ctx context.Context, pool *pgxpool.Pool, p *product.Product, c *
 		return nil, err
 	}
 	return res, nil
+}
+
+// ---- preview ----
+
+var (
+	stylesheetRE = regexp.MustCompile(`<link[^>]*rel="stylesheet"[^>]*href="([^"#?:]+)"[^>]*>|<link[^>]*href="([^"#?:]+)"[^>]*rel="stylesheet"[^>]*>`)
+	srcRE        = regexp.MustCompile(`(src=")([^"#?:]+)(")`)
+)
+
+// Preview is the creative filled with its copy at one size, as a single
+// HTML document: its stylesheets inlined and its images as data URIs, so
+// it can be shown without the renderer. It is what a render would draw.
+func Preview(cr *product.Creative, cp map[string]string, alt string, size string) (string, int, int, error) {
+	w, h, err := parseSize(size)
+	if err != nil {
+		return "", 0, 0, err
+	}
+	doc, err := Fill(cr, cp, alt, w, h)
+	if err != nil {
+		return "", 0, 0, err
+	}
+	doc = stylesheetRE.ReplaceAllStringFunc(doc, func(m string) string {
+		g := stylesheetRE.FindStringSubmatch(m)
+		name := filepath.Base(g[1] + g[2])
+		css, ok := cr.Assets[name]
+		if !ok {
+			return m
+		}
+		return "<style>\n" + strings.ReplaceAll(string(css), "</style", "<\\/style") + "\n</style>"
+	})
+	doc = srcRE.ReplaceAllStringFunc(doc, func(m string) string {
+		g := srcRE.FindStringSubmatch(m)
+		b, ok := cr.Assets[filepath.Base(g[2])]
+		if !ok {
+			return m
+		}
+		return g[1] + "data:" + http.DetectContentType(b) + ";base64," + base64.StdEncoding.EncodeToString(b) + g[3]
+	})
+	return doc, w, h, nil
+}
+
+func parseSize(size string) (int, int, error) {
+	ws, hs, ok := strings.Cut(size, "x")
+	w, err1 := strconv.Atoi(ws)
+	h, err2 := strconv.Atoi(hs)
+	if !ok || err1 != nil || err2 != nil || w <= 0 || h <= 0 {
+		return 0, 0, fmt.Errorf("size must look like 1200x630, got %q", size)
+	}
+	return w, h, nil
 }

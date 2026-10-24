@@ -305,3 +305,36 @@ func StartSequence(ctx context.Context, out *outreach.Service, productID, sequen
 	_, err = out.Tick(ctx)
 	return res, err
 }
+
+// AccountMessage is a message to someone at an account.
+type AccountMessage struct {
+	Message
+	PersonID int64  `json:"person_id"`
+	Person   string `json:"person"`
+}
+
+// AccountMessages lists a product's messages to people at a company or on
+// an account, newest first.
+func AccountMessages(ctx context.Context, q store.Q, productID string, companyID int64, personIDs []int64, limit int) ([]AccountMessage, error) {
+	if personIDs == nil {
+		personIDs = []int64{}
+	}
+	rows, err := q.Query(ctx, `
+		SELECT a.id, a.product_id, a.channel, a.kind, a.status, a.sender, a.recipient, a.subject, a.body, a.error, a.created_at, a.sent_at,
+			a.person_id, COALESCE(NULLIF(p.name, ''), a.recipient)
+		FROM actions a JOIN people p ON p.id = a.person_id
+		WHERE a.product_id = $1 AND (p.company_id = $2 OR a.person_id = ANY($3))
+		ORDER BY a.id DESC LIMIT $4`, productID, companyID, personIDs, limit)
+	if err != nil {
+		return nil, err
+	}
+	out, err := pgx.CollectRows(rows, func(r pgx.CollectableRow) (AccountMessage, error) {
+		var m AccountMessage
+		return m, r.Scan(&m.ID, &m.Product, &m.Channel, &m.Kind, &m.Status, &m.Sender, &m.Recipient, &m.Subject, &m.Body, &m.Error,
+			&m.CreatedAt, &m.SentAt, &m.PersonID, &m.Person)
+	})
+	if out == nil {
+		out = []AccountMessage{}
+	}
+	return out, err
+}

@@ -43,8 +43,10 @@ type Filter struct {
 	// MinTier keeps signals about people at this tier or better (A best).
 	MinTier  string
 	PersonID int64
-	Days     int // default 7
-	Limit    int // default 50
+	// CompanyID keeps signals about the company or anyone at it.
+	CompanyID int64
+	Days      int // default 7
+	Limit     int // default 50
 }
 
 // Feed is the signals in a window, newest first. Total counts every match
@@ -72,10 +74,11 @@ func Recent(ctx context.Context, q store.Q, f Filter, now time.Time) (*Feed, err
 	feed := &Feed{Signals: []Item{}, Days: f.Days, Since: since}
 	const where = `
 		WHERE s.occurred_at > $1 AND ($2 = '' OR s.product_id = $2) AND ($3 = '' OR s.type = $3)
-		  AND ($4 = '' OR sc.tier <= $4) AND ($5 = 0 OR s.person_id = $5)`
+		  AND ($4 = '' OR sc.tier <= $4) AND ($5 = 0 OR s.person_id = $5)
+		  AND ($7 = 0 OR s.company_id = $7 OR s.person_id IN (SELECT id FROM people WHERE company_id = $7))`
 	if err := q.QueryRow(ctx, `SELECT count(*) FROM signals s
-		LEFT JOIN scores sc ON sc.product_id = s.product_id AND sc.person_id = s.person_id`+where,
-		since, f.Product, f.Type, f.MinTier, f.PersonID).Scan(&feed.Total); err != nil {
+		LEFT JOIN scores sc ON sc.product_id = s.product_id AND sc.person_id = s.person_id`+strings.ReplaceAll(where, "$7", "$6"),
+		since, f.Product, f.Type, f.MinTier, f.PersonID, f.CompanyID).Scan(&feed.Total); err != nil {
 		return nil, err
 	}
 	rows, err := q.Query(ctx, `
@@ -87,7 +90,7 @@ func Recent(ctx context.Context, q store.Q, f Filter, now time.Time) (*Feed, err
 		LEFT JOIN people p ON p.id = s.person_id
 		LEFT JOIN companies c ON c.id = s.company_id
 		LEFT JOIN scores sc ON sc.product_id = s.product_id AND sc.person_id = s.person_id`+where+`
-		ORDER BY s.occurred_at DESC, s.id DESC LIMIT $6`, since, f.Product, f.Type, f.MinTier, f.PersonID, f.Limit)
+		ORDER BY s.occurred_at DESC, s.id DESC LIMIT $6`, since, f.Product, f.Type, f.MinTier, f.PersonID, f.Limit, f.CompanyID)
 	if err != nil {
 		return nil, err
 	}

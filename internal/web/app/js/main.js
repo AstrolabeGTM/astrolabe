@@ -6,6 +6,14 @@ import person from "./person.js";
 import signals from "./signals.js";
 import reception from "./reception.js";
 import settings from "./settings.js";
+import pipeline from "./pipeline.js";
+import account from "./account.js";
+import { campaignsList, campaignDetail } from "./campaigns.js";
+import review from "./review.js";
+import updates from "./updates.js";
+import calendar from "./calendar.js";
+import { funnel, automations, outbox, digest } from "./insights.js";
 
-register(today, people, person, signals, reception, settings);
+register(today, pipeline, account, people, person, signals, campaignsList, campaignDetail, calendar, updates, outbox,
+  reception, funnel, review, automations, digest, settings);
 start();

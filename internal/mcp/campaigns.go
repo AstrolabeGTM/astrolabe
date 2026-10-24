@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -49,6 +50,7 @@ func (s *Server) registerCampaigns(srv *sdk.Server) {
 	register(srv, "record_spend", "Record spend by hand: amount (e.g. 25 or 25.50, in the campaign's currency), platform, optional date (YYYY-MM-DD, default today), note, and the platform's clicks and impressions if you have them. Returns warnings: near the cap (80%), over the cap, spent before the gate was complete, stop rule met. Nothing is stopped or changed by a warning.", s.recordSpend)
 	register(srv, "import_spend", "Import a platform's spend and clicks CSV (header row with date, spend/cost/amount and optionally clicks, impressions, platform). Rows for the same platform and day are added together; importing the same file again replaces those days rather than adding to them. Unreadable rows are skipped and listed.", s.importSpend)
 	register(srv, "creatives", "A campaign's creatives (HTML template plus copy fields): copy, alt text, claims-check flags, rendered files and whether the approval still holds.", s.creatives)
+	register(srv, "creative_preview", "A creative's current copy filled into its template at one size, as a single HTML document with its stylesheets and images inlined: what a render would draw, available without the renderer. Shows flags and whether it is approved.", s.creativePreview)
 	register(srv, "render_creative", "Render a creative to PNG (and PDF if asked) at each required size through the optional Chromium sidecar (docker compose --profile creative up, ASTROLABE_RENDER_URL). Without it this says plainly what to start; copy, flags and approval still work. Rendering withdraws any approval, since the files are new.", s.renderCreative)
 	register(srv, "edit_creative", "Change a creative's copy fields and/or alt text. Any real edit withdraws the approval and drops the rendered files. The claims check runs on the new copy (never-claims, placeholders, numbers without a source); flagged copy cannot be approved.", s.editCreative)
 	register(srv, "approve_creative", "Approve a creative exactly as it is now: the copy, the template and every rendered file, by hash. Only on the operator's say-so. Refused while flagged. Any later edit withdraws it.", s.approveCreative)
@@ -120,8 +122,6 @@ type exportArg struct {
 	campaignArg
 	Dir string `json:"dir,omitempty" jsonschema:"folder to write to; default exports/<campaign> inside the product folder"`
 }
-
-const by = "mcp"
 
 func (s *Server) campaignTarget(a campaignArg) (*product.Product, *product.Campaign, error) {
 	if s.S == nil || s.S.Pool == nil {
@@ -212,7 +212,7 @@ func (s *Server) setCampaign(ctx context.Context, a setCampaignArg) (any, error)
 		}
 		ch.BudgetCap = &m
 	}
-	changes, err := campaign.Set(ctx, s.S.Pool, p, c, by, ch)
+	changes, err := campaign.Set(ctx, s.S.Pool, p, c, by(ctx), ch)
 	if err != nil {
 		return nil, err
 	}
@@ -238,7 +238,7 @@ func (s *Server) checkGate(ctx context.Context, a gateArg) (any, error) {
 		return nil, err
 	}
 	checked := a.Checked == nil || *a.Checked
-	item, err := campaign.CheckGate(ctx, s.S.Pool, p, c, a.Item, checked, by, a.Note)
+	item, err := campaign.CheckGate(ctx, s.S.Pool, p, c, a.Item, checked, by(ctx), a.Note)
 	if err != nil {
 		return nil, err
 	}
@@ -258,7 +258,7 @@ func (s *Server) recordSpend(ctx context.Context, a spendArg) (any, error) {
 	if a.Date == "" {
 		a.Date = time.Now().Format("2006-01-02")
 	}
-	return campaign.RecordSpend(ctx, s.S.Pool, p, c, by, campaign.SpendInput{Date: a.Date, Amount: m, Platform: a.Platform, Note: a.Note,
+	return campaign.RecordSpend(ctx, s.S.Pool, p, c, by(ctx), campaign.SpendInput{Date: a.Date, Amount: m, Platform: a.Platform, Note: a.Note,
 		Clicks: a.Clicks, Impressions: a.Impressions}, time.Now())
 }
 
@@ -267,7 +267,7 @@ func (s *Server) importSpend(ctx context.Context, a importSpendArg) (any, error)
 	if err != nil {
 		return nil, err
 	}
-	return campaign.ImportSpend(ctx, s.S.Pool, p, c, by, a.Platform, strings.NewReader(a.CSV), time.Now())
+	return campaign.ImportSpend(ctx, s.S.Pool, p, c, by(ctx), a.Platform, strings.NewReader(a.CSV), time.Now())
 }
 
 func (s *Server) creatives(ctx context.Context, a campaignArg) (any, error) {
@@ -308,7 +308,7 @@ func (s *Server) renderCreative(ctx context.Context, a creativeArg) (any, error)
 		if a.Creative != "" && cr.ID != a.Creative {
 			continue
 		}
-		v, err := campaign.RenderCreative(ctx, s.S.Pool, s.renderer(), p, c, cr, by)
+		v, err := campaign.RenderCreative(ctx, s.S.Pool, s.renderer(), p, c, cr, by(ctx))
 		if err != nil {
 			return nil, err
 		}
@@ -325,7 +325,7 @@ func (s *Server) editCreative(ctx context.Context, a editCreativeArg) (any, erro
 	if err != nil {
 		return nil, err
 	}
-	return campaign.EditCreative(ctx, s.S.Pool, p, c, cr, by, a.Copy, a.Alt)
+	return campaign.EditCreative(ctx, s.S.Pool, p, c, cr, by(ctx), a.Copy, a.Alt)
 }
 
 type approveCreativeArg struct {
@@ -338,7 +338,7 @@ func (s *Server) approveCreative(ctx context.Context, a approveCreativeArg) (any
 	if err != nil {
 		return nil, err
 	}
-	return campaign.ApproveCreative(ctx, s.S.Pool, p, c, cr, by)
+	return campaign.ApproveCreative(ctx, s.S.Pool, p, c, cr, by(ctx))
 }
 
 func (s *Server) exportPack(ctx context.Context, a exportArg) (any, error) {
@@ -359,7 +359,7 @@ func (s *Server) exportPack(ctx context.Context, a exportArg) (any, error) {
 		}
 		dir = filepath.Join(p.Dir, dir)
 	}
-	return campaign.ExportPack(ctx, s.S.Pool, p, c, dir, by)
+	return campaign.ExportPack(ctx, s.S.Pool, p, c, dir, by(ctx))
 }
 
 func (s *Server) makeCampaignTasks(ctx context.Context, a campaignArg) (any, error) {
@@ -396,4 +396,32 @@ func (s *Server) campaignsJSON(ctx context.Context, a productOpt) (any, error) {
 	}
 	b, _ := json.MarshalIndent(v, "", "  ")
 	return map[string]any{"campaigns": v, "file": string(b) + "\n"}, nil
+}
+
+type previewArg struct {
+	campaignArg
+	Creative string `json:"creative"`
+	Size     string `json:"size" jsonschema:"one of the creative's sizes, e.g. 1200x630"`
+}
+
+// creativePreview is the creative's current copy in its template at one
+// size, as one HTML document (stylesheets and images inlined): what a
+// render would draw, available without the renderer.
+func (s *Server) creativePreview(ctx context.Context, a previewArg) (any, error) {
+	p, c, cr, err := s.creativeTarget(a.campaignArg, a.Creative)
+	if err != nil {
+		return nil, err
+	}
+	if !slices.Contains(cr.Sizes, a.Size) {
+		return nil, fmt.Errorf("creative %s has sizes %v, not %q", cr.ID, cr.Sizes, a.Size)
+	}
+	v, err := campaign.View(ctx, s.S.Pool, p, c, cr)
+	if err != nil {
+		return nil, err
+	}
+	doc, w, h, err := campaign.Preview(cr, v.Copy, v.Alt, a.Size)
+	if err != nil {
+		return nil, err
+	}
+	return map[string]any{"html": doc, "width": w, "height": h, "size": a.Size, "approved": v.Approved, "flags": v.Flags}, nil
 }
