@@ -3,7 +3,7 @@
 **Go-to-market for the everyday programmer.** You built something. Astrolabe finds people who have the problem it solves, drafts outreach you approve, follows up, and shows which efforts turn into users and revenue, without learning five sales tools.
 
 - **Talk to it from Claude** (MCP): "who should I contact this week?", "draft intros for the top 5", "why did activation drop?"
-- **Or use the web app**: an inbox, a live signal feed, automations, people, a funnel.
+- **Or use the web app** at `/app/`: Today (everything waiting on you, oldest past its target first), people, signals, reception and setup. It can do exactly what the MCP tools can.
 - **Configure it like code**: each product is a folder of YAML and Markdown in git. Your editor autocompletes it, and `astrolabe doctor` checks it.
 - **Self-host it**: one Docker image plus Postgres, like Mattermost or Penpot. Open source under AGPL-3.0.
 
@@ -17,13 +17,15 @@ docker run --rm --user "$(id -u):$(id -g)" -v "$PWD:/work" -w /work ghcr.io/astr
 docker compose up -d
 ```
 
-Open http://localhost:8080 and sign in with `ASTROLABE_PASSWORD` from `.env`. The demo runs in **sandbox mode**: nothing leaves your machine, and every message lands in a local **Outbox**. Try this:
+Open http://localhost:8080/app/ and sign in with `ASTROLABE_PASSWORD` from `.env`. The demo runs in **sandbox mode**: nothing leaves your machine, and every message lands in a local **Outbox**. Try this:
 
-1. **People:** tick a few demo people, then **Start sequence** with `intro`.
-2. **Inbox:** read the draft, then **Save & approve**.
-3. **Outbox:** the message is there. Play the recipient: **Simulate reply** (or bounce).
-4. **Inbox:** the sequence stopped and the reply waits to be labelled. Mark it *interested* and a to-do appears.
+1. **People:** tick a few demo people, then **Start a sequence** with `intro`.
+2. **Today:** read the draft (the exact sender, recipient and text), then **Approve**, or **Edit** it first.
+3. **Outbox** (under Classic pages in the sidebar): the message is there. Play the recipient: **Simulate reply** (or bounce).
+4. **Today:** the sequence stopped and the reply waits to be labelled. Mark it *Interested* and a task appears.
 5. **Signals → Add a signal by hand** with type `referral`: the `referral-intro` automation starts a sequence by itself.
+
+The classic pages (the Inbox at http://localhost:8080 and the rest) still work while their screens move to the new app.
 
 ## Use it from Claude
 
@@ -68,7 +70,7 @@ docker compose exec astrolabe astrolabe doctor           # add -connect to test 
 
 ## Connect email (app password)
 
-Cold email should come from a separate domain or mailbox (for example `you@try-yourproduct.com`), so a bad day doesn't hurt your main domain. Connect each sender address in **Settings → Mailboxes**, or:
+Cold email should come from a separate domain or mailbox (for example `you@try-yourproduct.com`), so a bad day doesn't hurt your main domain. Connect each sender address on the classic **Settings** page (**Mailboxes**), or:
 
 ```sh
 docker compose exec -e ASTROLABE_MAIL_PASSWORD=... astrolabe astrolabe mailbox add you@try-yourproduct.com -provider gmail

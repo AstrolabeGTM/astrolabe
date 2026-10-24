@@ -402,17 +402,18 @@ At low volume, run one offer and read the replies before adding variants. Once v
 | `ambiguous_matches`, `resolve_match` | "Which signals couldn't be matched to one person?" |
 | `monitors`, `run_monitor` | "Run the processed-twice search now" |
 | `research` | "Research the top 10 priority-A people" |
-| `inbox`, `write_draft`, `ai_draft`, `approve`, `skip`, `resolve_send` | "Show today's drafts", "approve 1–5, rewrite 6 shorter" |
+| `today`, `inbox`, `write_draft`, `ai_draft`, `approve`, `skip`, `resolve_send`, `check_sent` | "What's waiting on me?", "Show today's drafts", "approve 1–5, rewrite 6 shorter" |
 | `label_reply`, `answer_reply` | "Ana is interested; answer that yes, it works with Jest" |
 | `start_sequence`, `pause`, `resume`, `do_not_contact` | "Start technical-intro for these 20", "pause all Parlo sends", "never contact bo@x.com" |
 | `add_task`, `close_task`, `record_stage` | "Remind me to help Acme tomorrow", "mark them activated; setup took 20 minutes" |
 | `automations`, `automation_runs` | "Why did pain-issue-outreach skip people today?" |
 | `funnel`, `experiments`, `digest` | "Why did activation drop last week?", "which intro variant wins?" |
 | `content`, `content_list`, `content_mark` | "Turn the v0.4 release notes into launch posts" |
+| `status`, `setup`, `doctor`, `reload_products` | "Is anything paused?", "why didn't my product load?", "check my setup" |
 
 Monitors, automations and sequences are files: ask Claude to edit `monitors.yaml` or `automations.yaml`, then reload (Settings, or restart).
 
-**Web app (for speed).** Server-rendered pages. Each explains its terms in one line and points at the file that configures it:
+**Web app (for speed).** The browser app at `/app/` (§15.11) has Today, People, person pages, Signals, Reception and Setup, with the same capabilities as the MCP tools. The classic server-rendered pages below still work while their screens move. Each explains its terms in one line and points at the file that configures it:
 - **Inbox:** sends needing a decision, replies to label (with Claude's suggestion), due to-dos with suggested text and an outcome, then drafts to write and approve (⌘↵ approves, flags shown)
 - **Signals:** live event feed filterable by product, type and priority; ambiguous matches; monitor status with "Run now"; add a signal by hand
 - **Automations:** each rule's trigger, action and counts, and recent runs with skip reasons
@@ -445,7 +446,7 @@ flowchart LR
 | Language | Go | Lightweight; one static binary |
 | Database | Postgres | Everything in one place, including the job queue |
 | Jobs, schedules, delays | [River](https://riverqueue.com) (Postgres-backed queue) | Durable retries and scheduled jobs without running Temporal or Pub/Sub |
-| Web UI | Server-rendered HTML (Go `html/template`, plain forms), embedded in the binary | No frontend build, no code generation; add htmx only where a page needs it |
+| Web UI | A single-page app in plain HTML, CSS and ES modules over a JSON API, embedded in the binary (§15.11); the older server-rendered pages (Go `html/template`, plain forms) remain while screens move | No frontend build, no npm dependencies, no code generation |
 | DB access | pgx with hand-written SQL; migrations embedded and applied by `astrolabe migrate` | No ORM and no codegen step |
 | LLM | Claude API: a stronger model for research notes and drafts, a small fast one for classification | Behind one `llm` package that logs prompt, model, cost and output per call |
 | Secrets | Environment variables or GCP Secret Manager | API keys never enter the database |
@@ -506,7 +507,9 @@ astrolabe/
     experiment/             # variant assignment and results
     content/                # repurposing and launch tasks
     digest/                 # weekly digest
-    web/                    # html/template pages
+    views/                  # read models shared by the MCP tools and the browser app (Today, person, people, setup)
+    sentmail/               # look up an unknown send in Sent mail
+    web/                    # the browser app (app/) and its JSON API (api*.go); classic html/template pages
     mcp/                    # MCP tools over stdio
   examples/                 # the demo workspace (kept equal to the demo template by a test)
   schemas/                  # JSON schemas for the YAML files (generated, checked by a test)
@@ -703,4 +706,41 @@ _In progress._
 
 ### 15.11 The browser app
 
-_In progress._
+The browser app is at `/app/` on the same server and password as the classic pages, which keep working and link to it ("Try the new app"). It covers the daily work: **Today**, **People** and the **person** page, **Signals**, **Reception**, and **Setup and settings**. Automations, Funnel, Content, Digest and the sandbox Outbox are still classic pages, linked from the app's sidebar.
+
+**The browser app and MCP have the same capabilities.** Everything a screen shows or does goes through a JSON endpoint, and every endpoint calls the same domain function as an MCP tool, so Claude (or another MCP client) and the screen never disagree. The endpoints are declared in one table in `internal/web/api.go`, each with the MCP tool it mirrors, and a test fails if a route has no tool or names a tool that is not registered:
+
+| Screen | Endpoint | MCP tool |
+| --- | --- | --- |
+| every screen | `GET /api/bootstrap` (mode, products, pauses, plus the CSRF token) | `status` |
+| Today | `GET /api/today` | `today` |
+| | `POST /api/actions/{id}/approve`, `/edit`, `/skip`, `/resolve`, `/check-sent`, `/ai-draft` | `approve`, `write_draft`, `skip`, `resolve_send`, `check_sent`, `ai_draft` |
+| | `POST /api/replies/{id}/label`, `/answer`; `POST /api/tasks`, `/api/tasks/{id}/close` | `label_reply`, `answer_reply`, `add_task`, `close_task` |
+| People, person | `GET /api/people`, `GET /api/people/{id}` | `people`, `person` |
+| | `POST /api/people/import`, `/api/companies/import`, `/api/sequences/start` | `import_people`, `import_companies`, `start_sequence` |
+| | `POST /api/people/{id}/facts`, `/do-not-contact`, `/research` | `set_facts`, `do_not_contact`, `research` |
+| Signals | `GET /api/signals`, `POST /api/signals`, `GET /api/monitors`, `POST /api/monitors/run` | `signals`, `add_signal`, `monitors`, `run_monitor` |
+| | `GET /api/reviews`, `POST /api/reviews/{id}/resolve` | `ambiguous_matches`, `resolve_match` |
+| Reception | `GET /api/counters`, `GET /api/reception`, `POST /api/mentions`, `/api/mentions/{id}/tone` | `counters`, `reception`, `log_mention`, `set_tone` |
+| Settings | `GET /api/setup`, `GET /api/doctor`, `POST /api/products/reload`, `POST /api/pause`, `/api/resume` | `setup`, `doctor`, `reload_products`, `pause`, `resume` |
+
+The read models that combine several packages (Today, a person, the people list, setup) live in `internal/views`; single-package ones live with their package (`signal.Recent`, `signal.Monitors`, `signal.OpenReviews`, `reception.Days`). The Sent-mail lookup for an unknown send is `sentmail.Check`, used by the classic inbox, the app and `check_sent`.
+
+**Screens.**
+
+- **Today** lists everything waiting on you, most urgent first: replies to label, drafts to approve (with the exact sender, recipient, subject, text and any flags), held, blocked, failed or unknown sends with their reason, tasks due today, and queued sends. Each item shows how long it has waited against a response target: replies 2 hours, drafts and held sends 1 day, tasks their due time. The targets are constants at the top of `internal/views/today.go`, the one place to make them settings. Counts are complete even when a list is capped.
+- **People** lists a product's people best priority first, with search, the score parts, their sequences, and whether the outreach guard lets the product email them (§15.1). Select people to start a sequence; anyone refused is listed with the reason. CSV import of people, and the company import with each company's fit (§15.7).
+- **Person** shows where each identity came from, facts, the score breakdown per product, research notes, sequences, messages, replies, signals, open tasks, do-not-contact, and per product whether they may be emailed and why not.
+- **Signals** shows recent signals with filters (type, priority, window), monitors with their last run, result, error and next run (Run now), and ambiguous matches with a button per candidate.
+- **Reception** shows public counters with the change over the last 7 days against the 7 before (downloads are "downloads, not installs or people"), and the reception log over 7, 30 or 90 days with counts by tone out of the total, tone edited in place, and Log a mention.
+- **Setup and settings** shows loaded products and, for folders that failed to load, each problem in plain words with the fix; the `doctor` checks with the fix for each (with a button for the slower `-connect` checks); pause switches; sending mailboxes and whether each is connected; webhook endpoints and their secrets. Connecting a mailbox stays on the classic Settings page and `astrolabe mailbox add`, so app passwords never pass through the API or MCP.
+
+Every page explains its terms in a line, and every number carries its denominator or window ("1 of 3 past the 2-hour target", "5 people in Pipewrench", "3 signals from Oct 10 to now"). There are no points or streaks.
+
+**Approval covers what you saw.** Each draft carries a `content_hash` of its channel, sender, recipient, subject and body. Approving from the app sends it back, and approval is refused (HTTP 409) if the draft changed after it was shown, for example because an AI draft landed. The MCP tool `approve` takes the same hashes as an option. Editing withdraws approval; the screen says so, and "Save and approve" approves exactly the saved text. A send held by a pause or a limit records why (the message's error reads `held: paused: global` or `held: daily limit of 40 reached`), so Today and MCP both show the reason; resuming a pause clears it.
+
+**Security.** The app and the API need the login session (the API answers 401, never a redirect). Requests that change something must carry the session's CSRF token (an HMAC of the session cookie, given by `/api/bootstrap`) in `X-CSRF-Token`, and are refused when the browser marks them cross-site or the `Origin` is another host. Login takes a `next=` path on this site, so `/app/` returns to itself. The app has no inline script or style, and its Content-Security-Policy allows only its own files. Text from the internet (issue titles, replies, mentions) is always escaped, and only `http(s)` links are made clickable.
+
+**How it is built.** Plain HTML, CSS and ES modules in `internal/web/app/`, embedded in the binary with no build step and no dependencies: `index.html`, `app.css`, `mark.svg`, and `js/` with the shell and router (`app.js`), shared helpers (`lib.js`) and one module per screen. Routing uses the URL fragment (`/app/#people?q=acme`, `/app/#person/12`). The palette is night-sky navy with a brass accent, in light and dark (`prefers-color-scheme`); the mark is a single-colour astrolabe. The app has a skip link, visible keyboard focus, labelled controls, native modal dialogs (focus stays inside and returns to what opened them), toasts in a live region, and no motion when the system asks for reduced motion. It was checked with axe-core in sandbox mode with the Pipewrench demo, in light and dark at 1280 px and at 390 px: no violations on any screen.
+
+**Adding a screen.** For the account pipeline, campaigns, the content calendar or the weekly review: write the domain function (or a read model in `internal/views`), register an MCP tool for it, add the endpoint to the table in `internal/web/api.go` with that tool's name, then add a module in `internal/web/app/js/` that exports `{id, title, nav, load, render, actions, forms}` and register it in `main.js`. Once a screen covers everything its classic page does, the classic page can go.

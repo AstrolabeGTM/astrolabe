@@ -203,7 +203,7 @@ ASTROLABE_PASSWORD=` + randomPassword() + `
 }
 
 // ComposeFile runs Astrolabe and Postgres from the published image.
-const ComposeFile = `# docker compose up -d, then open http://localhost:8080
+const ComposeFile = `# docker compose up -d, then open http://localhost:8080/app/
 services:
   postgres:
     image: postgres:17
