@@ -22,6 +22,22 @@ type Handler struct {
 	Call func(ctx context.Context, args json.RawMessage) (any, error)
 }
 
+type callerKey struct{}
+
+// WithCaller says who is calling the tools in ctx (for example "web"), for
+// the records that keep who made a change. Without it the caller is "mcp".
+func WithCaller(ctx context.Context, who string) context.Context {
+	return context.WithValue(ctx, callerKey{}, who)
+}
+
+// by is who is calling: "mcp", or what WithCaller set.
+func by(ctx context.Context) string {
+	if who, ok := ctx.Value(callerKey{}).(string); ok && who != "" {
+		return who
+	}
+	return "mcp"
+}
+
 // capturing holds, for a server being built by Handlers, where register
 // records each tool.
 var capturing sync.Map // *sdk.Server -> map[string]Handler

@@ -123,8 +123,6 @@ type exportArg struct {
 	Dir string `json:"dir,omitempty" jsonschema:"folder to write to; default exports/<campaign> inside the product folder"`
 }
 
-const by = "mcp"
-
 func (s *Server) campaignTarget(a campaignArg) (*product.Product, *product.Campaign, error) {
 	if s.S == nil || s.S.Pool == nil {
 		return nil, nil, errors.New("campaigns need the database")
@@ -214,7 +212,7 @@ func (s *Server) setCampaign(ctx context.Context, a setCampaignArg) (any, error)
 		}
 		ch.BudgetCap = &m
 	}
-	changes, err := campaign.Set(ctx, s.S.Pool, p, c, by, ch)
+	changes, err := campaign.Set(ctx, s.S.Pool, p, c, by(ctx), ch)
 	if err != nil {
 		return nil, err
 	}
@@ -240,7 +238,7 @@ func (s *Server) checkGate(ctx context.Context, a gateArg) (any, error) {
 		return nil, err
 	}
 	checked := a.Checked == nil || *a.Checked
-	item, err := campaign.CheckGate(ctx, s.S.Pool, p, c, a.Item, checked, by, a.Note)
+	item, err := campaign.CheckGate(ctx, s.S.Pool, p, c, a.Item, checked, by(ctx), a.Note)
 	if err != nil {
 		return nil, err
 	}
@@ -260,7 +258,7 @@ func (s *Server) recordSpend(ctx context.Context, a spendArg) (any, error) {
 	if a.Date == "" {
 		a.Date = time.Now().Format("2006-01-02")
 	}
-	return campaign.RecordSpend(ctx, s.S.Pool, p, c, by, campaign.SpendInput{Date: a.Date, Amount: m, Platform: a.Platform, Note: a.Note,
+	return campaign.RecordSpend(ctx, s.S.Pool, p, c, by(ctx), campaign.SpendInput{Date: a.Date, Amount: m, Platform: a.Platform, Note: a.Note,
 		Clicks: a.Clicks, Impressions: a.Impressions}, time.Now())
 }
 
@@ -269,7 +267,7 @@ func (s *Server) importSpend(ctx context.Context, a importSpendArg) (any, error)
 	if err != nil {
 		return nil, err
 	}
-	return campaign.ImportSpend(ctx, s.S.Pool, p, c, by, a.Platform, strings.NewReader(a.CSV), time.Now())
+	return campaign.ImportSpend(ctx, s.S.Pool, p, c, by(ctx), a.Platform, strings.NewReader(a.CSV), time.Now())
 }
 
 func (s *Server) creatives(ctx context.Context, a campaignArg) (any, error) {
@@ -310,7 +308,7 @@ func (s *Server) renderCreative(ctx context.Context, a creativeArg) (any, error)
 		if a.Creative != "" && cr.ID != a.Creative {
 			continue
 		}
-		v, err := campaign.RenderCreative(ctx, s.S.Pool, s.renderer(), p, c, cr, by)
+		v, err := campaign.RenderCreative(ctx, s.S.Pool, s.renderer(), p, c, cr, by(ctx))
 		if err != nil {
 			return nil, err
 		}
@@ -327,7 +325,7 @@ func (s *Server) editCreative(ctx context.Context, a editCreativeArg) (any, erro
 	if err != nil {
 		return nil, err
 	}
-	return campaign.EditCreative(ctx, s.S.Pool, p, c, cr, by, a.Copy, a.Alt)
+	return campaign.EditCreative(ctx, s.S.Pool, p, c, cr, by(ctx), a.Copy, a.Alt)
 }
 
 type approveCreativeArg struct {
@@ -340,7 +338,7 @@ func (s *Server) approveCreative(ctx context.Context, a approveCreativeArg) (any
 	if err != nil {
 		return nil, err
 	}
-	return campaign.ApproveCreative(ctx, s.S.Pool, p, c, cr, by)
+	return campaign.ApproveCreative(ctx, s.S.Pool, p, c, cr, by(ctx))
 }
 
 func (s *Server) exportPack(ctx context.Context, a exportArg) (any, error) {
@@ -361,7 +359,7 @@ func (s *Server) exportPack(ctx context.Context, a exportArg) (any, error) {
 		}
 		dir = filepath.Join(p.Dir, dir)
 	}
-	return campaign.ExportPack(ctx, s.S.Pool, p, c, dir, by)
+	return campaign.ExportPack(ctx, s.S.Pool, p, c, dir, by(ctx))
 }
 
 func (s *Server) makeCampaignTasks(ctx context.Context, a campaignArg) (any, error) {

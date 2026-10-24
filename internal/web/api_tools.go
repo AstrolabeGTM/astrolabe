@@ -13,6 +13,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/AstrolabeGTM/astrolabe/internal/mcp"
 	"github.com/AstrolabeGTM/astrolabe/internal/outreach"
 )
 
@@ -47,7 +48,7 @@ func (srv *Server) tool(name string) http.HandlerFunc {
 			}
 			args = b
 		}
-		out, err := h.Call(r.Context(), args)
+		out, err := h.Call(mcp.WithCaller(r.Context(), "web"), args)
 		if err != nil {
 			toolFail(w, name, err)
 			return
