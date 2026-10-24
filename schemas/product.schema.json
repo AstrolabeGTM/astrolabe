@@ -252,6 +252,17 @@
       },
       "type": "object"
     },
+    "links": {
+      "additionalProperties": false,
+      "description": "Tracked links in drafts.",
+      "properties": {
+        "personal": {
+          "description": "Swap the offer link in each draft for a personal tracked link (default true). false keeps the plain link.",
+          "type": "boolean"
+        }
+      },
+      "type": "object"
+    },
     "name": {
       "description": "Display name.",
       "type": "string"
@@ -297,6 +308,68 @@
     "one_liner": {
       "description": "What it does, in one sentence.",
       "type": "string"
+    },
+    "outreach": {
+      "additionalProperties": false,
+      "description": "Guards on who may be emailed.",
+      "properties": {
+        "email_from_github": {
+          "description": "Allow email to people known only through GitHub (default false). GitHub's Acceptable Use Policies forbid using GitHub data to send unsolicited email.",
+          "type": "boolean"
+        }
+      },
+      "type": "object"
+    },
+    "pipeline": {
+      "additionalProperties": false,
+      "description": "Companies (accounts) through deal stages, beside the per-person funnel (sales: deal pipeline). b2b only.",
+      "properties": {
+        "qualify": {
+          "additionalProperties": false,
+          "description": "Checks that gate a stage (sales: BANT, MEDDIC), answered yes, no or unknown with evidence.",
+          "properties": {
+            "checks": {
+              "description": "Checks that must be yes to enter the gate stage or any later one.",
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "gate": {
+              "description": "The stage that needs every check answered yes.",
+              "type": "string"
+            },
+            "record": {
+              "description": "Checks that are asked and kept but never block.",
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            }
+          },
+          "type": "object"
+        },
+        "reasons": {
+          "description": "Reasons an account is paused or lost, e.g. no_timing, no_reply.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "stages": {
+          "description": "Ordered account stages, e.g. identified, contacted, qualified, evaluation, won. Paused and lost are built in.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "stuck_after": {
+          "description": "An account in one stage longer than this shows as stuck (default 14d).",
+          "pattern": "^\\d+[dhm]$",
+          "type": "string"
+        }
+      },
+      "type": "object"
     },
     "sender": {
       "additionalProperties": false,

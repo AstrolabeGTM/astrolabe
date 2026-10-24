@@ -26,6 +26,10 @@ type Trigger struct {
 	Signal     string      `yaml:"signal" json:"signal,omitempty"`           // a signal type
 	StageStuck *StageStuck `yaml:"stage_stuck" json:"stage_stuck,omitempty"` // furthest stage unchanged for a while
 	Stage      string      `yaml:"stage" json:"stage,omitempty"`             // just entered a stage
+	// Account triggers (products with a pipeline): an account entered a
+	// pipeline stage, or sat in one for a while.
+	AccountStage string      `yaml:"account_stage" json:"account_stage,omitempty"`
+	AccountStuck *StageStuck `yaml:"account_stuck" json:"account_stuck,omitempty"`
 }
 
 type StageStuck struct {
@@ -106,8 +110,23 @@ func (p *Product) validatePlays(stages map[string]bool) []string {
 				add("stage_stuck.for: " + err.Error())
 			}
 		}
+		if pl.Trigger.AccountStage != "" {
+			n++
+			if !p.HasAccountStage(pl.Trigger.AccountStage) {
+				add(fmt.Sprintf("trigger account_stage %q is not a pipeline stage", pl.Trigger.AccountStage))
+			}
+		}
+		if st := pl.Trigger.AccountStuck; st != nil {
+			n++
+			if !p.HasAccountStage(st.Stage) {
+				add(fmt.Sprintf("account_stuck stage %q is not a pipeline stage", st.Stage))
+			}
+			if _, err := AfterDuration(st.For); err != nil {
+				add("account_stuck.for: " + err.Error())
+			}
+		}
 		if n != 1 {
-			add("trigger needs exactly one of signal, stage, stage_stuck")
+			add("trigger needs exactly one of signal, stage, stage_stuck, account_stage, account_stuck")
 		}
 		if (pl.Action.Sequence == "") == (pl.Action.Task == "") {
 			add("action needs exactly one of sequence or task")

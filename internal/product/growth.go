@@ -31,9 +31,16 @@ type Monitor struct {
 	Keywords []string `yaml:"keywords" json:"keywords,omitempty"` // community
 	Sources  []string `yaml:"sources" json:"sources,omitempty"`   // community: hn, stackoverflow, rss
 	Feeds    []string `yaml:"feeds" json:"feeds,omitempty"`       // community rss feed URLs
+	// Reception also files each result in the reception log as a public
+	// mention of the product.
+	Reception bool `yaml:"reception" json:"reception,omitempty"`
 }
 
-var MonitorTypes = []string{"github_search", "github_repo", "community"}
+var MonitorTypes = []string{"github_search", "github_repo", "community", "github_release"}
+
+// CounterMonitor reports monitor types that record aggregate counts, never
+// signals about people.
+func CounterMonitor(t string) bool { return t == "github_release" }
 
 // Interval returns how often the monitor runs.
 func (m *Monitor) Interval() time.Duration {
@@ -74,11 +81,13 @@ func (p *Product) validateMonitors() []string {
 		if !slices.Contains(MonitorTypes, m.Type) {
 			bad = append(bad, fmt.Sprintf("%s: type must be one of %v", where, MonitorTypes))
 		}
-		if m.Signal == "" || strings.ContainsAny(m.Signal, " /") {
-			bad = append(bad, where+": signal must be a type name like github.issue_pain")
-		}
-		if m.Strength < 1 || m.Strength > 100 {
-			bad = append(bad, where+": strength must be 1–100")
+		if !CounterMonitor(m.Type) {
+			if m.Signal == "" || strings.ContainsAny(m.Signal, " /") {
+				bad = append(bad, where+": signal must be a type name like github.issue_pain")
+			}
+			if m.Strength < 1 || m.Strength > 100 {
+				bad = append(bad, where+": strength must be 1–100")
+			}
 		}
 		if d, err := AfterDuration(m.Every); err != nil || d < 15*time.Minute {
 			bad = append(bad, where+": every must be at least 15m (e.g. 1h)")
@@ -99,6 +108,10 @@ func (p *Product) validateMonitors() []string {
 			}
 			if len(m.Events) == 0 {
 				bad = append(bad, where+": events needs at least one of star, fork, issue")
+			}
+		case "github_release":
+			if strings.Count(m.Repo, "/") != 1 {
+				bad = append(bad, where+": repo must be owner/name")
 			}
 		case "community":
 			if len(m.Keywords) == 0 {

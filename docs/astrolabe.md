@@ -526,6 +526,7 @@ Each milestone is usable on its own.
 | M5 | **Users channels (consumer app)** | WhatsApp templates and the product-webhook channel work. A consumer funnel (install → signup → placement → first lesson → active) runs with `placement-no-lesson` and `winback`. **Status: built — WhatsApp templates and replies, product notify channel, Resend users email, channel consent. The Pipewrench demo in `examples/` and the `astrolabe init` templates are runnable versions of these examples.** |
 | M6 | **Experiments + content + digest** | Variants and the experiment report. Release → launch posts. Weekly digest. **Status: built — variants with fixed person/company assignment and Wilson intervals, tracked links, content repurposing and launch tasks, weekly digest.** |
 | M7 | **Open source, self-hostable, five-minute start** | AGPL-3.0; Docker image and compose; sandbox mode with a local outbox and simulated replies; `astrolabe init` with demo, devtool, saas and app templates; JSON schemas for editor autocomplete; `astrolabe doctor`; SMTP/IMAP email with app passwords; both developer and sales vocabulary in config and MCP. **Status: built; a scripted run from an empty directory to a simulated reply stopping a sequence took under a minute with Docker.** |
+| M8 | **Running a real go-to-market** | Section 15: outreach guards, an account pipeline with qualification, form intake, public counters, conversation notes, a reception log, an updates list, campaigns and creative, a weekly review, and a browser app in place of the server-rendered pages. **Status: in progress.** |
 
 After M1, use it with real prospects for your first product and help them reach the activation stage personally. M2 and M3 automate work that proved useful in that batch. These are capability milestones, not a fixed delivery order: move product-event ingestion ahead of more monitors if following existing users to activation is the bottleneck. If people respond but never reach value, fix the offer or onboarding before expanding automation.
 
@@ -544,3 +545,52 @@ After M1, use it with real prospects for your first product and help them reach 
 - **Hosted version.** A hosted, multi-tenant service would be a separate build: accounts, tenant isolation, billing, per-tenant mailbox and webhook secrets. Nothing here is built for it.
 - **Pricing**, if there is a hosted or paid tier.
 - **Decided:** AGPL-3.0; the public repo is github.com/AstrolabeGTM/astrolabe; distribution is a self-hosted Docker image; email via SMTP/IMAP with app passwords (Gmail OAuth kept as an option).
+
+## 15. M8: running a real go-to-market
+
+Features a solo founder needs once real people start replying, asking for help and talking about the
+product. Each is generic; the examples use Pipewrench.
+
+### 15.1 Outreach guards
+
+_In progress._
+
+### 15.2 Account pipeline and qualification
+
+_In progress._
+
+### 15.3 Public counters
+
+_In progress._
+
+### 15.4 Reception log
+
+_In progress._
+
+### 15.5 Form intake
+
+_In progress._
+
+### 15.6 Conversation notes
+
+_In progress._
+
+### 15.7 Hand-set facts
+
+_In progress._
+
+### 15.8 Updates list
+
+_In progress._
+
+### 15.9 Campaigns and creative
+
+_In progress._
+
+### 15.10 Weekly review
+
+_In progress._
+
+### 15.11 The browser app
+
+_In progress._

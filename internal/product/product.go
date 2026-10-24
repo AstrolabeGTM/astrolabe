@@ -39,6 +39,11 @@ type Product struct {
 	Limits      Limits      `yaml:"limits" json:"limits"`
 	// Fit rules score people against facts found by enrichment or import.
 	Fit []FitRule `yaml:"fit" json:"fit"`
+	// Personal tracked links in drafts, and guards on who may be emailed.
+	Links    Links    `yaml:"links" json:"links"`
+	Outreach Outreach `yaml:"outreach" json:"outreach"`
+	// Pipeline tracks companies through deal stages (optional, b2b).
+	Pipeline *Pipeline `yaml:"pipeline" json:"pipeline,omitempty"`
 	// Lifecycle channels (optional).
 	WhatsApp *WhatsAppConfig `yaml:"whatsapp" json:"whatsapp,omitempty"`
 	// Demo marks example data that only loads in sandbox mode.
@@ -405,6 +410,7 @@ func (p *Product) validate() []string {
 	}
 
 	bad = append(bad, p.validateFit()...)
+	bad = append(bad, p.validatePipeline()...)
 	bad = append(bad, p.validateMonitors()...)
 	bad = append(bad, p.validatePlays(seen)...)
 

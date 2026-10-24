@@ -55,8 +55,25 @@
       },
       "trigger": {
         "additionalProperties": false,
-        "description": "When it runs: a signal type, entering a stage, or being stuck at a stage.",
+        "description": "When it runs: a signal type, entering a stage, or being stuck at a stage (for people, or for accounts with account_stage and account_stuck).",
         "properties": {
+          "account_stage": {
+            "description": "An account just entered this pipeline stage.",
+            "type": "string"
+          },
+          "account_stuck": {
+            "additionalProperties": false,
+            "description": "An account sat in a pipeline stage for this long.",
+            "properties": {
+              "for": {
+                "type": "string"
+              },
+              "stage": {
+                "type": "string"
+              }
+            },
+            "type": "object"
+          },
           "signal": {
             "type": "string"
           },

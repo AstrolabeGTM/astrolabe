@@ -42,6 +42,18 @@ var descriptions = map[string]string{
 	"Product.whatsapp":                   "WhatsApp Cloud API sender, for kind: users sequences.",
 	"Product.notify":                     "Your product's endpoint that delivers push/in-app messages (signed requests).",
 	"Product.demo":                       "Demo data: only loads in sandbox mode.",
+	"Product.links":                      "Tracked links in drafts.",
+	"Product.outreach":                   "Guards on who may be emailed.",
+	"Product.pipeline":                   "Companies (accounts) through deal stages, beside the per-person funnel (sales: deal pipeline). b2b only.",
+	"Links.personal":                     "Swap the offer link in each draft for a personal tracked link (default true). false keeps the plain link.",
+	"Outreach.email_from_github":         "Allow email to people known only through GitHub (default false). GitHub's Acceptable Use Policies forbid using GitHub data to send unsolicited email.",
+	"Pipeline.stages":                    "Ordered account stages, e.g. identified, contacted, qualified, evaluation, won. Paused and lost are built in.",
+	"Pipeline.qualify":                   "Checks that gate a stage (sales: BANT, MEDDIC), answered yes, no or unknown with evidence.",
+	"Pipeline.reasons":                   "Reasons an account is paused or lost, e.g. no_timing, no_reply.",
+	"Pipeline.stuck_after":               "An account in one stage longer than this shows as stuck (default 14d).",
+	"Qualify.gate":                       "The stage that needs every check answered yes.",
+	"Qualify.checks":                     "Checks that must be yes to enter the gate stage or any later one.",
+	"Qualify.record":                     "Checks that are asked and kept but never block.",
 	"Target.include":                     "Who it's for, one sentence each.",
 	"Target.exclude":                     "Who it's not for.",
 	"Offer.promise":                      "What you promise to help with.",
@@ -75,7 +87,9 @@ var descriptions = map[string]string{
 	"Step.params":                        "WhatsApp template body parameters (templates allowed).",
 	"Step.variants":                      "A/B variants of this step; each overrides subject, body or goal.",
 	"Play.id":                            "Automation name (sales term: play).",
-	"Play.trigger":                       "When it runs: a signal type, entering a stage, or being stuck at a stage.",
+	"Play.trigger":                       "When it runs: a signal type, entering a stage, or being stuck at a stage (for people, or for accounts with account_stage and account_stuck).",
+	"Trigger.account_stage":              "An account just entered this pipeline stage.",
+	"Trigger.account_stuck":              "An account sat in a pipeline stage for this long.",
 	"Play.when":                          "Filters: who it applies to.",
 	"Play.delay":                         "Wait before the first step; conditions are rechecked.",
 	"Play.action":                        "Start a sequence, or create a to-do.",
@@ -86,7 +100,8 @@ var descriptions = map[string]string{
 	"When.min_tier":                      "Only priority A, B, C or better.",
 	"When.not_contacted_within":          "Skip people messaged within this long, e.g. 30d.",
 	"When.not_stage":                     "Skip people who reached this stage.",
-	"Monitor.type":                       "github_search, github_repo or community.",
+	"Monitor.type":                       "github_search, github_repo, community, or github_release (download, star and issue counts; no people).",
+	"Monitor.reception":                  "Also file each result in the reception log as a public mention.",
 	"Monitor.signal":                     "Signal type it produces, e.g. github.issue_pain.",
 	"Monitor.strength":                   "How strong each signal is (1-100); 25 is a strong buying signal.",
 	"Monitor.why_now":                    "Time-sensitive (counts toward why_now).",
@@ -106,7 +121,7 @@ var enums = map[string][]string{
 	"Sequence.experiment_unit": {"person", "company"},
 	"Step.channel":             {"email", "linkedin_task", "x_task", "whatsapp", "push", "in_app", "webhook"},
 	"When.min_tier":            {"A", "B", "C", "D"},
-	"Monitor.type":             {"github_search", "github_repo", "community"},
+	"Monitor.type":             {"github_search", "github_repo", "community", "github_release"},
 }
 
 // schemaAliases adds sales-vocabulary keys: struct.alias -> canonical key.
@@ -122,7 +137,7 @@ var durationPatternJS = `^\d+[dhm]$`
 var patterns = map[string]string{
 	"Step.after": durationPatternJS, "Play.delay": durationPatternJS, "Offer.window": durationPatternJS,
 	"Monitor.every": durationPatternJS, "When.not_contacted_within": durationPatternJS,
-	"Product.id": `^[a-z0-9][a-z0-9-]*$`,
+	"Product.id": `^[a-z0-9][a-z0-9-]*$`, "Pipeline.stuck_after": durationPatternJS,
 }
 
 func schemaFor(t reflect.Type) map[string]any {

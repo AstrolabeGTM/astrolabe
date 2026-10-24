@@ -36,6 +36,10 @@
         "description": "GitHub issue search syntax; one phrase works best.",
         "type": "string"
       },
+      "reception": {
+        "description": "Also file each result in the reception log as a public mention.",
+        "type": "boolean"
+      },
       "repo": {
         "description": "owner/name of a repo to watch.",
         "type": "string"
@@ -56,11 +60,12 @@
         "type": "integer"
       },
       "type": {
-        "description": "github_search, github_repo or community.",
+        "description": "github_search, github_repo, community, or github_release (download, star and issue counts; no people).",
         "enum": [
           "github_search",
           "github_repo",
-          "community"
+          "community",
+          "github_release"
         ],
         "type": "string"
       },
