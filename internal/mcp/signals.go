@@ -3,12 +3,14 @@ package mcp
 import (
 	"context"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5"
 
 	"github.com/AstrolabeGTM/astrolabe/internal/people"
+	"github.com/AstrolabeGTM/astrolabe/internal/product"
 	"github.com/AstrolabeGTM/astrolabe/internal/score"
 	"github.com/AstrolabeGTM/astrolabe/internal/signal"
 )
@@ -216,4 +218,82 @@ func (s *Server) doNotContact(ctx context.Context, a dncArg) (any, error) {
 		return ok(people.Unsuppress(ctx, s.S.Pool, p.ID))
 	}
 	return ok(people.Suppress(ctx, s.S.Pool, p.ID, "manual", a.Reason))
+}
+
+type importCompaniesArg struct {
+	Product string `json:"product"`
+	CSV     string `json:"csv" jsonschema:"CSV text including the header row; needs a domain column"`
+}
+
+type companyFactsArg struct {
+	Company string   `json:"company" jsonschema:"company id or domain"`
+	Facts   []string `json:"facts" jsonschema:"kind:value facts, e.g. fact:sells_to_enterprise, dep:bullmq"`
+	Product string   `json:"product,omitempty" jsonschema:"show the company's fit for this product"`
+}
+
+// companyFit is a company's own facts scored against a product's fit rules.
+type companyFit struct {
+	people.Company
+	Fit       int      `json:"fit"`
+	Breakdown []string `json:"breakdown"`
+	Eligible  bool     `json:"eligible"`
+	Excluded  string   `json:"excluded,omitempty"`
+}
+
+func fitOf(p *product.Product, c people.Company) companyFit {
+	f := score.CompanyFit(p, c.Facts)
+	return companyFit{Company: c, Fit: f.Fit, Breakdown: f.Breakdown, Eligible: f.Eligible, Excluded: f.Excluded}
+}
+
+func (s *Server) importCompanies(ctx context.Context, a importCompaniesArg) (any, error) {
+	p, err := s.find(a.Product)
+	if err != nil {
+		return nil, err
+	}
+	rows, err := people.ReadCompaniesCSV(strings.NewReader(a.CSV))
+	if err != nil {
+		return nil, err
+	}
+	res, err := people.ImportCompanies(ctx, s.S.Pool, rows)
+	if err != nil {
+		return nil, err
+	}
+	// Facts on a company change the fit of the people who work there.
+	if _, err := score.RecomputeAll(ctx, s.S.Pool, "", time.Now()); err != nil {
+		return nil, err
+	}
+	type item struct {
+		companyFit
+		Created  bool `json:"created"`
+		NewFacts int  `json:"new_facts"`
+	}
+	out := make([]item, 0, len(res.Companies))
+	for _, c := range res.Companies {
+		out = append(out, item{fitOf(p, c.Company), c.Created, c.NewFacts})
+	}
+	return map[string]any{"created": res.Created, "updated": res.Updated, "skipped": res.Skipped, "companies": out}, nil
+}
+
+func (s *Server) setCompanyFacts(ctx context.Context, a companyFactsArg) (any, error) {
+	c, err := people.FindCompany(ctx, s.S.Pool, a.Company)
+	if err != nil {
+		return nil, err
+	}
+	if err := people.SetCompanyFacts(ctx, s.S.Pool, c.ID, a.Facts, "manual"); err != nil {
+		return nil, err
+	}
+	if _, err := score.RecomputeAll(ctx, s.S.Pool, "", time.Now()); err != nil {
+		return nil, err
+	}
+	if c, err = people.FindCompany(ctx, s.S.Pool, strconv.FormatInt(c.ID, 10)); err != nil {
+		return nil, err
+	}
+	if a.Product == "" {
+		return map[string]any{"company": c}, nil
+	}
+	p, err := s.find(a.Product)
+	if err != nil {
+		return nil, err
+	}
+	return map[string]any{"company": fitOf(p, *c)}, nil
 }

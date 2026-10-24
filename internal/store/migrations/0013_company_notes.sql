@@ -1,0 +1,1 @@
+ALTER TABLE companies ADD COLUMN notes text NOT NULL DEFAULT '';

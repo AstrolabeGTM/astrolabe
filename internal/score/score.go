@@ -87,6 +87,47 @@ func Tier(priority int) string {
 	return "D"
 }
 
+// FitResult is a fit score with the rules that produced it.
+type FitResult struct {
+	Fit       int      `json:"fit"`
+	Breakdown []string `json:"breakdown"`
+	Eligible  bool     `json:"eligible"`
+	Excluded  string   `json:"excluded,omitempty"`
+}
+
+// CompanyFit scores facts against the product's fit rules. Pass a company's
+// own facts to get the company's fit; person scoring passes the person's facts
+// merged over the company's, so company facts count toward people too.
+func CompanyFit(p *product.Product, facts map[string]string) FitResult {
+	res := FitResult{Eligible: true, Breakdown: []string{}}
+	fit := 0
+	for _, r := range p.Fit {
+		hit := ""
+		for _, f := range r.Any {
+			if _, ok := facts[f]; ok {
+				hit = f
+				break
+			}
+		}
+		if hit == "" {
+			continue
+		}
+		label := r.Label
+		if label == "" {
+			label = hit
+		}
+		if r.Exclude {
+			res.Eligible = false
+			res.Excluded = label
+			continue
+		}
+		fit += r.Weight
+		res.Breakdown = append(res.Breakdown, fmt.Sprintf("%s +%d", label, r.Weight))
+	}
+	res.Fit = min(100, fit)
+	return res
+}
+
 // Compute scores one person for one product at a point in time.
 func Compute(ctx context.Context, q store.Q, p *product.Product, personID int64, now time.Time) (Score, error) {
 	sc := Score{ProductID: p.ID, PersonID: personID, Eligible: true}
@@ -108,31 +149,13 @@ func Compute(ctx context.Context, q store.Q, p *product.Product, personID int64,
 		facts[k] = v
 	}
 
-	fit := 0
-	for _, r := range p.Fit {
-		hit := ""
-		for _, f := range r.Any {
-			if _, ok := facts[f]; ok {
-				hit = f
-				break
-			}
-		}
-		if hit == "" {
-			continue
-		}
-		label := r.Label
-		if label == "" {
-			label = hit
-		}
-		if r.Exclude {
-			sc.Eligible = false
-			sc.Breakdown.Excluded = label
-			continue
-		}
-		fit += r.Weight
-		sc.Breakdown.Fit = append(sc.Breakdown.Fit, fmt.Sprintf("%s +%d", label, r.Weight))
+	cf := CompanyFit(p, facts)
+	sc.Fit = cf.Fit
+	sc.Breakdown.Fit = cf.Breakdown
+	if !cf.Eligible {
+		sc.Eligible = false
+		sc.Breakdown.Excluded = cf.Excluded
 	}
-	sc.Fit = min(100, fit)
 	if suppressed != nil {
 		sc.Eligible = false
 		sc.Breakdown.Excluded = "suppressed: " + *suppressed
