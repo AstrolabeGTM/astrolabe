@@ -109,9 +109,7 @@ func (a *Account) derive(p *product.Product, now time.Time) {
 	if a.Status != Open {
 		return
 	}
-	// The last stage is where accounts are meant to stay.
-	last := p.Pipeline != nil && len(p.Pipeline.Stages) > 0 && p.Pipeline.Stages[len(p.Pipeline.Stages)-1] == a.Stage
-	a.Stuck = !last && now.Sub(a.EnteredAt) > StuckAfter(p)
+	a.Stuck = now.Sub(a.EnteredAt) > StuckAfter(p)
 	a.Overdue = a.NextDue != "" && a.NextDue < day(now)
 }
 

@@ -23,8 +23,8 @@ type Board struct {
 	Stages     []StageCount `json:"stages"`
 	Paused     int          `json:"paused"`
 	Lost       int          `json:"lost"`
-	// Stuck: open accounts in one stage longer than stuck_after (the last
-	// stage never counts). Overdue: next actions due before today.
+	// Stuck: open accounts in one stage longer than stuck_after. Overdue:
+	// next actions due before today.
 	Stuck   []*Account `json:"stuck"`
 	Overdue []*Account `json:"overdue"`
 	// RevisitDue: paused or lost accounts whose revisit date has come.

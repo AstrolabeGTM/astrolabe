@@ -247,7 +247,7 @@ func TestBoardStuckOverdueAndSnapshot(t *testing.T) {
 	start := e.now
 	acme := e.add("acme.example")         // identified, due in 2 days
 	globex := e.add("globex.example")     // will be overdue
-	umbrella := e.add("umbrella.example") // will be a customer: never stuck
+	umbrella := e.add("umbrella.example") // will be a customer
 	e.must(pipeline.SetNextAction(ctx, e.pool, e.p, globex, "Send the trial plan", start.AddDate(0, 0, 5)))
 	for _, id := range []int64{umbrella} {
 		e.must(pipeline.Qualify(ctx, e.pool, e.p, id, []pipeline.Answer{{Check: "pain", Answer: "yes", Evidence: "a"},
@@ -268,8 +268,8 @@ func TestBoardStuckOverdueAndSnapshot(t *testing.T) {
 	if counts["identified"] != 1 || counts["contacted"] != 1 || counts["customer"] != 1 || len(b.Stages) != 5 {
 		t.Fatalf("counts: %+v", b.Stages)
 	}
-	if len(b.Stuck) != 1 || b.Stuck[0].ID != acme || b.Stuck[0].DaysInStage != 16 {
-		t.Fatalf("stuck (the last stage never is): %+v", b.Stuck)
+	if len(b.Stuck) != 2 || b.Stuck[0].ID != acme || b.Stuck[0].DaysInStage != 16 || b.Stuck[1].ID != umbrella {
+		t.Fatalf("stuck: %+v", b.Stuck)
 	}
 	if len(b.Overdue) != 2 {
 		t.Fatalf("overdue: %+v", b.Overdue)
@@ -298,7 +298,7 @@ func TestBoardStuckOverdueAndSnapshot(t *testing.T) {
 	if r := recs[1]; r[0] != "2026-10-19" || r[2] != "acme.example" || r[5] != "identified" || r[7] != "true" || r[13] != "unknown" {
 		t.Fatalf("first row: %v", r)
 	}
-	if r := recs[3]; r[2] != "umbrella.example" || r[5] != "customer" || r[7] != "false" || r[13] != "yes" {
+	if r := recs[3]; r[2] != "umbrella.example" || r[5] != "customer" || r[7] != "true" || r[13] != "yes" {
 		t.Fatalf("customer row: %v", r)
 	}
 }

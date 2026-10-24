@@ -589,7 +589,7 @@ pipeline:
 - Moving a stage needs a short evidence note (one line).
 - Entering the `gate` stage, or any later stage, is refused unless every gating check is yes. The refusal names each failing check and its answer ("cannot enter qualified: ... champion is unknown, timing is no"). This holds for new accounts, moves between later stages and reopened accounts. `record` checks never block.
 - `paused` and `lost` are built in, not stages. Either needs a reason from `reasons` and a revisit date. On the revisit date a task appears in the inbox, once. Moving the account to a stage reopens it, with a new next action.
-- An open account in one stage for longer than `stuck_after` is **stuck** (the last stage never is). A next action due before today is **overdue**.
+- An open account in one stage for longer than `stuck_after` is **stuck**. A next action due before today is **overdue**.
 
 **Automations.** Two triggers act on accounts, through the same machinery as §6:
 
