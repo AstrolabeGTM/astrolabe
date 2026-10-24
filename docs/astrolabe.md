@@ -668,7 +668,26 @@ _In progress._
 
 ### 15.7 Hand-set facts
 
-_In progress._
+Facts do not have to come from a person. A hand-researched account list (company, domain, facts, notes, no people) can be imported on its own, and people are added later.
+
+**Import.** `import_companies` (MCP) or `astrolabe import -companies -product <id> accounts.csv` reads a CSV with a header row:
+
+| Column | Meaning |
+| --- | --- |
+| `domain` (or `company_domain`, `website`) | Required. A URL is cut down to its host; `www.` is dropped. |
+| `company` (or `name`) | Display name. |
+| `facts` | `;`-separated lowercase `kind:value`, e.g. `fact:agent_moves_money;fact:sells_to_enterprise`. |
+| `notes` | Free text, stored on the company. |
+
+Other columns are ignored. Companies are matched by domain, so importing the same file again is safe: blank names and notes are filled but never overwritten, facts merge with the source label `import`, and a fact that is already there keeps its original source (a fact you set by hand stays `manual`). A row with a bad domain or a fact without a colon is skipped and reported; the rest still import. The result lists each company with its facts, `new_facts` (0 on a re-import) and its fit.
+
+**Add facts by hand.** `set_company_facts` takes a company (id or domain) and `kind:value` facts, source `manual`, and rescores. Pass `product` to see the company's fit straight away.
+
+**Company fit.** `score.CompanyFit(product, facts)` scores a company's own facts against the product's `fit` rules and returns the points, a breakdown in the same `label +weight` style as a person's fit, and whether an `exclude` rule matched. Person scoring uses the same function over the person's facts merged on top of the company's, so every person at a company gets its facts in their fit.
+
+**Products.** The schema has no link between a product and a company (only people are registered to a product), so imported companies are not tied to one. `import_companies` takes a product only to compute fit. The account pipeline will link companies to products.
+
+**Python dependencies.** GitHub enrichment also reads `pyproject.toml` (`[project] dependencies` and `[tool.poetry.dependencies]`) and `requirements.txt` into `dep:` facts, with names lowercased and `_` written as `-`. `requirements.txt` still also writes the older `pip:` facts.
 
 ### 15.8 Updates list
 

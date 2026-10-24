@@ -43,7 +43,10 @@ Commands:
   migrate                         create or update the database schema
   product validate [dir...]       check product folders (default: all in $ASTROLABE_PRODUCTS)
   import -product <id> <file.csv> import people (columns: email, github, name, first_name,
-                                  title, company, company_domain, notes)
+                                  title, company, company_domain, notes, facts)
+  import -companies -product <id> <file.csv>
+                                  import companies without people (columns: domain, company,
+                                  facts, notes); shows each company's fit
   monitor run <product> <monitor> run one monitor now
   score [product]                 recompute scores
   mode [set sandbox|live]         show or deliberately switch this database's mode
@@ -345,18 +348,25 @@ func validate(cfg app.Config, dirs []string, out io.Writer) error {
 func importCSV(ctx context.Context, cfg app.Config, args []string, out io.Writer) error {
 	fs := flag.NewFlagSet("import", flag.ContinueOnError)
 	productID := fs.String("product", "", "product id")
+	companies := fs.Bool("companies", false, "the CSV lists companies (domain, company, facts, notes), not people")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
 	if *productID == "" || fs.NArg() != 1 {
-		return errors.New("usage: astrolabe import -product <id> <file.csv>")
+		return errors.New("usage: astrolabe import [-companies] -product <id> <file.csv>")
 	}
 	f, err := os.Open(fs.Arg(0))
 	if err != nil {
 		return err
 	}
 	defer f.Close()
-	rows, err := people.ReadCSV(f)
+	var rows []people.Row
+	var crows []people.CompanyRow
+	if *companies {
+		crows, err = people.ReadCompaniesCSV(f)
+	} else {
+		rows, err = people.ReadCSV(f)
+	}
 	if err != nil {
 		return err
 	}
@@ -369,12 +379,26 @@ func importCSV(ctx context.Context, cfg app.Config, args []string, out io.Writer
 		return err
 	}
 	products, _ := a.LoadProducts(ctx)
-	found := false
+	var prod *product.Product
 	for _, p := range products {
-		found = found || p.ID == *productID
+		if p.ID == *productID {
+			prod = p
+		}
 	}
-	if !found {
+	if prod == nil {
 		return fmt.Errorf("product %q is not loaded (is it valid? run astrolabe product validate)", *productID)
+	}
+	if *companies {
+		res, err := people.ImportCompanies(ctx, a.Pool, crows)
+		fmt.Fprintf(out, "%d new, %d updated\n", res.Created, res.Updated)
+		for _, c := range res.Companies {
+			fit := score.CompanyFit(prod, c.Facts)
+			fmt.Fprintf(out, "%-30s fit %d %v\n", c.Domain, fit.Fit, fit.Breakdown)
+		}
+		for _, s := range res.Skipped {
+			fmt.Fprintln(out, "skipped", s)
+		}
+		return err
 	}
 	res, err := people.Import(ctx, a.Pool, *productID, rows)
 	fmt.Fprintf(out, "%d new, %d updated\n", res.Created, res.Updated)

@@ -1,8 +1,6 @@
 package signal
 
 import (
-	"bufio"
-	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -361,14 +359,14 @@ func repoFacts(ctx context.Context, gh *github.Client, repo string) (map[string]
 		}
 	}
 	if b, err := gh.File(ctx, repo, "requirements.txt"); err == nil {
-		sc := bufio.NewScanner(bytes.NewReader(b))
-		for sc.Scan() {
-			line := strings.TrimSpace(sc.Text())
-			if line == "" || strings.HasPrefix(line, "#") || strings.HasPrefix(line, "-") {
-				continue
-			}
-			name := strings.FieldsFunc(line, func(r rune) bool { return strings.ContainsRune("=<>~![; ", r) })[0]
-			facts["pip:"+strings.ToLower(name)] = repo
+		for _, d := range PythonRequirements(b) {
+			facts["dep:"+d] = repo
+			facts["pip:"+d] = repo
+		}
+	}
+	if b, err := gh.File(ctx, repo, "pyproject.toml"); err == nil {
+		for _, d := range PyprojectDeps(b) {
+			facts["dep:"+d] = repo
 		}
 	}
 	if b, err := gh.File(ctx, repo, "go.mod"); err == nil {

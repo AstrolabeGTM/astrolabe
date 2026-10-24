@@ -74,6 +74,8 @@ Rules: use only claims from product_context.claims; never use never_claim phrase
 	register(srv, "people", "List or search a product's people by name, email or company domain.", s.people)
 	register(srv, "person", "Everything about one person (id or email): facts, scores, research notes, sequences, messages and replies.", s.person)
 	register(srv, "import_people", "Import people from CSV text with a header row. Columns: email, github, name, first_name, title, company, company_domain, notes, facts (';'-separated, e.g. dep:bullmq). Matches existing people by email or GitHub.", s.importPeople)
+	register(srv, "import_companies", "Import companies (no people needed) from CSV text with a header row: domain, company (or name), facts (';'-separated lowercase kind:value, e.g. fact:sells_to_enterprise;dep:bullmq), notes. Other columns are ignored. Matches existing companies by domain, so re-importing is safe. Returns each company's fit against the product's fit rules.", s.importCompanies)
+	register(srv, "set_company_facts", "Add kind:value facts to a company (id or domain) by hand; they count toward the company's fit and toward everyone who works there. Rescores.", s.setCompanyFacts)
 	register(srv, "signals", "Recent signals (GitHub issues, stars, HN/Stack Overflow threads, product events, manual notes) and who they're about. Filter by product, type, days.", s.signals)
 	register(srv, "add_signal", "Record an event about a person yourself (e.g. type=referral, strength 30). Finds or creates the person by email or GitHub login and rescores them.", s.addSignal)
 	register(srv, "set_facts", "Add kind:value facts to a person (dep:bullmq, lang:go, team:5-50) that fit rules match on; rescores.", s.setFacts)
@@ -132,6 +134,8 @@ var salesTerms = map[string]string{
 	"people":            "leads, contacts, prospects, accounts",
 	"person":            "lead/contact record, account research",
 	"import_people":     "upload a lead list, import contacts",
+	"import_companies":  "upload a target account list, ABM list, import accounts",
+	"set_company_facts": "account firmographics, technographics, account research",
 	"signals":           "intent data, buying signals, triggers",
 	"add_signal":        "log an activity, referral, intent signal",
 	"set_facts":         "firmographics, technographics, enrichment",
