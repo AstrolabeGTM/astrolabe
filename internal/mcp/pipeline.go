@@ -11,11 +11,14 @@ import (
 
 	sdk "github.com/modelcontextprotocol/go-sdk/mcp"
 
+	"github.com/AstrolabeGTM/astrolabe/internal/funnel"
 	"github.com/AstrolabeGTM/astrolabe/internal/notes"
 	"github.com/AstrolabeGTM/astrolabe/internal/people"
 	"github.com/AstrolabeGTM/astrolabe/internal/pipeline"
 	"github.com/AstrolabeGTM/astrolabe/internal/play"
 	"github.com/AstrolabeGTM/astrolabe/internal/product"
+	"github.com/AstrolabeGTM/astrolabe/internal/signal"
+	"github.com/AstrolabeGTM/astrolabe/internal/views"
 )
 
 // pipelineInstructions extends the server instructions for the account
@@ -34,19 +37,21 @@ var pipelineTerms = map[string]string{
 	"close_account":   "close-lost, closed lost, deal on hold, nurture",
 	"update_account":  "deal notes, pain, compelling event, status quo, stakeholders, champion, economic buyer",
 	"pipeline_export": "pipeline report, deal export, weekly pipeline snapshot",
+	"people_board":    "lifecycle stages board, lead stages, contacts by stage",
 }
 
 func init() { maps.Copy(salesTerms, pipelineTerms) }
 
 func (s *Server) registerPipeline(srv *sdk.Server) {
 	register(srv, "pipeline", "The account pipeline of a b2b product (pipeline: in product.yaml): open accounts per stage, paused and lost counts, each account's days in its stage and its one next action with the due date, plus stuck accounts (longer than stuck_after in one stage), overdue next actions, and paused or lost accounts whose revisit date has come.", s.pipelineBoard)
-	register(srv, "account", "Everything about one account (id, company domain or company name): stage and days in it, next action, qualification checks with evidence (and which gating checks fail), people and their roles, evidence links, stage history, goal, timing, baseline and open tasks.", s.account)
+	register(srv, "account", "Everything about one account (id, company domain or company name): stage and days in it, next action, qualification checks with evidence (and which gating checks fail), people and their roles, evidence links, stage history, goal, timing, baseline, open tasks, conversation notes, and the signals and messages of the company and its people.", s.account)
 	register(srv, "add_account", "Put a company into a product's pipeline: company domain (or name), one line of evidence for why it belongs (a named person and a specific need or signal), and its one next action with a due date. Starts at the first stage unless stage is given; the qualify gate and later stages are refused until the checks are yes. Optional: people with roles (champion, buyer, user), goal, timing, baseline.", s.addAccount)
 	register(srv, "move_stage", "Move an account to another pipeline stage with one line of evidence (what happened). Entering the qualify gate stage or any later one is refused, with the reason, unless every gating check is yes. Also reopens a paused or lost account (then next_action and due are required). Give the next action for the new stage too; without one the current one stays.", s.moveStage)
 	register(srv, "qualify", "Answer an account's qualification checks: yes, no or unknown, each with one line of evidence (required for yes and no). Gating checks must all be yes to enter the gate stage; record-only checks are kept but never block.", s.qualify)
 	register(srv, "set_next_action", "Set an open account's one next action and its due date (YYYY-MM-DD, default today). It replaces the current one: an open account always has exactly one.", s.setNextAction)
 	register(srv, "close_account", "Pause an account or mark it lost, with a reason from the product's list and a revisit date (YYYY-MM-DD). A task to look at it again appears on that date. Its next action is dropped; move_stage reopens it.", s.closeAccount)
 	register(srv, "update_account", "Edit an account: goal (what they want to achieve), timing (what is driving the timing), baseline (how they do it today), people with roles (person id or email; remove=true takes one off; an unknown email is added as a new person) and evidence links.", s.updateAccount)
+	register(srv, "people_board", "A product's people by the furthest funnel stage each has reached (one column per stage of product.yaml funnel, plus people with no stage yet), with how long they have been there; each person is in exactly one column, so the columns add up to the total.", s.peopleBoard)
 	register(srv, "pipeline_export", "The pipeline as CSV: one row per account per week from the weekly snapshots (this week's is taken now if missing), with status, stage, days in stage, stuck, next action and due, overdue, reason, revisit date and each check's answer.", s.pipelineExport)
 }
 
@@ -186,14 +191,29 @@ func (s *Server) account(ctx context.Context, a accountArg) (any, error) {
 	if err != nil {
 		return nil, err
 	}
-	list, err := notes.List(ctx, s.S.Pool, notes.ListOpts{Product: p.ID, AccountID: id}, time.Now())
+	now := time.Now()
+	list, err := notes.List(ctx, s.S.Pool, notes.ListOpts{Product: p.ID, AccountID: id}, now)
+	if err != nil {
+		return nil, err
+	}
+	ids := make([]int64, 0, len(d.People))
+	for _, m := range d.People {
+		ids = append(ids, m.PersonID)
+	}
+	sigs, err := signal.Recent(ctx, s.S.Pool, signal.Filter{Product: p.ID, CompanyID: d.CompanyID, Days: 365, Limit: 50}, now)
+	if err != nil {
+		return nil, err
+	}
+	msgs, err := views.AccountMessages(ctx, s.S.Pool, p.ID, d.CompanyID, ids, 50)
 	if err != nil {
 		return nil, err
 	}
 	return struct {
 		*pipeline.Detail
-		Conversations []*notes.Note `json:"conversations"`
-	}{d, list}, nil
+		Conversations []*notes.Note          `json:"conversations"`
+		Signals       *signal.Feed           `json:"signals"`
+		Messages      []views.AccountMessage `json:"messages"`
+	}{d, list, sigs, msgs}, nil
 }
 
 func (s *Server) addAccount(ctx context.Context, a addAccountArg) (any, error) {
@@ -343,4 +363,19 @@ func (s *Server) pipelineExport(ctx context.Context, a productArg) (any, error) 
 		return nil, err
 	}
 	return map[string]any{"csv": b.String(), "note": "One row per account per weekly snapshot (taken Mondays, or the first hour the server runs that week)."}, nil
+}
+
+type peopleBoardArg struct {
+	Product string `json:"product"`
+	Limit   int    `json:"limit,omitempty" jsonschema:"people shown per stage, default 50 (counts cover everyone)"`
+}
+
+// peopleBoard is the people side of the pipeline: everyone in the product
+// by the furthest funnel stage they have reached.
+func (s *Server) peopleBoard(ctx context.Context, a peopleBoardArg) (any, error) {
+	p, err := s.find(a.Product)
+	if err != nil {
+		return nil, err
+	}
+	return funnel.Board(ctx, s.S.Pool, p, time.Now(), a.Limit)
 }

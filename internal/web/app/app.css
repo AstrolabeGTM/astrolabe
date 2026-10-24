@@ -245,6 +245,32 @@ table th[scope=row] { font-size: 14px; font-weight: 600; color: var(--ink); text
 .notice p { margin: 0; }
 .notice + .notice, .notice + .table-wrap { margin-top: 10px; }
 
+/* ---- boards (pipeline) ---- */
+.board { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(180px, 1fr); gap: 12px; overflow-x: auto; padding-bottom: 8px; }
+.board:focus-visible { outline-offset: 4px; }
+.column { background: var(--surface-2); border-radius: var(--radius); padding: 10px; min-width: 0; }
+.column h3 { font-size: 14px; margin: 2px 4px 10px; }
+.column-empty { margin: 4px; font-size: 14px; }
+.deals { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.deal { background: var(--surface); border: 1px solid var(--line); border-left: 4px solid var(--line-strong); border-radius: 8px; padding: 10px 12px; font-size: 14px; }
+.deal.stuck { border-left-color: var(--warn); }
+.deal.overdue { border-left-color: var(--bad); }
+.deal h4 { margin: 0 0 6px; font-size: 14.5px; overflow-wrap: anywhere; }
+.deal-meta, .deal-next { margin: 6px 0 0; color: var(--muted); font-size: 13px; }
+.deal-next { color: var(--ink); }
+.deal-next .sub { display: block; color: var(--muted); }
+.deal-actions { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 8px; }
+.chk { display: inline-flex; align-items: center; border: 1px solid var(--line-strong); border-radius: 999px; padding: 0 8px; font-size: 12px; font-weight: 600; color: var(--muted); background: var(--surface); }
+.chk.ok { color: var(--ok); border-color: currentColor; background: var(--ok-bg); }
+.chk.bad { color: var(--bad); border-color: currentColor; background: var(--bad-bg); }
+.chk.record { border-style: dashed; }
+.gate-mark { color: var(--brass-ink); }
+fieldset.field { border: 0; padding: 0; margin: 0; }
+fieldset.field legend { padding: 0; margin-bottom: 4px; }
+@media (max-width: 720px) {
+  .board { grid-auto-flow: row; grid-auto-columns: auto; overflow-x: visible; }
+}
+
 /* ---- dialog and toast ---- */
 dialog { border: 1px solid var(--line); border-radius: 14px; padding: 0; width: min(620px, calc(100vw - 24px)); max-height: calc(100vh - 32px);
   background: var(--surface); color: var(--ink); box-shadow: var(--shadow); }

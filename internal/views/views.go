@@ -37,6 +37,9 @@ type ProductSummary struct {
 	Monitors    int               `json:"monitors"`
 	Automations int               `json:"automations"`
 	Demo        bool              `json:"demo,omitempty"`
+	// Pipeline is true when the product tracks accounts (pipeline: in
+	// product.yaml).
+	Pipeline bool `json:"pipeline,omitempty"`
 }
 
 // Summarize lists products with their sequences, sorted by id.
@@ -44,7 +47,7 @@ func Summarize(products []*product.Product) []ProductSummary {
 	out := make([]ProductSummary, 0, len(products))
 	for _, p := range products {
 		ps := ProductSummary{ID: p.ID, Name: p.Name, OneLiner: p.OneLiner, Funnel: p.Funnel, Activation: p.Activation,
-			Monitors: len(p.Monitors), Automations: len(p.Plays), Demo: p.Demo, Sequences: []SequenceSummary{}}
+			Monitors: len(p.Monitors), Automations: len(p.Plays), Demo: p.Demo, Sequences: []SequenceSummary{}, Pipeline: p.Pipeline != nil}
 		for id, sq := range p.Sequences {
 			s := SequenceSummary{ID: id, Kind: sq.Kind, Steps: len(sq.Steps), Email: outreach.HasEmailStep(sq), Channels: []string{}}
 			for _, st := range sq.Steps {

@@ -60,7 +60,11 @@ func (s *Server) Run(ctx context.Context, version string) error {
 	return s.Build(version).Run(ctx, &sdk.StdioTransport{})
 }
 
-func (s *Server) Build(version string) *sdk.Server {
+func (s *Server) Build(version string) *sdk.Server { return s.build(version, nil) }
+
+// build makes the server; with capture, register also records every tool
+// there (see Handlers).
+func (s *Server) build(version string, capture map[string]Handler) *sdk.Server {
 	srv := sdk.NewServer(&sdk.Implementation{Name: "astrolabe", Version: version}, &sdk.ServerOptions{
 		Instructions: `Astrolabe is go-to-market for developers: it finds people who need your product, drafts outreach you approve, and measures what converts. Each product is a folder of YAML + Markdown (products/<id>/).
 
@@ -81,6 +85,10 @@ Drafts may already be written by the Claude API (ai_state "done"; "flags" lists 
 If inbox reports mode "sandbox", nothing reaches real people: say "sent to the sandbox outbox", never "sent", and offer simulate_reply to try the rest of the flow.
 Rules: use only claims from product_context.claims; never use never_claim phrases; approve sends exactly the saved text, so never approve without the operator's say-so.` + pipelineInstructions + notesInstructions + reviewInstructions + updatesInstructions + forgetInstructions,
 	})
+	if capture != nil {
+		capturing.Store(srv, capture)
+		defer capturing.Delete(srv)
+	}
 
 	// Products and setup
 	register(srv, "product_setup", "Create products/<id>/ from a short interview: name, one-liner, who it's for, funnel stages, activation stage, one offer (promise, call to action, URL), sender mailboxes, never-claims, and (if the operator agreed them) claims and voice text. Ask for each before calling. Without claims/voice the files are STUB and the product won't load until filled in. Never overwrites.", s.productSetup)
@@ -204,6 +212,7 @@ func register[In any](srv *sdk.Server, name, desc string, f func(context.Context
 	if aka := salesTerms[name]; aka != "" {
 		desc += " (Sales terms: " + aka + ".)"
 	}
+	record(srv, name, f)
 	sdk.AddTool(srv, &sdk.Tool{Name: name, Description: desc},
 		func(ctx context.Context, _ *sdk.CallToolRequest, in In) (*sdk.CallToolResult, any, error) {
 			out, err := f(ctx, in)

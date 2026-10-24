@@ -34,7 +34,7 @@ func (srv *Server) apiRoutes() []apiRoute {
 		{"POST /api/pause", "pause", srv.apiPause},
 		{"POST /api/resume", "resume", srv.apiResume},
 	}
-	return slices.Concat(routes, srv.todayRoutes(), srv.peopleRoutes(), srv.signalRoutes(), srv.receptionRoutes(), srv.settingsRoutes())
+	return slices.Concat(routes, srv.todayRoutes(), srv.peopleRoutes(), srv.signalRoutes(), srv.receptionRoutes(), srv.settingsRoutes(), srv.pipelineRoutes())
 }
 
 func (srv *Server) apiMux() http.Handler {

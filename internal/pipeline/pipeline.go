@@ -88,6 +88,9 @@ type Account struct {
 	Goal     string `json:"goal,omitempty"`
 	Timing   string `json:"timing,omitempty"`
 	Baseline string `json:"baseline,omitempty"`
+	// Answers holds the check answers on a board (check name to yes, no or
+	// unknown); unanswered checks are missing.
+	Answers map[string]string `json:"answers,omitempty"`
 }
 
 const accountSelect = `

@@ -6,6 +6,7 @@ import person from "./person.js";
 import signals from "./signals.js";
 import reception from "./reception.js";
 import settings from "./settings.js";
+import pipeline from "./pipeline.js";
 
-register(today, people, person, signals, reception, settings);
+register(today, pipeline, people, person, signals, reception, settings);
 start();
