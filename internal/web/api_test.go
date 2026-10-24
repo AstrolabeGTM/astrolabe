@@ -28,6 +28,7 @@ import (
 	"github.com/AstrolabeGTM/astrolabe/internal/product"
 	"github.com/AstrolabeGTM/astrolabe/internal/signal"
 	"github.com/AstrolabeGTM/astrolabe/internal/store"
+	"github.com/AstrolabeGTM/astrolabe/internal/updates"
 	"github.com/AstrolabeGTM/astrolabe/internal/views"
 )
 
@@ -43,6 +44,7 @@ func apiServer(t *testing.T) (*httptest.Server, *Server) {
 		Stages:  []string{"identified", "contacted", "qualified", "trial", "customer"},
 		Qualify: &product.Qualify{Gate: "qualified", Checks: []string{"pain", "champion"}, Record: []string{"budget"}},
 	}
+	p.Updates = &product.Updates{Name: "Demo updates", PerDay: 10, PostalAddress: "1 Example Street"}
 	if err := product.Sync(ctx, pool, []*product.Product{p}); err != nil {
 		t.Fatal(err)
 	}
@@ -56,7 +58,8 @@ func apiServer(t *testing.T) (*httptest.Server, *Server) {
 	products := func() []*product.Product { return []*product.Product{p} }
 	srv := &Server{S: o, Signals: sig, Accounts: &gmail.Accounts{Dir: t.TempDir()}, Password: testPassword,
 		Products: products, Reload: func(context.Context) error { return nil }, Studio: studio, Mode: "sandbox"}
-	srv.Tools = (&mcp.Server{S: o, Signals: sig, Studio: studio, Mode: "sandbox", Products: products, ProductsDir: filepath.Dir(p.Dir)}).Handlers()
+	srv.Tools = (&mcp.Server{S: o, Signals: sig, Studio: studio, Mode: "sandbox", Products: products, ProductsDir: filepath.Dir(p.Dir),
+		Updates: &updates.Service{Pool: pool}}).Handlers()
 	ts := httptest.NewServer(srv.Handler())
 	t.Cleanup(ts.Close)
 	return ts, srv
@@ -641,4 +644,20 @@ func TestReviewRoutes(t *testing.T) {
 	if l := s.get("/api/review/saved?product=demo"); len(l["reviews"].([]any)) != 1 {
 		t.Fatalf("saved list: %v", l)
 	}
+}
+
+func TestUpdatesRoutes(t *testing.T) {
+	ts, _ := apiServer(t)
+	s := newSession(t, ts)
+	l := s.get("/api/updates/subscribers?product=demo")
+	if c := l["counts"].(map[string]any); c["confirmed"].(float64) != 0 || c["pending"].(float64) != 0 {
+		t.Fatalf("counts: %v", l)
+	}
+	b := s.mustPost("/api/broadcasts/create", map[string]any{"product": "demo", "subject": "News", "body": "Hello"})
+	id := b["broadcast"].(map[string]any)["id"]
+	s.mustPost("/api/broadcasts/edit", map[string]any{"id": id, "body": "Hello again"})
+	if list := s.get("/api/broadcasts?product=demo"); len(list["broadcasts"].([]any)) != 1 {
+		t.Fatalf("broadcasts: %v", list)
+	}
+	s.mustPost("/api/broadcasts/cancel", map[string]any{"id": id})
 }

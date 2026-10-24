@@ -252,6 +252,8 @@ table th[scope=row] { font-size: 14px; font-weight: 600; color: var(--ink); text
 .note q { font-style: italic; }
 .note .row { gap: 6px 10px; }
 
+.grow-title { flex: 1 1 200px; margin: 0; min-width: 0; overflow-wrap: anywhere; }
+
 /* ---- review ---- */
 .tally { list-style: none; margin: 0; padding: 0; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); }
 .tally li { display: flex; justify-content: space-between; gap: 12px; padding: 7px 12px; border-top: 1px solid var(--line); font-size: 14px; }

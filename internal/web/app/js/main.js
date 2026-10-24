@@ -10,6 +10,7 @@ import pipeline from "./pipeline.js";
 import account from "./account.js";
 import { campaignsList, campaignDetail } from "./campaigns.js";
 import review from "./review.js";
+import updates from "./updates.js";
 
-register(today, pipeline, account, people, person, signals, reception, campaignsList, campaignDetail, review, settings);
+register(today, pipeline, account, people, person, signals, reception, campaignsList, campaignDetail, review, updates, settings);
 start();
