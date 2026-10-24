@@ -204,8 +204,11 @@ func AfterDuration(s string) (time.Duration, error) {
 		return 0, fmt.Errorf("duration %q must look like 3d or 12h", s)
 	}
 	n, _ := strconv.Atoi(m[1])
-	if m[2] == "d" {
+	switch m[2] {
+	case "d":
 		return time.Duration(n) * 24 * time.Hour, nil
+	case "m":
+		return time.Duration(n) * time.Minute, nil
 	}
 	return time.Duration(n) * time.Hour, nil
 }

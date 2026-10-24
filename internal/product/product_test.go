@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestValidationCatchesMistakes(t *testing.T) {
@@ -122,5 +123,17 @@ func TestSalesVocabularyAliases(t *testing.T) {
 	os.WriteFile(filepath.Join(p.Dir, "automations.yaml"), []byte("[]\n"), 0o644)
 	if _, err := Load(p.Dir); err == nil || !strings.Contains(err.Error(), "keep one") {
 		t.Fatalf("expected plays.yaml/automations.yaml conflict, got %v", err)
+	}
+}
+
+func TestAfterDuration(t *testing.T) {
+	for in, want := range map[string]time.Duration{"0d": 0, "3d": 72 * time.Hour, "12h": 12 * time.Hour, "30m": 30 * time.Minute, "15m": 15 * time.Minute} {
+		got, err := AfterDuration(in)
+		if err != nil || got != want {
+			t.Errorf("AfterDuration(%q) = %v, %v; want %v", in, got, err, want)
+		}
+	}
+	if _, err := AfterDuration("3w"); err == nil {
+		t.Error("3w should be rejected")
 	}
 }
