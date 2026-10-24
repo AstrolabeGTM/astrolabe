@@ -252,6 +252,15 @@ table th[scope=row] { font-size: 14px; font-weight: 600; color: var(--ink); text
 .note q { font-style: italic; }
 .note .row { gap: 6px 10px; }
 
+/* ---- review ---- */
+.tally { list-style: none; margin: 0; padding: 0; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); }
+.tally li { display: flex; justify-content: space-between; gap: 12px; padding: 7px 12px; border-top: 1px solid var(--line); font-size: 14px; }
+.tally li:first-child { border-top: 0; }
+.tally .num { color: var(--muted); text-align: right; }
+fieldset.decision { border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); padding: 10px 14px; margin: 0 0 10px; }
+fieldset.decision legend { padding: 0 4px; }
+.grid-2 h3 { font-size: 14px; margin-bottom: 8px; }
+
 /* ---- campaigns and creatives ---- */
 .creative-frames { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px; margin: 12px 0; }
 .creative { margin: 0; min-width: 0; }

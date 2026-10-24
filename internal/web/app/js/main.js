@@ -9,6 +9,7 @@ import settings from "./settings.js";
 import pipeline from "./pipeline.js";
 import account from "./account.js";
 import { campaignsList, campaignDetail } from "./campaigns.js";
+import review from "./review.js";
 
-register(today, pipeline, account, people, person, signals, reception, campaignsList, campaignDetail, settings);
+register(today, pipeline, account, people, person, signals, reception, campaignsList, campaignDetail, review, settings);
 start();

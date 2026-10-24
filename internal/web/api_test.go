@@ -624,3 +624,21 @@ func TestCampaignRoutes(t *testing.T) {
 		t.Fatalf("campaigns.json: %v", j)
 	}
 }
+
+func TestReviewRoutes(t *testing.T) {
+	ts, _ := apiServer(t)
+	s := newSession(t, ts)
+	r := s.get("/api/review?product=demo")
+	if r["saved"] != false || r["review"] == nil {
+		t.Fatalf("review: %v", r)
+	}
+	week := r["review"].(map[string]any)["week"].(string)
+	s.mustPost("/api/review/save", map[string]any{"product": "demo", "week": week, "answers": []map[string]any{{"number": 1, "answer": "Two activated"}}})
+	r = s.get("/api/review?product=demo&week=" + week)
+	if r["saved"] != true {
+		t.Fatalf("after saving: %v", r)
+	}
+	if l := s.get("/api/review/saved?product=demo"); len(l["reviews"].([]any)) != 1 {
+		t.Fatalf("saved list: %v", l)
+	}
+}
