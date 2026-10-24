@@ -268,7 +268,8 @@ func TestBoardStuckOverdueAndSnapshot(t *testing.T) {
 	if counts["identified"] != 1 || counts["contacted"] != 1 || counts["customer"] != 1 || len(b.Stages) != 5 {
 		t.Fatalf("counts: %+v", b.Stages)
 	}
-	if len(b.Stuck) != 2 || b.Stuck[0].ID != acme || b.Stuck[0].DaysInStage != 16 || b.Stuck[1].ID != umbrella {
+	// umbrella is 16 days in too, but the last stage is where accounts stay.
+	if len(b.Stuck) != 1 || b.Stuck[0].ID != acme || b.Stuck[0].DaysInStage != 16 {
 		t.Fatalf("stuck: %+v", b.Stuck)
 	}
 	if len(b.Overdue) != 2 {
@@ -298,7 +299,7 @@ func TestBoardStuckOverdueAndSnapshot(t *testing.T) {
 	if r := recs[1]; r[0] != "2026-10-19" || r[2] != "acme.example" || r[5] != "identified" || r[7] != "true" || r[13] != "unknown" {
 		t.Fatalf("first row: %v", r)
 	}
-	if r := recs[3]; r[2] != "umbrella.example" || r[5] != "customer" || r[7] != "true" || r[13] != "yes" {
+	if r := recs[3]; r[2] != "umbrella.example" || r[5] != "customer" || r[7] != "false" || r[13] != "yes" {
 		t.Fatalf("customer row: %v", r)
 	}
 }
