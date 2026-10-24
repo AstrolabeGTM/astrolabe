@@ -90,6 +90,8 @@ func schemaFor(rel string) string {
 		return "product.schema.json"
 	case rel == "automations.yaml" || rel == "plays.yaml":
 		return "automations.schema.json"
+	case strings.HasPrefix(rel, "campaigns/") && strings.HasSuffix(rel, ".yaml"):
+		return "campaign.schema.json"
 	case rel == "monitors.yaml":
 		return "monitors.schema.json"
 	case strings.HasPrefix(rel, "sequences/") && strings.HasSuffix(rel, ".yaml"):
