@@ -17,6 +17,7 @@ import (
 
 	"github.com/AstrolabeGTM/astrolabe/internal/content"
 	"github.com/AstrolabeGTM/astrolabe/internal/draft"
+	"github.com/AstrolabeGTM/astrolabe/internal/forms"
 	"github.com/AstrolabeGTM/astrolabe/internal/funnel"
 	"github.com/AstrolabeGTM/astrolabe/internal/notes"
 	"github.com/AstrolabeGTM/astrolabe/internal/outreach"
@@ -36,6 +37,7 @@ type Server struct {
 	Studio      *content.Studio
 	Render      *render.Client              // optional Chromium sidecar for creatives; nil or unconfigured is fine
 	Updates     *updates.Service            // nil disables the updates list tools
+	Netlify     *forms.Netlify              // deletes Netlify copies in forget_person; nil lists them as left
 	Reload      func(context.Context) error // re-read product folders
 	Mode        string                      // sandbox or live
 	ProductsDir string
@@ -66,7 +68,7 @@ Typical session: inbox -> label replies -> handle due tasks -> write or review d
 To find people: top_prospects, then person. To see what's working: funnel, experiments, digest.
 Drafts may already be written by the Claude API (ai_state "done"; "flags" lists problems): show flags.
 If inbox reports mode "sandbox", nothing reaches real people: say "sent to the sandbox outbox", never "sent", and offer simulate_reply to try the rest of the flow.
-Rules: use only claims from product_context.claims; never use never_claim phrases; approve sends exactly the saved text, so never approve without the operator's say-so.` + pipelineInstructions + notesInstructions + updatesInstructions,
+Rules: use only claims from product_context.claims; never use never_claim phrases; approve sends exactly the saved text, so never approve without the operator's say-so.` + pipelineInstructions + notesInstructions + updatesInstructions + forgetInstructions,
 	})
 
 	// Products and setup
@@ -130,6 +132,7 @@ Rules: use only claims from product_context.claims; never use never_claim phrase
 	s.registerNotes(srv)    // conversation notes: notes.go
 	s.registerCampaigns(srv)
 	s.registerUpdates(srv) // updates list: updates.go
+	s.registerForget(srv)  // erase on request: forget.go
 	return srv
 }
 

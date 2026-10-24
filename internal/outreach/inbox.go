@@ -123,6 +123,20 @@ type Reply struct {
 // outreach thread, stops that enrollment. Bounces also suppress the person.
 // It returns false if the message was already recorded.
 func (s *Service) RecordReply(ctx context.Context, in Inbound) (bool, error) {
+	// A message from (or bouncing from) someone who asked to be forgotten is
+	// dropped unread: nothing stored, nothing matched, no one notified.
+	kind, ids := "email", [][2]string{{"email", people.NormalizeEmail(in.From)}}
+	if in.Channel == "whatsapp" {
+		kind, ids = "phone", [][2]string{{"phone", in.From}}
+	}
+	for _, r := range in.FailedRecipients {
+		ids = append(ids, [2]string{kind, r})
+	}
+	if gone, err := people.AnyForgotten(ctx, s.Pool, ids); err != nil {
+		return false, err
+	} else if gone {
+		return false, nil
+	}
 	recorded := false
 	err := pgx.BeginFunc(ctx, s.Pool, func(tx pgx.Tx) error {
 		var replyID int64

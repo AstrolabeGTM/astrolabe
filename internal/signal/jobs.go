@@ -299,7 +299,7 @@ func (svc *Service) Enrich(ctx context.Context, gh *github.Client, personID int6
 		// A public profile email is the person's own statement: link it
 		// unless it already belongs to someone else.
 		if e := people.NormalizeEmail(u.Email); e != "" {
-			if err := people.LinkIdentity(ctx, tx, "email", e, personID, people.SourceGitHub, false); err != nil {
+			if err := people.LinkIdentity(ctx, tx, "email", e, personID, people.SourceGitHub, false); err != nil && !errors.Is(err, people.ErrForgotten) {
 				return err
 			}
 		}

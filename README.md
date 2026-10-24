@@ -187,6 +187,10 @@ An event whose `type` matches a funnel stage records that stage. Sending `user_i
 - **The updates list is double opt-in.** A sign-up (a form automation, or you adding someone who asked in person) is *pending* and gets one confirmation email; they are not on the list until they reply to it (it works with no public address) or open its link (when `ASTROLABE_PUBLIC_URL` is set). Unconfirmed sign-ups expire. Every message carries `List-Unsubscribe` (a `mailto:`, plus one-click https when a public URL is set) and a visible line, and an unsubscribe is honoured before the next send. It leaves only the list: do-not-contact needs a "stop all" or a STOP to outreach.
 - **Broadcasts are approved text, sent once.** You read the exact subject and body and approve it; an edit withdraws the approval and flagged copy (a never-claim, a placeholder) can't be approved. It goes to confirmed subscribers only, one row each, claimed in a transaction, at most `updates.per_day` (default 100) in any 24 hours, and never twice. If the provider's answer is lost the row is marked unknown and not resent. No broadcast is approved or sent without your `updates.postal_address`.
 
+## Your data and privacy
+
+- **Erase on request.** `astrolabe forget <email>` (or the `forget_person` tool in Claude) deletes everything about one person in one transaction, deletes their Netlify form submissions through Netlify's API, and keeps only a salted hash so they are never contacted or recreated. See section 15.12 of [docs/astrolabe.md](docs/astrolabe.md).
+
 ## Configuration
 
 | Variable | |

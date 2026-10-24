@@ -36,7 +36,17 @@ const (
 // the identity already belongs to this person and was only known from GitHub,
 // a person-supplied source (upgrade true) replaces it: they have now given us
 // the address themselves. It never moves an identity between people.
+//
+// LinkIdentity is the one place identities are written, so it is also where an
+// erased person is kept out: it returns ErrForgotten for an identity that was
+// erased on request, and the caller's transaction rolls back. Paths that
+// create people check earlier (AnyForgotten) so they can drop quietly.
 func LinkIdentity(ctx context.Context, q store.Q, kind, value string, personID int64, source string, upgrade bool) error {
+	if gone, err := IsForgotten(ctx, q, kind, value); err != nil {
+		return err
+	} else if gone {
+		return ErrForgotten
+	}
 	_, err := q.Exec(ctx, `
 		INSERT INTO identities (kind, value, person_id, source) VALUES ($1, $2, $3, $4)
 		ON CONFLICT (kind, value) DO UPDATE SET source = EXCLUDED.source
@@ -177,6 +187,18 @@ func upsert(ctx context.Context, tx pgx.Tx, productID string, r Row) (bool, erro
 	gh := NormalizeGitHub(r.GitHub)
 	if email == "" && gh == "" {
 		return false, &skipError{"no email or github"}
+	}
+	var wanted [][2]string
+	if email != "" {
+		wanted = append(wanted, [2]string{"email", email})
+	}
+	if gh != "" {
+		wanted = append(wanted, [2]string{"github", gh})
+	}
+	if gone, err := AnyForgotten(ctx, tx, wanted); err != nil {
+		return false, err
+	} else if gone {
+		return false, &skipError{"not imported: this person asked to be forgotten"}
 	}
 
 	var ids []int64

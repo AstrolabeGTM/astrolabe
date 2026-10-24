@@ -61,6 +61,10 @@ type Result struct {
 	PersonID  *int64
 	Duplicate bool
 	Ambiguous bool
+	// Forgotten: the signal names someone who asked to be forgotten, so it
+	// was dropped and nothing was stored. Duplicate is also set, so callers
+	// that skip duplicates skip this too.
+	Forgotten bool
 }
 
 // Hooks run inside the ingest transaction for every new signal (PersonID
@@ -177,6 +181,11 @@ func (svc *Service) Ingest(ctx context.Context, s *Signal) (Result, error) {
 
 func ingestTx(ctx context.Context, tx pgx.Tx, s *Signal) (Result, error) {
 	var res Result
+	if gone, err := people.AnyForgotten(ctx, tx, s.identities()); err != nil {
+		return res, err
+	} else if gone {
+		return Result{Duplicate: true, Forgotten: true}, nil
+	}
 	subject, _ := json.Marshal(s.Subject)
 	data, _ := json.Marshal(s.Data)
 	if s.Data == nil {
