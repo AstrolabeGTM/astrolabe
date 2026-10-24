@@ -151,4 +151,13 @@ func TestTaskChannelAndDiscussionEventValidate(t *testing.T) {
 	if _, err := Load(p.Dir); err == nil || !strings.Contains(err.Error(), "earlier than the previous step") {
 		t.Fatalf("task steps follow the same ordering rules: %v", err)
 	}
+	// Only sequences that never message anyone may keep going after a reply.
+	write("sequences/checkin.yaml", "steps:\n  - {channel: task, after: 7d, goal: a}\n  - {channel: task, after: 14d, goal: b}\nstop_on: [unsubscribed]\n")
+	if _, err := Load(p.Dir); err != nil {
+		t.Fatalf("a task-only sequence may leave replied out of stop_on: %v", err)
+	}
+	write("sequences/checkin.yaml", "steps:\n  - {channel: task, after: 7d, goal: a}\n  - {channel: email, after: 14d, goal: b}\nstop_on: [unsubscribed]\n")
+	if _, err := Load(p.Dir); err == nil || !strings.Contains(err.Error(), "stop_on must include replied") {
+		t.Fatalf("a sequence with an email step must stop on replied: %v", err)
+	}
 }

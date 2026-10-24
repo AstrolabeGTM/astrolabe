@@ -103,7 +103,7 @@
       "type": "array"
     },
     "stop_on": {
-      "description": "Stop the sequence on replied, unsubscribed, bounced or any funnel stage.",
+      "description": "Stop the sequence on replied, unsubscribed, bounced or any funnel stage. Must include replied unless every step is a task.",
       "items": {
         "type": "string"
       },

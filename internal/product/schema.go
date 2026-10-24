@@ -75,7 +75,7 @@ var descriptions = map[string]string{
 	"FitRule.label":                      "Shown in the score breakdown.",
 	"Sequence.kind":                      "cold: people who don't know you yet (sales: outbound). users: existing users (sales: lifecycle).",
 	"Sequence.steps":                     "Timed message steps (sales: cadence).",
-	"Sequence.stop_on":                   "Stop the sequence on replied, unsubscribed, bounced or any funnel stage.",
+	"Sequence.stop_on":                   "Stop the sequence on replied, unsubscribed, bounced or any funnel stage. Must include replied unless every step is a task.",
 	"Sequence.experiment_unit":           "A/B assignment unit: person or company.",
 	"Step.channel":                       "email; linkedin_task, x_task (you send by hand); task (a to-do for you, such as a weekly check-in reminder; the draft text is the note, nothing is sent); whatsapp, push, in_app, webhook for kind: users.",
 	"Step.after":                         "Delay from the sequence start, e.g. 0d, 3d, 12h.",

@@ -431,6 +431,17 @@ func (p *Product) validate() []string {
 	return bad
 }
 
+// TasksOnly reports whether every step is a manual task, so the sequence
+// never sends anything.
+func (s *Sequence) TasksOnly() bool {
+	for _, st := range s.Steps {
+		if !ManualChannel(st.Channel) {
+			return false
+		}
+	}
+	return len(s.Steps) > 0
+}
+
 func (s *Sequence) validate(p *Product, stages map[string]bool) []string {
 	var bad []string
 	if !idPattern.MatchString(s.ID) {
@@ -518,8 +529,10 @@ func (s *Sequence) validate(p *Product, stages map[string]bool) []string {
 			bad = append(bad, fmt.Sprintf("step %d: follow-up emails reply in the same thread, so they cannot set a subject", i+1))
 		}
 	}
-	if !slices.Contains(s.StopOn, "replied") {
-		bad = append(bad, "stop_on must include replied")
+	// A reply must stop anything that messages people. Sequences made only of
+	// manual tasks (e.g. weekly check-ins during an evaluation) may keep going.
+	if !slices.Contains(s.StopOn, "replied") && !s.TasksOnly() {
+		bad = append(bad, "stop_on must include replied (only sequences made entirely of task steps may leave it out)")
 	}
 	for _, r := range s.StopOn {
 		if !slices.Contains(systemStops, r) && !stages[r] {
