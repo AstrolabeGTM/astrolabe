@@ -94,7 +94,7 @@ main:focus { outline: none; }
 .section-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 10px; }
 .section-head h2 { margin: 0; }
 .section-head p { margin: 0; }
-.stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 10px; margin: 0; }
+.stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin: 0; }
 .stat { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 12px 14px; }
 .stat dt { font-size: 13px; color: var(--muted); }
 .stat dd { margin: 2px 0 0; font-size: 22px; font-weight: 650; font-variant-numeric: tabular-nums; }
@@ -222,6 +222,13 @@ th.select, td.select { width: 36px; padding-right: 0; }
 td.select input, th.select input { width: 18px; height: 18px; margin: 2px 0 0; }
 .people-table td { min-width: 0; }
 
+.counters-card + .counters-card { margin-top: 12px; }
+.counters-card h3 { margin: 0; }
+.counters-card table th[scope=row] { font-size: 14px; font-weight: 550; color: var(--ink); text-transform: none; letter-spacing: 0; background: none; }
+.counters-card details { margin-top: 10px; }
+select.tone { min-height: 32px; padding: 4px 8px; font-weight: 600; font-size: 13.5px; }
+select.tone.ok { color: var(--ok); } select.tone.warn { color: var(--warn); } select.tone.bad { color: var(--bad); }
+
 /* ---- dialog and toast ---- */
 dialog { border: 1px solid var(--line); border-radius: 14px; padding: 0; width: min(620px, calc(100vw - 24px)); max-height: calc(100vh - 32px);
   background: var(--surface); color: var(--ink); box-shadow: var(--shadow); }
@@ -259,6 +266,10 @@ dialog::backdrop { background: rgb(8 11 20 / 50%); }
   table.stack-sm td { border: 0; padding: 3px 12px; text-align: left; }
   table.stack-sm td[data-label]::before { content: attr(data-label) ": "; color: var(--muted); font-size: 12.5px; font-weight: 600; }
   table.stack-sm td.num { text-align: left; }
+  table.stack-sm caption { display: block; width: 100%; }
+  table.stack-sm th[scope=row] { display: block; width: 100%; border: 0; padding: 6px 12px 2px; }
+  .stat { padding: 10px 12px; }
+  .stat dd { font-size: 19px; }
   .item { padding: 12px; }
   .envelope { grid-template-columns: minmax(0, 1fr); }
   .envelope dt { margin-top: 4px; }

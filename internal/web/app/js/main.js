@@ -4,6 +4,7 @@ import today from "./today.js";
 import people from "./people.js";
 import person from "./person.js";
 import signals from "./signals.js";
+import reception from "./reception.js";
 
-register(today, people, person, signals);
+register(today, people, person, signals, reception);
 start();

@@ -443,3 +443,33 @@ func TestSignalsAPI(t *testing.T) {
 		t.Fatalf("running a missing monitor: %d", code)
 	}
 }
+
+func TestReceptionAPI(t *testing.T) {
+	ts, _ := apiServer(t)
+	s := newSession(t, ts)
+	if code, _ := s.post("/api/mentions", map[string]any{"product": "demo", "url": "javascript:alert(1)"}); code != http.StatusBadRequest {
+		t.Fatalf("a non-http mention: %d", code)
+	}
+	m := s.mustPost("/api/mentions", map[string]any{"product": "demo", "url": "https://news.example/item/1#top", "title": "Does it work with Jest?", "source": "hn", "asks_question": true})
+	if m["created"] != true {
+		t.Fatalf("log mention: %v", m)
+	}
+	if again := s.mustPost("/api/mentions", map[string]any{"product": "demo", "url": "https://news.example/item/1/"}); again["created"] != false {
+		t.Fatalf("the same link was stored twice: %v", again)
+	}
+	if code, _ := s.post(fmt.Sprintf("/api/mentions/%v/tone", m["id"]), map[string]string{"tone": "great"}); code != http.StatusBadRequest {
+		t.Fatalf("an unknown tone: %d", code)
+	}
+	s.mustPost(fmt.Sprintf("/api/mentions/%v/tone", m["id"]), map[string]string{"tone": "positive"})
+	rep := s.get("/api/reception?product=demo&days=30")["reception"].([]any)[0].(map[string]any)
+	if rep["total"].(float64) != 1 || rep["days"].(float64) != 30 || rep["by_tone"].(map[string]any)["positive"].(float64) != 1 || rep["asking_a_question"].(float64) != 1 {
+		t.Fatalf("reception: %v", rep)
+	}
+	c := s.get("/api/counters?product=demo")["counters"].([]any)
+	if len(c) != 1 || !strings.Contains(fmt.Sprint(c[0].(map[string]any)["notes"]), "not installs or people") {
+		t.Fatalf("counters: %v", c)
+	}
+	if all := s.get("/api/counters")["counters"].([]any); len(all) != 0 {
+		t.Fatalf("products without a counter monitor are left out of all: %v", all)
+	}
+}

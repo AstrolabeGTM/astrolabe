@@ -124,6 +124,7 @@ type Window struct {
 
 type Report struct {
 	Product   string         `json:"product"`
+	Days      int            `json:"days"`
 	Window    Window         `json:"window"`
 	Total     int            `json:"total"`
 	ByTone    map[string]int `json:"by_tone"`
@@ -134,8 +135,13 @@ type Report struct {
 // Week reports the mentions dated in the 7 days up to now, newest first,
 // with counts by tone. limit caps the listed mentions (counts cover all).
 func Week(ctx context.Context, q store.Q, productID string, now time.Time, limit int) (*Report, error) {
-	from := now.AddDate(0, 0, -7)
-	r := &Report{Product: productID, ByTone: map[string]int{}, Mentions: []Mention{},
+	return Days(ctx, q, productID, 7, now, limit)
+}
+
+// Days is Week for the last n days.
+func Days(ctx context.Context, q store.Q, productID string, days int, now time.Time, limit int) (*Report, error) {
+	from := now.AddDate(0, 0, -days)
+	r := &Report{Product: productID, Days: days, ByTone: map[string]int{}, Mentions: []Mention{},
 		Window: Window{from.UTC().Format("2006-01-02 15:04 UTC"), now.UTC().Format("2006-01-02 15:04 UTC")}}
 	for _, t := range Tones {
 		r.ByTone[t] = 0
@@ -168,7 +174,7 @@ func Week(ctx context.Context, q store.Q, productID string, now time.Time, limit
 // Text renders a short summary for the weekly digest.
 func (r *Report) Text() string {
 	var b strings.Builder
-	fmt.Fprintf(&b, "Reception, last 7 days (%s to %s): %d mentions", r.Window.From, r.Window.To, r.Total)
+	fmt.Fprintf(&b, "Reception, last %d days (%s to %s): %d mentions", r.Days, r.Window.From, r.Window.To, r.Total)
 	if r.Total > 0 {
 		fmt.Fprintf(&b, " — %d positive, %d mixed, %d negative, %d not yet rated; %d ask a question",
 			r.ByTone["positive"], r.ByTone["mixed"], r.ByTone["negative"], r.ByTone["unknown"], r.Questions)

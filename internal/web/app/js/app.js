@@ -102,7 +102,7 @@ function describe(a) {
   }
   const item = a.closest("[data-key]");
   const items = $$("[data-key]", $("#main"));
-  return { key: item?.dataset.key, index: item ? items.indexOf(item) : -1, action: a.dataset.action, id: a.id };
+  return { key: item?.dataset.key, index: item ? items.indexOf(item) : -1, action: a.dataset.action || a.dataset.change, id: a.id };
 }
 
 function restoreFocus(t) {
@@ -112,7 +112,8 @@ function restoreFocus(t) {
   if (!el && t.id) el = document.getElementById(t.id);
   if (!el && t.key) {
     const item = main.querySelector(`[data-key="${CSS.escape(t.key)}"]`);
-    el = item && (item.querySelector(`[data-action="${CSS.escape(t.action || "")}"]`) || item.querySelector("button, a, input, select, textarea"));
+    const act = CSS.escape(t.action || "");
+    el = item && (item.querySelector(`[data-action="${act}"], [data-change="${act}"]`) || item.querySelector("button, a, input, select, textarea"));
     if (!el) {
       const items = $$("[data-key]", main);
       const next = items[Math.min(t.index, items.length - 1)];
