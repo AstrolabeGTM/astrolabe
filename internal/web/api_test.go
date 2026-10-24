@@ -718,3 +718,27 @@ func TestForgetRoute(t *testing.T) {
 		t.Fatalf("the person is still there: %d", code)
 	}
 }
+
+func TestResultsRoutes(t *testing.T) {
+	ts, srv := apiServer(t)
+	if _, err := people.Import(context.Background(), srv.S.Pool, "demo", []people.Row{{Email: "ana@acme.example", Name: "Ana"}}); err != nil {
+		t.Fatal(err)
+	}
+	s := newSession(t, ts)
+	if f := s.get("/api/funnel?product=demo&days=30"); len(f["stages"].([]any)) != 5 {
+		t.Fatalf("funnel: %v", f)
+	}
+	s.mustPost("/api/stage", map[string]any{"product": "demo", "person": "ana@acme.example", "stage": "installed"})
+	if f := s.get("/api/funnel?product=demo"); f["stages"].([]any)[2].(map[string]any)["people"].(float64) != 1 {
+		t.Fatalf("after recording a stage: %v", f["stages"])
+	}
+	s.get("/api/experiments?product=demo")
+	s.get("/api/automations")
+	s.get("/api/automations/runs?limit=10")
+	if d := s.get("/api/digest?latest=true"); d["latest"] != true {
+		t.Fatalf("latest digest: %v", d)
+	}
+	if o := s.get("/api/outbox"); o["mode"] != "sandbox" {
+		t.Fatalf("outbox: %v", o)
+	}
+}

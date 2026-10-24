@@ -68,7 +68,21 @@ func (s *Server) experiments(ctx context.Context, a productArg) (any, error) {
 	return map[string]any{"experiments": res}, err
 }
 
-func (s *Server) digestNow(ctx context.Context, _ noArgs) (any, error) {
+type digestArg struct {
+	Latest bool `json:"latest,omitempty" jsonschema:"the last digest as it was emailed, instead of building this week's now"`
+}
+
+func (s *Server) digestNow(ctx context.Context, a digestArg) (any, error) {
+	if a.Latest {
+		body, at, err := digest.Latest(ctx, s.S.Pool)
+		if err != nil {
+			return nil, err
+		}
+		if body == "" {
+			return map[string]any{"latest": true, "text": "", "note": "No digest has been made yet; one is built every Monday from 08:00."}, nil
+		}
+		return map[string]any{"latest": true, "text": body, "made_at": at}, nil
+	}
 	d, err := digest.Build(ctx, s.S.Pool, s.Products(), time.Now())
 	if err != nil {
 		return nil, err

@@ -30,3 +30,18 @@ func (srv *Server) contentRoutes() []apiRoute {
 		srv.toolRoute("POST /api/content", "content"),
 	}
 }
+
+// Routes for the screens that replace the classic pages.
+func (srv *Server) classicRoutes() []apiRoute {
+	return []apiRoute{
+		srv.toolRoute("GET /api/funnel", "funnel"),
+		srv.toolRoute("GET /api/experiments", "experiments"),
+		srv.toolRoute("POST /api/stage", "record_stage"),
+		srv.toolRoute("GET /api/automations", "automations"),
+		srv.toolRoute("GET /api/automations/runs", "automation_runs"),
+		srv.toolRoute("GET /api/digest", "digest"),
+		srv.toolRoute("GET /api/outbox", "outbox"),
+		srv.toolRoute("POST /api/outbox/reply", "simulate_reply"),
+		srv.toolRoute("POST /api/outbox/bounce", "simulate_bounce"),
+	}
+}

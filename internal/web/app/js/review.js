@@ -132,7 +132,7 @@ function isoWeek(d = new Date()) {
 }
 
 export default {
-  id: "review", title: "Weekly review", icon: "review", nav: "work",
+  id: "review", title: "Weekly review", icon: "review", nav: "insight",
   load: async params => {
     const p = (state.boot?.products || []).find(x => x.id === state.product) || state.boot?.products[0];
     if (!p) return { product: null };

@@ -70,6 +70,7 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .sidebar :focus-visible { outline-color: var(--brass); }
 .sidebar-foot { margin-top: auto; padding: 16px 10px 0; border-top: 1px solid var(--night-2); font-size: 13px; color: var(--night-muted); }
 .sidebar-foot form { margin-top: 10px; }
+.sidebar-foot a { color: var(--night-ink); }
 .sidebar-foot button { background: none; border: 1px solid var(--night-2); color: var(--night-ink); border-radius: 8px; padding: 6px 12px; cursor: pointer; }
 .sidebar-foot button:hover { background: var(--night-2); }
 

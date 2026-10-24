@@ -6,10 +6,8 @@ import { $, $$, e, api, state, icon, toast, initDialog, closeDialog, dialogOpene
 
 const screens = [];
 
-const CLASSIC = [
-  ["/", "Inbox"], ["/automations", "Automations"], ["/funnel", "Funnel"],
-  ["/content", "Content"], ["/digest", "Digest"], ["/outbox", "Outbox", true],
-];
+// Every classic page now has a screen here; the classic pages stay
+// reachable from the sidebar's foot until they are removed.
 
 let current = { screen: null, params: {}, data: null };
 let loading = 0;
@@ -26,19 +24,19 @@ function parseHash() {
 // ---- chrome ----
 
 function renderNav() {
-  const work = screens.filter(s => s.nav === "work");
+  const sandbox = state.boot?.mode === "sandbox";
+  const shown = s => !s.sandboxOnly || sandbox;
+  const work = screens.filter(s => s.nav === "work" && shown(s));
+  const insight = screens.filter(s => s.nav === "insight" && shown(s));
   const setup = screens.filter(s => s.nav === "setup");
   const active = current.screen?.section || current.screen?.id;
   const link = s => `<li><a class="nav-link" href="#${s.id}"${s.id === active ? ' aria-current="page"' : ""}>${icon(s.icon)}<span>${e(s.title)}</span></a></li>`;
-  const sandbox = state.boot?.mode === "sandbox";
-  const classic = CLASSIC.filter(([, , sb]) => !sb || sandbox)
-    .map(([href, label]) => `<li><a class="nav-link" href="${href}">${icon("classic")}<span>${e(label)}</span></a></li>`).join("");
   const group = (id, label, items) => items ? `<p class="nav-caption" id="nav-${id}">${label}</p><ul class="nav-list" aria-labelledby="nav-${id}">${items}</ul>` : "";
   $("#navigation").innerHTML = `
     ${group("work", "Work", work.map(link).join(""))}
+    ${group("insight", "Results", insight.map(link).join(""))}
     ${group("setup", "Setup", setup.map(link).join(""))}
-    ${group("classic", "Classic pages", classic)}
-    <div class="sidebar-foot"><p>The classic pages still work while their screens move here.</p>
+    <div class="sidebar-foot"><p>The <a href="/">classic pages</a> still work for now.</p>
       <form method="post" action="/logout"><button type="submit">Sign out</button></form></div>`;
 }
 

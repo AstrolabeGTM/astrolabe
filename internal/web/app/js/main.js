@@ -12,6 +12,8 @@ import { campaignsList, campaignDetail } from "./campaigns.js";
 import review from "./review.js";
 import updates from "./updates.js";
 import calendar from "./calendar.js";
+import { funnel, automations, outbox, digest } from "./insights.js";
 
-register(today, pipeline, account, people, person, signals, reception, campaignsList, campaignDetail, review, updates, calendar, settings);
+register(today, pipeline, account, people, person, signals, campaignsList, campaignDetail, calendar, updates, outbox,
+  reception, funnel, review, automations, digest, settings);
 start();

@@ -39,7 +39,7 @@
 | `counters` | Public counters from github_release monitors: release download counts per asset and in total, plus stars, forks, watchers, open issues and discussions, with the change over the last 7 days against the 7 before (both windows stated). |
 | `creative_preview` | A creative's current copy filled into its template at one size, as a single HTML document with its stylesheets and images inlined: what a render would draw, available without the renderer. |
 | `creatives` | A campaign's creatives (HTML template plus copy fields): copy, alt text, claims-check flags, rendered files and whether the approval still holds. |
-| `digest` | This week's summary per product: what moved, automations, experiments, stuck people, uncontacted A-tier people, biggest drop, and up to three concrete actions. |
+| `digest` | This week's summary per product: what moved, automations, experiments, stuck people, uncontacted A-tier people, biggest drop, and up to three concrete actions. latest=true returns the last digest as it was emailed instead. |
 | `do_not_contact` | Put a person (id or email) on the do-not-contact list: no product will message them again. allow=true removes them. |
 | `doctor` | Run the setup checks (astrolabe doctor): database, mode, password, products, mailboxes, channel secrets, public URL, webhooks and tokens, each ok, a warning or a problem, with the fix. connect=true also tests mailbox logins, the GitHub token, the Claude key and SPF/DMARC, without sending anything. |
 | `edit_creative` | Change a creative's copy fields and/or alt text. |
