@@ -96,6 +96,14 @@ var descriptions = map[string]string{
 	"Pipeline.stages":                    "Ordered account stages, e.g. identified, contacted, qualified, evaluation, won. Paused and lost are built in.",
 	"Pipeline.qualify":                   "Checks that gate a stage (sales: BANT, MEDDIC), answered yes, no or unknown with evidence.",
 	"Pipeline.reasons":                   "Reasons an account is paused or lost, e.g. no_timing, no_reply.",
+	"Product.review":                     "The weekly review (sales: pipeline review, forecast call, QBR-lite): its questions, response-time targets and day.",
+	"Review.questions":                   "The questions the weekly review asks, in order (default: five, about activation, reach, accounts, surprises and the biggest blocker).",
+	"Review.targets":                     "How fast we first answer inbound items. The review counts answers within and over target, in wall-clock time.",
+	"Review.weekday":                     "The review day: monday to sunday (default friday).",
+	"ReviewTargets.requests":             "First response to a form request, e.g. 2h (default).",
+	"ReviewTargets.replies":              "First response to a reply labelled interested or question, e.g. 2h (default).",
+	"ReviewTargets.issues":               "First response to a new GitHub issue, e.g. 24h (default).",
+	"ReviewTargets.discussions":          "First response to a new GitHub discussion, e.g. 24h (default).",
 	"Pipeline.stuck_after":               "An account in one stage longer than this shows as stuck (default 14d).",
 	"Qualify.gate":                       "The stage that needs every check answered yes.",
 	"Qualify.checks":                     "Checks that must be yes to enter the gate stage or any later one.",
@@ -177,6 +185,7 @@ var enums = map[string][]string{
 	"When.min_tier":            {"A", "B", "C", "D"},
 	"Monitor.type":             {"github_search", "github_repo", "community", "github_release", "netlify_forms", "form_webhook"},
 	"Updates.via":              {"smtp", "resend"},
+	"Review.weekday":           {"monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"},
 	"Action.updates":           {"subscribe"},
 }
 
@@ -198,7 +207,8 @@ var patterns = map[string]string{
 	"Campaign.start": datePatternJS, "Campaign.end": datePatternJS, "Budget.currency": `^[A-Z]{3}$`,
 	"Campaign.code": `^[a-z0-9][a-z0-9_-]{1,23}$`,
 	"Product.id":    `^[a-z0-9][a-z0-9-]*$`, "Pipeline.stuck_after": durationPatternJS,
-	"Updates.confirm_within": durationPatternJS,
+	"Updates.confirm_within": durationPatternJS, "ReviewTargets.requests": durationPatternJS, "ReviewTargets.replies": durationPatternJS,
+	"ReviewTargets.issues": durationPatternJS, "ReviewTargets.discussions": durationPatternJS,
 }
 
 func schemaFor(t reflect.Type) map[string]any {

@@ -67,3 +67,16 @@ updates:
   name: Pipewrench updates
   per_day: 100
   postal_address: "Pipewrench Demo Ltd, 1 Example Street, Exampleville EX1 1AA"
+
+# The weekly review (sales: pipeline review, forecast call, QBR-lite).
+# Everything here is optional; these are the defaults. Targets are how fast
+# you first answer (wall-clock time).
+review:
+  weekday: friday
+  targets: {requests: 2h, replies: 2h, issues: 24h, discussions: 24h}
+  questions:
+    - "How many reached activation, and what did they say?"
+    - "What changed in reach (counters, sign-ups, mentions), and where did new people say they came from?"
+    - "How many accounts moved, and where are they stuck?"
+    - "What did people say that surprised us?"
+    - "What is the single biggest blocker to the next activation?"

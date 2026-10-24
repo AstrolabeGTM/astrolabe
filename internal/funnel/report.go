@@ -390,29 +390,45 @@ func (r *Report) spend(ctx context.Context, q store.Q, p *product.Product, since
 }
 
 func (r *Report) requests(ctx context.Context, q store.Q, p *product.Product, since time.Time) error {
+	var err error
+	r.Requests, err = RequestsBetween(ctx, q, p.ID, since, time.Time{})
+	return err
+}
+
+// RequestsBetween counts form submissions from since up to until (zero: no
+// upper bound) by the source people reported.
+func RequestsBetween(ctx context.Context, q store.Q, productID string, since, until time.Time) (Requests, error) {
+	out := Requests{Sources: []ReportedSource{}}
 	rows, err := q.Query(ctx, `
 		SELECT lower(btrim(reported_source)) AS s, count(*) FROM form_submissions
-		WHERE product_id = $1 AND submitted_at >= $2 GROUP BY 1 ORDER BY 2 DESC, 1`, p.ID, since)
+		WHERE product_id = $1 AND submitted_at >= $2 AND ($3::timestamptz IS NULL OR submitted_at < $3) GROUP BY 1 ORDER BY 2 DESC, 1`,
+		productID, since, nullTime(until))
 	if err != nil {
-		return err
+		return out, err
 	}
 	defer rows.Close()
-	r.Requests = Requests{Sources: []ReportedSource{}}
 	for rows.Next() {
 		var s string
 		var n int
 		if err := rows.Scan(&s, &n); err != nil {
-			return err
+			return out, err
 		}
-		r.Requests.Total += n
+		out.Total += n
 		if s == "" {
-			r.Requests.Unanswered = n
+			out.Unanswered = n
 			continue
 		}
-		r.Requests.Sources = append(r.Requests.Sources, ReportedSource{Source: s, Requests: n})
+		out.Sources = append(out.Sources, ReportedSource{Source: s, Requests: n})
 	}
-	for i := range r.Requests.Sources {
-		r.Requests.Sources[i].Percent = r.Requests.Sources[i].Requests * 100 / r.Requests.Total
+	for i := range out.Sources {
+		out.Sources[i].Percent = out.Sources[i].Requests * 100 / out.Total
 	}
-	return rows.Err()
+	return out, rows.Err()
+}
+
+func nullTime(t time.Time) *time.Time {
+	if t.IsZero() {
+		return nil
+	}
+	return &t
 }
