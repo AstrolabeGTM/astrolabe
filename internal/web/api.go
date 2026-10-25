@@ -55,7 +55,8 @@ func (srv *Server) apiGuard(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Cache-Control", "no-store")
 		if srv.Password == "" {
-			if !srv.openSession(w, r) {
+			if msg := srv.openSession(w, r); msg != "" {
+				reply(w, http.StatusForbidden, errBody(msg))
 				return
 			}
 		} else if !srv.validSession(r) {

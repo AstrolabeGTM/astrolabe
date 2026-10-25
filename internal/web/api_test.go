@@ -7,6 +7,7 @@ import (
 	"io"
 	"io/fs"
 	"net/http"
+	"net/http/cookiejar"
 	"net/http/httptest"
 	"net/url"
 	"path/filepath"
@@ -121,9 +122,27 @@ func TestNoPassword(t *testing.T) {
 	if code, body := do(t, c, "POST", ts.URL+"/api/pause", write, same); code != http.StatusOK {
 		t.Fatalf("valid write: %d %v", code, body)
 	}
-	// A first API call with no cookie at all gets a session and a usable token.
-	if code, boot := do(t, http.DefaultClient, "GET", ts.URL+"/api/bootstrap", "", nil); code != http.StatusOK || boot["csrf_token"] == "" {
-		t.Fatalf("bootstrap without a cookie: %d %v", code, boot)
+	// A write with no session is refused (the cookie is SameSite=Strict, so a
+	// cross-site form arrives without one), on the API and the classic pages.
+	if code, _ := do(t, http.DefaultClient, "POST", ts.URL+"/api/pause", write, map[string]string{"X-CSRF-Token": token}); code != http.StatusForbidden {
+		t.Fatalf("API write without a session: %d", code)
+	}
+	if code, _ := do(t, http.DefaultClient, "POST", ts.URL+"/tasks", "", nil); code != http.StatusForbidden {
+		t.Fatalf("classic write without a session: %d", code)
+	}
+	// A stale cookie (signed with another key, as after the key changes) is
+	// replaced, and the token handed out is for the new session.
+	jar, _ := cookiejar.New(nil)
+	u, _ := url.Parse(ts.URL)
+	jar.SetCookies(u, []*http.Cookie{{Name: cookieName, Value: fmt.Sprintf("%d.%s", time.Now().Add(time.Hour).Unix(), strings.Repeat("ab", 32)), Path: "/"}})
+	stale := &http.Client{Jar: jar}
+	code, boot = do(t, stale, "GET", ts.URL+"/api/bootstrap", "", nil)
+	if code != http.StatusOK {
+		t.Fatalf("bootstrap with a stale cookie: %d", code)
+	}
+	same["X-CSRF-Token"] = boot["csrf_token"].(string)
+	if code, body := do(t, stale, "POST", ts.URL+"/api/resume", write, same); code != http.StatusOK {
+		t.Fatalf("write after a stale cookie was replaced: %d %v", code, body)
 	}
 	// The login page just goes where it was asked to.
 	resp, err := c.Get(ts.URL + "/login?next=/app/")

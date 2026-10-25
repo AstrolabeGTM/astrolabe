@@ -58,6 +58,10 @@ type Server struct {
 	// Password is the sign-in password. Empty means no sign-in, which serve
 	// allows only when it listens on this machine alone (see Loopback).
 	Password string
+	// SessionKey signs sessions when there is no password. serve keeps it in
+	// the secrets folder so sessions survive a restart; if nil, a new one is
+	// made each start.
+	SessionKey []byte
 	// Products returns the currently loaded products (reloadable).
 	Products func() []*product.Product
 	// Reload re-reads product folders.
@@ -71,12 +75,14 @@ type Server struct {
 	Tools map[string]mcp.Handler
 
 	tmpl    *template.Template
-	openKey []byte // signs sessions when there is no password; new each start
+	openKey []byte
 }
 
 func (srv *Server) Handler() http.Handler {
-	srv.openKey = make([]byte, 32)
-	rand.Read(srv.openKey)
+	if srv.openKey = srv.SessionKey; len(srv.openKey) == 0 {
+		srv.openKey = make([]byte, 32)
+		rand.Read(srv.openKey)
+	}
 	srv.tmpl = template.Must(template.New("").Funcs(template.FuncMap{
 		"ago":     ago,
 		"date":    func(t time.Time) string { return t.Local().Format("Mon 2 Jan 15:04") },
@@ -231,19 +237,33 @@ func Loopback(hostport string) bool {
 	return ip != nil && ip.IsLoopback()
 }
 
-// openSession is the sign-in check when there is no password. It refuses a
-// Host that is not this machine, so a web page that rebinds its own domain
-// to 127.0.0.1 cannot read the app, and it starts a session on the first
-// visit, since the CSRF token hangs off the session cookie.
-func (srv *Server) openSession(w http.ResponseWriter, r *http.Request) bool {
+// openSession is the sign-in check when there is no password. It returns ""
+// when the request may go on, else why not (for a 403). It refuses a Host
+// that is not this machine, so a web page that rebinds its own domain to
+// 127.0.0.1 cannot read the app. A page load starts a session, since the
+// CSRF token hangs off the session cookie; a write without one is refused,
+// so the SameSite=Strict cookie still stops cross-site form posts.
+func (srv *Server) openSession(w http.ResponseWriter, r *http.Request) string {
 	if !Loopback(r.Host) {
-		http.Error(w, "Without ASTROLABE_PASSWORD, open Astrolabe at http://127.0.0.1 or http://localhost.", http.StatusForbidden)
-		return false
+		return "Without ASTROLABE_PASSWORD, open Astrolabe at http://127.0.0.1 or http://localhost."
 	}
-	if !srv.validSession(r) {
-		r.AddCookie(srv.startSession(w, r))
+	if srv.validSession(r) {
+		return ""
 	}
-	return true
+	if r.Method != http.MethodGet && r.Method != http.MethodHead {
+		return "No session: reload the page and try again."
+	}
+	// Drop a stale cookie (from another key) so the CSRF token handed out
+	// with this response is for the new session.
+	kept := r.Cookies()
+	r.Header.Del("Cookie")
+	for _, c := range kept {
+		if c.Name != cookieName {
+			r.AddCookie(c)
+		}
+	}
+	r.AddCookie(srv.startSession(w, r))
+	return ""
 }
 
 // startSession sets a new 30-day session cookie and returns it.
@@ -258,9 +278,11 @@ func (srv *Server) startSession(w http.ResponseWriter, r *http.Request) *http.Co
 func (srv *Server) requireLogin(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if srv.Password == "" {
-			if srv.openSession(w, r) {
-				next.ServeHTTP(w, r)
+			if msg := srv.openSession(w, r); msg != "" {
+				http.Error(w, msg, http.StatusForbidden)
+				return
 			}
+			next.ServeHTTP(w, r)
 			return
 		}
 		if !srv.validSession(r) {
@@ -347,9 +369,11 @@ func securityHeaders(next http.Handler) http.Handler {
 
 func (srv *Server) loginPage(w http.ResponseWriter, r *http.Request) {
 	if srv.Password == "" {
-		if srv.openSession(w, r) {
-			http.Redirect(w, r, safeNext(r.URL.Query().Get("next")), http.StatusSeeOther)
+		if msg := srv.openSession(w, r); msg != "" {
+			http.Error(w, msg, http.StatusForbidden)
+			return
 		}
+		http.Redirect(w, r, safeNext(r.URL.Query().Get("next")), http.StatusSeeOther)
 		return
 	}
 	srv.render(w, "login", map[string]any{"Failed": r.URL.Query().Has("failed"), "Next": safeNext(r.URL.Query().Get("next"))})
