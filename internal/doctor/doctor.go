@@ -46,6 +46,7 @@ type Input struct {
 	SecretsDir  string
 	Mode        string // from ASTROLABE_MODE
 	Password    string
+	LocalOnly   bool // serve listens on this machine alone, so it needs no password
 	Getenv      func(string) string
 	Connect     bool // also test logins, APIs and DNS (no sending)
 	HTTP        *http.Client
@@ -88,7 +89,9 @@ func Run(ctx context.Context, in Input) []Check {
 	}
 
 	// Web password.
-	if in.Password == "" {
+	if in.Password == "" && in.LocalOnly {
+		add("password", OK, "none needed: the web app listens on this machine only", "")
+	} else if in.Password == "" {
 		if _, err := os.Stat(filepath.Join(in.SecretsDir, "admin-password")); err == nil {
 			add("password", OK, "generated password in "+filepath.Join(in.SecretsDir, "admin-password"), "")
 		} else {

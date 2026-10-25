@@ -46,6 +46,12 @@ func TestDoctor(t *testing.T) {
 	if f := fails(Run(ctx, in)); len(f) > 0 {
 		t.Fatalf("demo in sandbox should pass: %v", f)
 	}
+	// Listening on this machine only, no password is needed.
+	in.Password, in.LocalOnly = "", true
+	if !find(Run(ctx, in), "password", OK, "none needed") {
+		t.Fatal("no password on 127.0.0.1 should pass")
+	}
+	in.Password, in.LocalOnly = "long-enough-password", false
 
 	// The same demo in live mode fails, and so does a mode mismatch.
 	sandbox.EnsureMode(ctx, pool, "sandbox")

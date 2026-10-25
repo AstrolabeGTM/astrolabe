@@ -5,6 +5,7 @@ package web
 import (
 	"context"
 	"crypto/hmac"
+	"crypto/rand"
 	"crypto/sha256"
 	"crypto/subtle"
 	"embed"
@@ -13,6 +14,7 @@ import (
 	"fmt"
 	"html/template"
 	"log/slog"
+	"net"
 	"net/http"
 	"net/url"
 	"slices"
@@ -53,6 +55,8 @@ type Server struct {
 	Mode     string           // sandbox or live
 	Mail     *mail.Store
 	Accounts *gmail.Accounts
+	// Password is the sign-in password. Empty means no sign-in, which serve
+	// allows only when it listens on this machine alone (see Loopback).
 	Password string
 	// Products returns the currently loaded products (reloadable).
 	Products func() []*product.Product
@@ -66,10 +70,13 @@ type Server struct {
 	// mirror them one to one (see toolRoute).
 	Tools map[string]mcp.Handler
 
-	tmpl *template.Template
+	tmpl    *template.Template
+	openKey []byte // signs sessions when there is no password; new each start
 }
 
 func (srv *Server) Handler() http.Handler {
+	srv.openKey = make([]byte, 32)
+	rand.Read(srv.openKey)
 	srv.tmpl = template.Must(template.New("").Funcs(template.FuncMap{
 		"ago":     ago,
 		"date":    func(t time.Time) string { return t.Local().Format("Mon 2 Jan 15:04") },
@@ -79,6 +86,7 @@ func (srv *Server) Handler() http.Handler {
 		"money":   func(c int64) string { return fmt.Sprintf("%.2f", float64(c)/100) },
 		"mul100":  func(f float64) float64 { return f * 100 },
 		"sandbox": func() bool { return srv.Mode == sandbox.Sandbox },
+		"signIn":  func() bool { return srv.Password != "" },
 		"derefF": func(p *float64) float64 {
 			if p == nil {
 				return 0
@@ -183,6 +191,9 @@ func (srv *Server) Handler() http.Handler {
 const cookieName = "astrolabe_session"
 
 func (srv *Server) sessionKey() []byte {
+	if srv.Password == "" {
+		return srv.openKey
+	}
 	k := sha256.Sum256([]byte("astrolabe-session\x00" + srv.Password))
 	return k[:]
 }
@@ -206,8 +217,52 @@ func (srv *Server) validSession(r *http.Request) bool {
 	return hmac.Equal([]byte(c.Value), []byte(srv.sign(exp)))
 }
 
+// Loopback reports whether a host or host:port names this machine only
+// (localhost, 127.0.0.1, ::1). An empty host (":8080") listens everywhere.
+func Loopback(hostport string) bool {
+	host, _, err := net.SplitHostPort(hostport)
+	if err != nil {
+		host = strings.Trim(hostport, "[]")
+	}
+	if host == "localhost" || strings.HasSuffix(host, ".localhost") {
+		return true
+	}
+	ip := net.ParseIP(host)
+	return ip != nil && ip.IsLoopback()
+}
+
+// openSession is the sign-in check when there is no password. It refuses a
+// Host that is not this machine, so a web page that rebinds its own domain
+// to 127.0.0.1 cannot read the app, and it starts a session on the first
+// visit, since the CSRF token hangs off the session cookie.
+func (srv *Server) openSession(w http.ResponseWriter, r *http.Request) bool {
+	if !Loopback(r.Host) {
+		http.Error(w, "Without ASTROLABE_PASSWORD, open Astrolabe at http://127.0.0.1 or http://localhost.", http.StatusForbidden)
+		return false
+	}
+	if !srv.validSession(r) {
+		r.AddCookie(srv.startSession(w, r))
+	}
+	return true
+}
+
+// startSession sets a new 30-day session cookie and returns it.
+func (srv *Server) startSession(w http.ResponseWriter, r *http.Request) *http.Cookie {
+	exp := time.Now().Add(30 * 24 * time.Hour).Unix()
+	c := &http.Cookie{Name: cookieName, Value: srv.sign(exp), Path: "/", HttpOnly: true,
+		Secure: r.TLS != nil || r.Header.Get("X-Forwarded-Proto") == "https", SameSite: http.SameSiteStrictMode, MaxAge: 30 * 24 * 3600}
+	http.SetCookie(w, c)
+	return c
+}
+
 func (srv *Server) requireLogin(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if srv.Password == "" {
+			if srv.openSession(w, r) {
+				next.ServeHTTP(w, r)
+			}
+			return
+		}
 		if !srv.validSession(r) {
 			to := "/login"
 			if r.Method == http.MethodGet && r.URL.Path != "/" {
@@ -291,6 +346,12 @@ func securityHeaders(next http.Handler) http.Handler {
 }
 
 func (srv *Server) loginPage(w http.ResponseWriter, r *http.Request) {
+	if srv.Password == "" {
+		if srv.openSession(w, r) {
+			http.Redirect(w, r, safeNext(r.URL.Query().Get("next")), http.StatusSeeOther)
+		}
+		return
+	}
 	srv.render(w, "login", map[string]any{"Failed": r.URL.Query().Has("failed"), "Next": safeNext(r.URL.Query().Get("next"))})
 }
 
@@ -301,9 +362,7 @@ func (srv *Server) login(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, "/login?failed&next="+url.QueryEscape(next), http.StatusSeeOther)
 		return
 	}
-	exp := time.Now().Add(30 * 24 * time.Hour).Unix()
-	http.SetCookie(w, &http.Cookie{Name: cookieName, Value: srv.sign(exp), Path: "/", HttpOnly: true,
-		Secure: r.TLS != nil || r.Header.Get("X-Forwarded-Proto") == "https", SameSite: http.SameSiteStrictMode, MaxAge: 30 * 24 * 3600})
+	srv.startSession(w, r)
 	http.Redirect(w, r, next, http.StatusSeeOther)
 }
 

@@ -11,9 +11,11 @@ import (
 	"strings"
 
 	"github.com/AstrolabeGTM/astrolabe/internal/app"
+	"github.com/AstrolabeGTM/astrolabe/internal/web"
 )
 
-// adminPassword returns ASTROLABE_PASSWORD, or a password generated on the
+// adminPassword returns ASTROLABE_PASSWORD; or "" (no sign-in) when the
+// server listens on this machine alone; or else a password generated on the
 // first start and kept in the secrets folder (printed once, like Jenkins).
 func adminPassword(cfg app.Config) (string, error) {
 	if cfg.Password != "" {
@@ -21,6 +23,10 @@ func adminPassword(cfg app.Config) (string, error) {
 			return "", errors.New("ASTROLABE_PASSWORD must be at least 10 characters")
 		}
 		return cfg.Password, nil
+	}
+	if web.Loopback(cfg.Addr) {
+		slog.Info("no sign-in: the web app listens on " + cfg.Addr + " only (set ASTROLABE_PASSWORD to require one)")
+		return "", nil
 	}
 	path := filepath.Join(cfg.SecretsDir, "admin-password")
 	if b, err := os.ReadFile(path); err == nil {

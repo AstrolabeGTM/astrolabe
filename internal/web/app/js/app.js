@@ -37,7 +37,7 @@ function renderNav() {
     ${group("insight", "Results", insight.map(link).join(""))}
     ${group("setup", "Setup", setup.map(link).join(""))}
     <div class="sidebar-foot"><p>The <a href="/">classic pages</a> still work for now.</p>
-      <form method="post" action="/logout"><button type="submit">Sign out</button></form></div>`;
+      ${state.boot?.sign_in ? `<form method="post" action="/logout"><button type="submit">Sign out</button></form>` : ""}</div>`;
 }
 
 function renderBadges() {

@@ -54,7 +54,11 @@ func (srv *Server) apiMux() http.Handler {
 func (srv *Server) apiGuard(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Cache-Control", "no-store")
-		if !srv.validSession(r) {
+		if srv.Password == "" {
+			if !srv.openSession(w, r) {
+				return
+			}
+		} else if !srv.validSession(r) {
 			reply(w, http.StatusUnauthorized, errBody("Sign in to continue."))
 			return
 		}
@@ -178,8 +182,9 @@ func (srv *Server) apiBootstrap(w http.ResponseWriter, r *http.Request) {
 	}
 	reply(w, http.StatusOK, struct {
 		*views.Status
-		CSRF string `json:"csrf_token"`
-	}{st, srv.csrfToken(r)})
+		CSRF   string `json:"csrf_token"`
+		SignIn bool   `json:"sign_in"` // false: no password, so no Sign out
+	}{st, srv.csrfToken(r), srv.Password != ""})
 }
 
 // ---- pauses ----

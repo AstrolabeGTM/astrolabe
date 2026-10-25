@@ -17,7 +17,7 @@ docker run --rm --user "$(id -u):$(id -g)" -v "$PWD:/work" -w /work ghcr.io/astr
 docker compose up -d
 ```
 
-Open http://localhost:8080/app/ and sign in with `ASTROLABE_PASSWORD` from `.env`. The demo runs in **sandbox mode**: nothing leaves your machine, and every message lands in a local **Outbox**. Try this:
+Open http://localhost:8080/app/ and sign in with `ASTROLABE_PASSWORD` from `.env`. (Run the `astrolabe` binary yourself instead and it listens on 127.0.0.1 with no sign-in at all.) The demo runs in **sandbox mode**: nothing leaves your machine, and every message lands in a local **Outbox**. Try this:
 
 1. **People:** tick a few demo people, then **Start a sequence** with `intro`.
 2. **Today:** read the draft (the exact sender, recipient and text), then **Approve**, or **Edit** it first.

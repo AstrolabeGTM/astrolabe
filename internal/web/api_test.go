@@ -98,6 +98,68 @@ func do(t *testing.T, c *http.Client, method, u string, body string, headers map
 	return resp.StatusCode, out
 }
 
+// With no password (serve allows that only on 127.0.0.1) there is no sign-in,
+// but writes still need the CSRF token and the Host must be this machine.
+func TestNoPassword(t *testing.T) {
+	ts, srv := apiServer(t)
+	srv.Password = ""
+	c := &http.Client{Jar: &cookieJar{}, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
+
+	if code, _ := do(t, c, "GET", ts.URL+"/app/", "", nil); code != http.StatusOK {
+		t.Fatalf("/app/ without a password: %d", code)
+	}
+	code, boot := do(t, c, "GET", ts.URL+"/api/bootstrap", "", nil)
+	token, _ := boot["csrf_token"].(string)
+	if code != http.StatusOK || token == "" || boot["sign_in"] != false {
+		t.Fatalf("bootstrap: %d %v", code, boot)
+	}
+	write := `{"scope":"global"}`
+	if code, _ := do(t, c, "POST", ts.URL+"/api/pause", write, map[string]string{"Origin": ts.URL}); code != http.StatusForbidden {
+		t.Fatalf("write without the CSRF token: %d", code)
+	}
+	same := map[string]string{"X-CSRF-Token": token, "Origin": ts.URL, "Sec-Fetch-Site": "same-origin", "Content-Type": "application/json"}
+	if code, body := do(t, c, "POST", ts.URL+"/api/pause", write, same); code != http.StatusOK {
+		t.Fatalf("valid write: %d %v", code, body)
+	}
+	// A first API call with no cookie at all gets a session and a usable token.
+	if code, boot := do(t, http.DefaultClient, "GET", ts.URL+"/api/bootstrap", "", nil); code != http.StatusOK || boot["csrf_token"] == "" {
+		t.Fatalf("bootstrap without a cookie: %d %v", code, boot)
+	}
+	// The login page just goes where it was asked to.
+	resp, err := c.Get(ts.URL + "/login?next=/app/")
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusSeeOther || resp.Header.Get("Location") != "/app/" {
+		t.Fatalf("/login: %d %s", resp.StatusCode, resp.Header.Get("Location"))
+	}
+	// DNS rebinding: a page on another domain pointed at 127.0.0.1 is refused.
+	for _, path := range []string{"/app/", "/api/bootstrap", "/"} {
+		req, _ := http.NewRequest("GET", ts.URL+path, nil)
+		req.Host = "evil.example"
+		resp, err := c.Do(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		resp.Body.Close()
+		if resp.StatusCode != http.StatusForbidden {
+			t.Errorf("%s with Host evil.example: %d", path, resp.StatusCode)
+		}
+	}
+}
+
+func TestLoopback(t *testing.T) {
+	for addr, want := range map[string]bool{
+		"127.0.0.1:8080": true, "localhost:8080": true, "[::1]:8080": true, "127.0.0.1": true, "app.localhost:80": true,
+		"0.0.0.0:8080": false, ":8080": false, "192.168.1.5:8080": false, "geometer.dev": false, "evil.example:8080": false,
+	} {
+		if got := Loopback(addr); got != want {
+			t.Errorf("Loopback(%q) = %v, want %v", addr, got, want)
+		}
+	}
+}
+
 func TestAPIAuth(t *testing.T) {
 	ts, srv := apiServer(t)
 

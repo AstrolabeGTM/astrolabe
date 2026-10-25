@@ -69,7 +69,8 @@ Environment:
   ASTROLABE_DATABASE_URL          Postgres URL (default postgres:///astrolabe?host=/tmp)
   ASTROLABE_PRODUCTS              products folder (default ./products)
   ASTROLABE_ADDR                  listen address (default 127.0.0.1:8080)
-  ASTROLABE_PASSWORD              web app password (required for serve)
+  ASTROLABE_PASSWORD              web app password (none needed on 127.0.0.1; on other addresses
+                                  generated on first start if unset)
   ASTROLABE_MCP_TOKEN             bearer token for MCP at /mcp (default: generated, saved in the secrets dir)
   ASTROLABE_SECRETS_DIR           mailbox tokens (default ~/.config/astrolabe)
   ASTROLABE_GOOGLE_CLIENT_ID      Google OAuth client (Desktop app) for Gmail
@@ -194,7 +195,7 @@ func run(ctx context.Context, args []string, out io.Writer) error {
 			return err
 		}
 		checks := doctor.Run(ctx, doctor.Input{DatabaseURL: cfg.DatabaseURL, ProductsDir: cfg.ProductsDir, SecretsDir: cfg.SecretsDir,
-			Mode: cfg.Mode, Password: cfg.Password, Connect: *connect})
+			Mode: cfg.Mode, Password: cfg.Password, LocalOnly: web.Loopback(cfg.Addr), Connect: *connect})
 		if doctor.Print(out, checks) {
 			return errors.New("doctor found problems (✗ above)")
 		}
@@ -250,7 +251,7 @@ func run(ctx context.Context, args []string, out io.Writer) error {
 func doctorFor(cfg app.Config) func(context.Context, bool) []doctor.Check {
 	return func(ctx context.Context, connect bool) []doctor.Check {
 		return doctor.Run(ctx, doctor.Input{DatabaseURL: cfg.DatabaseURL, ProductsDir: cfg.ProductsDir, SecretsDir: cfg.SecretsDir,
-			Mode: cfg.Mode, Password: cfg.Password, Connect: connect})
+			Mode: cfg.Mode, Password: cfg.Password, LocalOnly: web.Loopback(cfg.Addr), Connect: connect})
 	}
 }
 
