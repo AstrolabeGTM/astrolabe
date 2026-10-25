@@ -246,7 +246,13 @@ func (s *Sources) hn(ctx context.Context, base Signal, m *product.Monitor, since
 	}
 	var out []Signal
 	for _, kw := range m.Keywords {
-		v := url.Values{"query": {kw}, "tags": {"(story,comment)"}, "hitsPerPage": {"100"},
+		// A keyword is a phrase, as in the RSS filter; unquoted, Algolia
+		// matches the words anywhere in a thread.
+		q := kw
+		if strings.Contains(kw, " ") && !strings.Contains(kw, `"`) {
+			q = `"` + kw + `"`
+		}
+		v := url.Values{"query": {q}, "tags": {"(story,comment)"}, "hitsPerPage": {"100"},
 			"numericFilters": {fmt.Sprintf("created_at_i>%d", since.Unix())}}
 		var r struct {
 			Hits []struct {

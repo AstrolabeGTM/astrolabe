@@ -8,6 +8,7 @@ import (
 	"math"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -148,6 +149,24 @@ func fakeAPIs(t *testing.T, now time.Time) *httptest.Server {
 </channel></rss>`, now.Add(-time.Hour).Format(time.RFC1123Z), now.Format(time.RFC1123Z))
 	})
 	return httptest.NewServer(mux)
+}
+
+// A multi-word keyword is searched on Hacker News as a phrase.
+func TestHNKeywordIsAPhrase(t *testing.T) {
+	var got []string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		got = append(got, r.URL.Query().Get("query"))
+		w.Write([]byte(`{"hits":[]}`))
+	}))
+	defer srv.Close()
+	m := &product.Monitor{ID: "talk", Type: "community", Keywords: []string{"agent refund", "idempotency", `"already quoted"`},
+		Sources: []string{"hn"}, Signal: "community.thread", Strength: 5, Every: "1h"}
+	if _, err := (&signal.Sources{HNBase: srv.URL}).Run(context.Background(), "demo", m, time.Now().Add(-time.Hour)); err != nil {
+		t.Fatal(err)
+	}
+	if want := []string{`"agent refund"`, "idempotency", `"already quoted"`}; !slices.Equal(got, want) {
+		t.Fatalf("queries %q, want %q", got, want)
+	}
 }
 
 // Most GitHub profiles have no company; enrichment must not trip over that.

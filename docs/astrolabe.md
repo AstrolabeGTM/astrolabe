@@ -195,7 +195,7 @@ Monitors are configured in `monitors.yaml`:
   every: 2h
 ```
 
-Each run looks back to the previous successful run (a week on the first run), and GitHub searches are date-bounded because search returns at most 1,000 results. One failing source doesn't stop the others; errors show on the Signals page.
+A keyword is a phrase: an RSS item must contain it, and Hacker News is searched for the exact phrase (unquoted, its search matches the words anywhere in a thread). Stack Overflow uses its own search on the words. Each run looks back to the previous successful run (a week on the first run), and GitHub searches are date-bounded because search returns at most 1,000 results. One failing source doesn't stop the others; errors show on the Signals page.
 
 Every signal is stored in the same shape:
 
