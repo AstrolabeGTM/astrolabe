@@ -246,8 +246,11 @@ func (svc *Service) Enrich(ctx context.Context, gh *github.Client, personID int6
 	}
 
 	sub := Subject{}
-	if org := strings.TrimPrefix(strings.Fields(u.Company + " ")[0], "@"); strings.HasPrefix(strings.TrimSpace(u.Company), "@") && org != "" {
-		sub.GitHubOrg = strings.ToLower(org)
+	// "@acme" in the company field names a GitHub org; most profiles leave it empty.
+	if f := strings.Fields(u.Company); len(f) > 0 && strings.HasPrefix(f[0], "@") {
+		if org := strings.TrimPrefix(f[0], "@"); org != "" {
+			sub.GitHubOrg = strings.ToLower(org)
+		}
 	}
 	if d := blogDomain(u.Blog); d != "" && sub.GitHubOrg != "" {
 		// A personal blog is not a company domain; only trust it next to an org.

@@ -124,6 +124,9 @@ func fakeAPIs(t *testing.T, now time.Time) *httptest.Server {
 	mux.HandleFunc("/users/ana-dev", func(w http.ResponseWriter, r *http.Request) {
 		j(w, map[string]any{"login": "ana-dev", "name": "Ana Ruiz", "company": "@AcmePay", "blog": "https://acmepay.example", "email": "ana@acmepay.example"})
 	})
+	mux.HandleFunc("/users/plain-dev", func(w http.ResponseWriter, r *http.Request) {
+		j(w, map[string]any{"login": "plain-dev", "company": ""})
+	})
 	mux.HandleFunc("/repos/acmepay/api/languages", func(w http.ResponseWriter, r *http.Request) {
 		j(w, map[string]int{"TypeScript": 9000, "Shell": 100})
 	})
@@ -145,6 +148,22 @@ func fakeAPIs(t *testing.T, now time.Time) *httptest.Server {
 </channel></rss>`, now.Add(-time.Hour).Format(time.RFC1123Z), now.Format(time.RFC1123Z))
 	})
 	return httptest.NewServer(mux)
+}
+
+// Most GitHub profiles have no company; enrichment must not trip over that.
+func TestEnrichProfileWithoutCompany(t *testing.T) {
+	svc, _ := setup(t)
+	ctx := context.Background()
+	srv := fakeAPIs(t, time.Now())
+	defer srv.Close()
+	if _, err := people.Import(ctx, svc.Pool, "demo", []people.Row{{GitHub: "plain-dev"}}); err != nil {
+		t.Fatal(err)
+	}
+	var personID int64
+	svc.Pool.QueryRow(ctx, `SELECT person_id FROM identities WHERE kind = 'github' AND value = 'plain-dev'`).Scan(&personID)
+	if err := svc.Enrich(ctx, &github.Client{Base: srv.URL}, personID, ""); err != nil {
+		t.Fatal(err)
+	}
 }
 
 func TestMonitorsEnrichmentAndScoring(t *testing.T) {
