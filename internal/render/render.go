@@ -21,7 +21,7 @@ import (
 )
 
 // HowToEnable is what to tell someone who needs the renderer.
-const HowToEnable = "Rendering needs the optional Chromium sidecar: run `docker compose --profile creative up -d` and set ASTROLABE_RENDER_URL=http://gotenberg:3000 (see the README). Copy, checks and approval work without it."
+const HowToEnable = "Rendering needs the optional Chromium sidecar: run `docker compose --profile creative up -d` and set ASTROLABE_RENDER_URL=http://gotenberg:3000 (see docs/setup.md). Copy, checks and approval work without it."
 
 // ErrNoRenderer is returned when no renderer is configured.
 var ErrNoRenderer = errors.New(HowToEnable)

@@ -2,12 +2,47 @@
 
 **Go-to-market for the everyday programmer.** You built something. Astrolabe finds people who have the problem it solves, drafts outreach you approve, follows up, and shows which efforts turn into users and revenue, without learning five sales tools.
 
-- **Talk to it from Claude** (MCP): "who should I contact this week?", "draft intros for the top 5", "why did activation drop?"
-- **Or use the web app** at `/app/`: Today (everything waiting on you, oldest past its target first), the account pipeline, people, signals, campaigns and creatives, the content calendar, the updates list, and results (reception, funnel, the weekly review). It can do exactly what the MCP tools can.
+- **Talk to it from Claude or Codex** (MCP): "who should I contact this week?", "draft intros for the top 5", "why did activation drop?"
+- **Or use the web app** at `/app/`. It can do exactly what the MCP tools can.
 - **Configure it like code**: each product is a folder of YAML and Markdown in git. Your editor autocompletes it, and `astrolabe doctor` checks it.
-- **Self-host it**: one Docker image plus Postgres, like Mattermost or Penpot. Open source under AGPL-3.0.
+- **Self-host it**: one Docker image plus Postgres. Open source under AGPL-3.0.
 
 Developer terms come first, and sales terms work too: "enroll my top MQLs in the intro cadence" does the same as "start the intro sequence for the top prospects".
+
+## How Astrolabe works for GTM
+
+Go-to-market is a loop: find people who have the problem, reach them with something useful, help the ones who answer, and learn what worked. Astrolabe runs that loop like a CI pipeline. Machines watch, sort and draft; you decide and approve.
+
+```text
+monitors ─▶ signals ─▶ people + priority ─▶ automations ─▶ tasks / drafts ─▶ you approve ─▶ send
+                                                                                              │
+         weekly review ◀── funnel (people) + pipeline (companies) ◀── replies, signups, calls ◀┘
+```
+
+1. **Describe the product once.** A folder in git says who it's for, the one offer every message makes, what's true about it (`claims.md`) and how you write (`voice.md`). Nothing goes out while claims and voice are stubs.
+2. **Monitors find signals.** On a schedule, Astrolabe watches GitHub searches, your repos (issues, discussions, stars, release downloads), Hacker News, Stack Overflow, RSS, your request forms, and events from your app and Stripe. Each hit is a signal about a person, or a public mention.
+3. **People get a priority.** A score from fit (your target rules), recent activity and anything time-sensitive puts each person in A–D. A means contact now.
+4. **Automations decide what happens.** Rules like `on a pain-issue signal with fit ≥ 50 → start a sequence` or `on a form request → reply task due in 2 hours`. Most signals become tasks ("answer in the thread"); some start a sequence of messages.
+5. **Drafts wait for you.** Claude writes each message from your claims and voice, and Astrolabe flags anything outside them. You approve, edit or skip on **Today**. Nothing sends without approval unless you allow it per product.
+6. **Replies close the loop.** A reply stops the sequence and waits for a label (interested, not now, no). "No", bounces and unsubscribes go on a do-not-contact list that every product respects.
+7. **Progress is tracked two ways.** The **funnel** follows people (reached → replied → signed up → activated). For b2b, the **pipeline** follows companies through your stages, each with one next action and a due date. Qualification checks must be "yes" with evidence before the gate stage.
+8. **The weekly review says what worked.** Counts with their denominators, stuck accounts, themes from calls, public mentions and campaign results. Experiments end with keep, change or stop.
+
+**A day with it** takes 30–60 minutes: open **Today**, answer requests and replies, approve drafts, close due tasks, and log a note after each call. Or ask Claude "what's waiting on me?". Monitors keep polling and approved messages keep sending while you're away.
+
+| You'll see | Sales term | It means |
+| --- | --- | --- |
+| **Signal** | intent data | An event about a person: an issue they opened about your problem, a star, a form request, a signup |
+| **Target / fit rules** | ICP | Who the product is for: sentences for humans, facts with weights for the scorer |
+| **Priority A–D** | lead score | Score 0–100 from fit, recent activity and why now. A = contact now |
+| **Automation** | play, workflow | `trigger → when → action` in `automations.yaml` |
+| **Sequence** | cadence | Timed message steps. `kind: cold` for strangers, `kind: users` for existing users |
+| **Offer** | CTA | The one concrete thing every message asks for |
+| **Funnel / activation** | lifecycle stages | Your product's stages for people; activation is the first real success, the number to move |
+| **Pipeline** | deals, opportunities | Companies moving through your stages, with qualification (BANT, MEDDIC) before the gate stage |
+| **Do not contact** | suppression list | People no product will ever message again |
+
+The config accepts sales vocabulary too (`icp`, `plays.yaml`, `kind: outbound`). The full glossary is in [docs/astrolabe.md](docs/astrolabe.md).
 
 ## Try it in five minutes (no accounts needed)
 
@@ -17,7 +52,7 @@ docker run --rm --user "$(id -u):$(id -g)" -v "$PWD:/work" -w /work ghcr.io/astr
 docker compose up -d
 ```
 
-Open http://localhost:8080/app/ and sign in with `ASTROLABE_PASSWORD` from `.env`. (Run the `astrolabe` binary yourself instead and it listens on 127.0.0.1 with no sign-in at all.) The demo runs in **sandbox mode**: nothing leaves your machine, and every message lands in a local **Outbox**. Try this:
+Open http://localhost:8080/app/ and sign in with `ASTROLABE_PASSWORD` from `.env`. The demo runs in **sandbox mode**: nothing leaves your machine, and every message lands in a local **Outbox**. Try this:
 
 1. **People:** tick a few demo people, then **Start a sequence** with `intro`.
 2. **Today:** read the draft (the exact sender, recipient and text), then **Approve**, or **Edit** it first.
@@ -25,72 +60,9 @@ Open http://localhost:8080/app/ and sign in with `ASTROLABE_PASSWORD` from `.env
 4. **Today:** the sequence stopped and the reply waits to be labelled. Mark it *Interested* and a task appears.
 5. **Signals → Add a signal by hand** with type `referral`: the `referral-intro` automation starts a sequence by itself.
 
-Then look at **Pipeline** (the demo's accounts by stage; open one and **Log a conversation**), **Campaigns** (the launch-week campaign and its creative) and the **Weekly review**. The classic pages (the Inbox at http://localhost:8080 and the rest) still work for now.
+Then look at **Pipeline** (open an account and **Log a conversation**), **Campaigns** and the **Weekly review**.
 
-## Use it from Claude or Codex
-
-Astrolabe is an MCP server. Every client gets the same tools ([full list](docs/mcp-tools.md)), over one of two transports:
-
-- **stdio**: the client starts `astrolabe mcp` itself (through `docker compose exec`), one process per client. Nothing extra to set up.
-- **HTTP**: the client connects to the running server at `http://localhost:8080/mcp` with a bearer token. The server must be up (`docker compose up -d`).
-
-Get the token (generated on first start and kept in the secrets volume; or set `ASTROLABE_MCP_TOKEN` in `.env`):
-
-```sh
-export ASTROLABE_MCP_TOKEN=$(docker compose exec -T astrolabe astrolabe mcp token)
-docker compose exec astrolabe astrolabe mcp token -rotate   # replace it; takes effect at once
-```
-
-**Claude Code**
-
-```sh
-# stdio
-claude mcp add astrolabe -- docker compose -f "$PWD/compose.yaml" exec -T astrolabe astrolabe mcp
-# HTTP
-claude mcp add --transport http astrolabe http://localhost:8080/mcp --header "Authorization: Bearer $ASTROLABE_MCP_TOKEN"
-```
-
-(The HTTP form stores the token in Claude's config; `--scope project` writes it to `.mcp.json`, so keep that file out of git.)
-
-**Claude Desktop** takes stdio in `claude_desktop_config.json` (use the absolute path to your `compose.yaml`):
-
-```json
-{
-  "mcpServers": {
-    "astrolabe": {
-      "command": "docker",
-      "args": ["compose", "-f", "/path/to/compose.yaml", "exec", "-T", "astrolabe", "astrolabe", "mcp"]
-    }
-  }
-}
-```
-
-**Codex CLI**
-
-```sh
-# stdio
-codex mcp add astrolabe -- docker compose -f "$PWD/compose.yaml" exec -T astrolabe astrolabe mcp
-# HTTP (Codex reads the token from the environment variable, so it never lands in config.toml)
-codex mcp add astrolabe --url http://localhost:8080/mcp --bearer-token-env-var ASTROLABE_MCP_TOKEN
-```
-
-These write the following to `~/.codex/config.toml`, which you can also edit by hand:
-
-```toml
-# stdio
-[mcp_servers.astrolabe]
-command = "docker"
-args = ["compose", "-f", "/path/to/compose.yaml", "exec", "-T", "astrolabe", "astrolabe", "mcp"]
-
-# HTTP (use one of the two)
-[mcp_servers.astrolabe]
-url = "http://localhost:8080/mcp"
-bearer_token_env_var = "ASTROLABE_MCP_TOKEN"
-```
-
-Then ask "what's in my inbox?", "who are the top prospects?", "start the intro sequence for Sam and Priya", "simulate a reply from Sam" or "how's the funnel?".
-
-HTTP binds to the same port as the web app. For anything beyond your own machine, put it behind HTTPS; the token is the only credential.
+To use it from Claude Code, run `claude mcp add astrolabe -- docker compose -f "$PWD/compose.yaml" exec -T astrolabe astrolabe mcp` and ask "what's waiting on me?". Codex, Claude Desktop and MCP over HTTP are in [docs/setup.md](docs/setup.md#use-it-from-claude-or-codex).
 
 ## Your own product
 
@@ -109,120 +81,36 @@ This writes `products/<id>/`:
 
 | File | What goes in it |
 | --- | --- |
-| `product.yaml` | Name, who it's for (`target`), funnel stages, the offer, sender mailboxes, `fit` rules, `auto_approve`, limits, an optional opt-in `updates` list (name, `per_day`, `postal_address`), and for b2b an optional account `pipeline` |
-| `claims.md`, `voice.md` | What's true about the product (drafts may only use this) and how you write. It won't load while they start with `STUB:`. |
-| `sequences/*.yaml` | Timed message steps, `kind: cold` (strangers) or `kind: users` (existing users) |
-| `monitors.yaml` | Where to look for signals: GitHub searches, your repo's stars, issues and discussions, HN/Stack Overflow/RSS keywords, `github_release` counters (release downloads, stars, forks, watchers, discussions; no people), and request forms (`netlify_forms` polled from Netlify, or `form_webhook`). Add `reception: true` to log results as public mentions |
-| `automations.yaml` | `trigger → when → action` rules (sales: plays) |
-| `campaigns/*.yaml` | A campaign (a launch week, a small paid test): goal, landing page, budget cap, dates, stop rule, a gate checklist, launch tasks and creatives. Budget and dates can be changed in chat, with every change kept. Spend, creative approval and a report with counts, no pixels, nothing posted for you. See the docs, section 15.9 |
+| `product.yaml` | Who it's for, funnel stages, the offer, sender mailboxes, fit rules, approval and limits; optionally an updates list and an account pipeline |
+| `claims.md`, `voice.md` | What's true about the product (drafts may only use this) and how you write |
+| `monitors.yaml` | Where to look for signals |
+| `automations.yaml` | `trigger → when → action` rules |
+| `sequences/*.yaml` | Timed message steps |
+| `campaigns/*.yaml` | Optional: a launch week or a small paid test, with a budget cap, dates, a stop rule and creatives |
 
-Every YAML file starts with a `# yaml-language-server: $schema=...` line, so VS Code (with the YAML extension), Zed, Neovim and JetBrains autocomplete keys, explain them on hover and flag typos. Or ask Claude to "set up a new product" and it interviews you and writes the folder.
+Each YAML file points at a JSON schema, so VS Code, Zed, Neovim and JetBrains autocomplete keys and flag typos. Or ask Claude to "set up a new product" and it interviews you and writes the folder. Then run `astrolabe doctor` to see what's missing.
 
-Then check what's missing:
+To send for real, [go live](docs/setup.md#go-live): a new database in live mode, your mailboxes connected with an app password, and `astrolabe doctor -connect` passing.
 
-```sh
-docker compose exec astrolabe astrolabe doctor           # add -connect to test logins, keys and DNS
-```
+## Safe by default
 
-## Connect email (app password)
+- You approve the exact message. Any edit withdraws the approval, and each message is sent at most once.
+- A person known only from GitHub is never emailed, as GitHub's policies require; you help them in the thread.
+- No tracking pixels. Tracked links are optional, and off with `links.personal: false`.
+- Replies stop sequences. "No", bounces and unsubscribes are honoured across every product.
+- `astrolabe forget <email>` erases a person on request.
 
-Cold email should come from a separate domain or mailbox (for example `you@try-yourproduct.com`), so a bad day doesn't hurt your main domain. Connect each sender address on the classic **Settings** page (**Mailboxes**), or:
+The details are in [docs/setup.md](docs/setup.md#how-sending-stays-safe).
 
-```sh
-docker compose exec -e ASTROLABE_MAIL_PASSWORD=... astrolabe astrolabe mailbox add you@try-yourproduct.com -provider gmail
-```
+## Docs
 
-Presets exist for Gmail/Google Workspace, Fastmail, iCloud and Zoho (hosts, ports and username rules checked against each provider's docs in September 2026); `-provider custom -smtp host:587 -imap host:993` works for anything else. Both logins are tested before saving, and the password is stored in the secrets volume, never in the database. Astrolabe sends over SMTP, reads replies and bounces over IMAP, and files a copy in Sent where the provider doesn't. Gmail OAuth (`astrolabe gmail auth`) is still available if you prefer it.
-
-## Go live
-
-1. Use a **new database** for live sending: a database stays in the mode it started in, so demo data never mixes with real sends. In `.env`, set `ASTROLABE_MODE=live`, then `docker compose down -v && docker compose up -d`. Delete the demo product folder first.
-2. Fill in `claims.md` and `voice.md`, connect the mailboxes, and run `astrolabe doctor -connect` until nothing is ✗.
-3. Put the server behind HTTPS and set `ASTROLABE_PUBLIC_URL` for tracked links and webhooks. [deploy/terraform](deploy/terraform) sets up one small GCP VM with Caddy and backups; any Docker host works.
-4. Optional: set `ASTROLABE_GITHUB_TOKEN` (strongly recommended for monitors) and `ASTROLABE_ANTHROPIC_API_KEY` (AI research, drafts and reply sorting).
-
-## How it works, in developer terms
-
-```text
-signals ──▶ people + score ──▶ automations ──▶ sequences ──▶ drafts ──▶ you approve ──▶ send
-(GitHub issues,  (fit + intent       (trigger → when      (timed      (Claude writes      replies, clicks,
- stars, HN,       + why now,           → action rules,     message     them from your     signups, payments
- product events)  priority A–D)        like CI workflows)  steps)      claims + voice)   ──▶ funnel, digest
-```
-
-| You'll see (sales term) | It means |
-| --- | --- |
-| **Signal** (intent data) | An event about a person: an issue they opened about your problem, a star, an HN post, a signup |
-| **Target / fit rules** (ICP) | Who the product is for: sentences for humans, `dep:bullmq`-style facts with weights for the scorer |
-| **Priority A–D** (lead score) | Score 0–100 from fit, recent activity (intent) and time-sensitive events (why now). A = contact now |
-| **Sequence** (cadence) | Timed message steps. `kind: cold` for strangers, `kind: users` for existing users |
-| **Automation** (play, workflow) | `trigger → when → action` in `automations.yaml`, e.g. on a pain-issue signal with fit ≥ 50, start a sequence |
-| **Funnel / activation** (lifecycle stages) | Your product's stages for people; activation is the first real success (the number to move) |
-| **Pipeline** (deals, opportunities) | b2b, optional: companies (accounts) moving through your stages, each with one next action and a note per move. Qualification checks (BANT, MEDDIC) must be "yes" with evidence before the gate stage. See [§15.2](docs/astrolabe.md#152-account-pipeline-and-qualification) |
-| **Offer** | The one concrete thing every message asks for |
-| **Do not contact** (suppression list) | People no product will ever message again |
-
-The config accepts sales vocabulary too (`icp`, `autonomy`, `plays.yaml`, `kind: outbound`). The design, with the full glossary, is in [docs/astrolabe.md](docs/astrolabe.md).
-
-## Send product events and payments
-
-Your app sends events to `POST /hooks/events/<product>`, and Stripe sends to `POST /hooks/stripe/<product>`. Both need `ASTROLABE_PUBLIC_URL` and a signing secret (see **Settings → Webhooks**). Signing an event from a shell:
-
-```sh
-body='{"id":"evt-1","type":"signed_up","user_id":"u42","email":"ana@acme.example"}'
-t=$(date +%s); sig=$(printf '%s.%s' "$t" "$body" | openssl dgst -sha256 -hmac "$ASTROLABE_EVENTS_SECRET_HOOK_CHECK" -hex | awk '{print $NF}')
-curl -X POST https://gtm.example.com/hooks/events/hook-check -H "Astrolabe-Signature: t=$t,v1=$sig" -d "$body"
-```
-
-A form on your own server posts its fields as JSON to `POST /hooks/forms/<product>` the same way, signed with `ASTROLABE_FORMS_SECRET_<PRODUCT>` (add `?form=<monitor id>` when the product has several `form_webhook` monitors); a form on Netlify needs no webhook, because a `netlify_forms` monitor pulls it. Each request becomes a person, a signal, an account and a reply task; see section 15.5 of [docs/astrolabe.md](docs/astrolabe.md).
-
-An event whose `type` matches a funnel stage records that stage. Sending `user_id` with `email` links the signup to earlier outreach.
-
-## How sending stays safe
-
-- Approval covers the exact sender, recipient, subject and body. Any edit withdraws it.
-- Each message has one row. The sender claims it in a transaction that rechecks approval, the sequence, the do-not-contact list, pauses and limits, then sends once.
-- If the provider's answer is lost, the message is marked **unknown** and never resent automatically. The inbox offers **Check Sent mail**, which looks it up by its Message-ID.
-- **No email from GitHub data.** GitHub's Acceptable Use Policies forbid using GitHub information to send unsolicited email, so a person Astrolabe knows only from GitHub (a monitor, an issue, a profile email) is never emailed: enrolment is refused with the reason and the send step checks again. Help them in the issue thread instead. They become emailable once they give an address (signup, reply, your import). A product can opt out with `outreach.email_from_github: true`; `astrolabe doctor` warns when it does.
-- Tracked links are optional: `links.personal: false` keeps the plain offer link in every message.
-- Replies stop the sequence. Bounces, "no" and unsubscribes put the person on the do-not-contact list for every product.
-- **The updates list is double opt-in.** A sign-up (a form automation, or you adding someone who asked in person) is *pending* and gets one confirmation email; they are not on the list until they reply to it (it works with no public address) or open its link (when `ASTROLABE_PUBLIC_URL` is set). Unconfirmed sign-ups expire. Every message carries `List-Unsubscribe` (a `mailto:`, plus one-click https when a public URL is set) and a visible line, and an unsubscribe is honoured before the next send. It leaves only the list: do-not-contact needs a "stop all" or a STOP to outreach.
-- **Broadcasts are approved text, sent once.** You read the exact subject and body and approve it; an edit withdraws the approval and flagged copy (a never-claim, a placeholder) can't be approved. It goes to confirmed subscribers only, one row each, claimed in a transaction, at most `updates.per_day` (default 100) in any 24 hours, and never twice. If the provider's answer is lost the row is marked unknown and not resent. No broadcast is approved or sent without your `updates.postal_address`.
-
-## Your data and privacy
-
-- **Erase on request.** `astrolabe forget <email>` (or the `forget_person` tool in Claude) deletes everything about one person in one transaction, deletes their Netlify form submissions through Netlify's API, and keeps only a salted hash so they are never contacted or recreated. See section 15.12 of [docs/astrolabe.md](docs/astrolabe.md).
-
-## Configuration
-
-| Variable | |
-| --- | --- |
-| `ASTROLABE_MODE` | `sandbox` (local outbox) or `live` |
-| `ASTROLABE_PASSWORD` | Web app password; generated and printed on first start if unset |
-| `ASTROLABE_DATABASE_URL` | Postgres 15+ |
-| `ASTROLABE_PUBLIC_URL` | Public https address (tracked links, webhooks, and links to confirm or leave the updates list; without it, replies do that) |
-| `ASTROLABE_GITHUB_TOKEN` | GitHub monitors and enrichment (no scopes needed) |
-| `ASTROLABE_ANTHROPIC_API_KEY` | AI research, drafts, reply sorting, content |
-| `ASTROLABE_EVENTS_SECRET_<PRODUCT>`, `ASTROLABE_STRIPE_SECRET_<PRODUCT>`, `ASTROLABE_FORMS_SECRET_<PRODUCT>` | Webhook signing secrets (product events, Stripe, forms) |
-| `ASTROLABE_NETLIFY_TOKEN` | `netlify_forms` monitors: a Netlify personal access token that reads form submissions |
-| `ASTROLABE_RESEND_API_KEY` | Optional: Resend for email to existing users, and for the updates list when `updates.via: resend` |
-| `ASTROLABE_WHATSAPP_*`, `ASTROLABE_NOTIFY_SECRET_<PRODUCT>` | WhatsApp and push/in-app channels |
-| `ASTROLABE_DIGEST_TO`, `ASTROLABE_DIGEST_FROM`, `TZ` | Weekly digest email (Mondays 08:00) |
-| `ASTROLABE_RENDER_URL` | Optional creative renderer, a headless-Chromium sidecar (Gotenberg 8). Start it with `docker compose --profile creative up -d`; the compose files default to `http://gotenberg:3000`. Without it, campaign creatives keep their copy, checks and approval, and rendering says what to start |
-
-Run `astrolabe help` for every command.
+- [docs/setup.md](docs/setup.md): running it with Docker or as a binary, Claude and Codex, mailboxes, going live, webhooks and forms, configuration, development.
+- [docs/astrolabe.md](docs/astrolabe.md): the design: who it's for, the glossary, signals, scoring, automations, outreach, measurement, architecture and the build plan.
+- [docs/mcp-tools.md](docs/mcp-tools.md): every MCP tool.
 
 ## Status
 
-Everything in the design is built. The tests run against Postgres with fake providers, and the Docker quickstart above has been run end to end. Nothing has yet been run against real SMTP/IMAP, Gmail, WhatsApp, Stripe or Claude accounts, so the first live run is where rough edges will show. Please open issues.
-
-## Development
-
-```sh
-docker compose up --build            # the demo, from source, in sandbox mode
-go test ./...                        # needs Postgres; set ASTROLABE_TEST_DATABASE_URL if it isn't at /tmp
-go run ./cmd/astrolabe schema schemas   # after changing config structs
-```
+Everything in the design is built. The tests run against Postgres with fake providers, and the Docker quickstart has been run end to end. Mailbox logins have been tested against a real provider; live sending, reply detection, WhatsApp, Stripe and the Claude API have not yet run against real accounts, so the first live run is where rough edges will show. Please open issues.
 
 ## Licence
 

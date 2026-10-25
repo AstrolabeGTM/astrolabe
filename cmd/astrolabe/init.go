@@ -81,7 +81,7 @@ func initCmd(args []string, in io.Reader, out io.Writer) error {
 The demo runs in sandbox mode: nothing is really sent; try People → Start a sequence, approve on Today,
 then reply from the Outbox.
 
-Use it from Claude Code or Codex (see README, "Use it from Claude or Codex"):
+Use it from Claude Code or Codex (see docs/setup.md, "Use it from Claude or Codex"):
   claude mcp add astrolabe -- docker compose -f "$PWD/compose.yaml" exec -T astrolabe astrolabe mcp
   codex mcp add astrolabe -- docker compose -f "$PWD/compose.yaml" exec -T astrolabe astrolabe mcp
 Or over HTTP at http://localhost:8080/mcp; the bearer token is:
@@ -92,7 +92,7 @@ Or over HTTP at http://localhost:8080/mcp; the bearer token is:
   2. Edit monitors.yaml and automations.yaml; your editor autocompletes them from schemas/.
   3. astrolabe doctor   (checks what's missing)
   4. Chat with it: claude mcp add astrolabe -- docker compose -f "$PWD/compose.yaml" exec -T astrolabe astrolabe mcp
-     (Codex: codex mcp add ... the same way; HTTP and Claude Desktop are in the README.)
+     (Codex: codex mcp add ... the same way; HTTP and Claude Desktop are in docs/setup.md.)
 `, idFrom(files))
 	}
 	return nil
